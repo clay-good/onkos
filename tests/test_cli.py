@@ -38,6 +38,12 @@ def test_uncertainty(capsys):
     assert "bands" in out and "median_os_weeks" in out
 
 
+def test_sensitivity(capsys):
+    assert main(["sensitivity", "resistance.claret_2009.tgi", "--n", "120"]) == 0
+    out = capsys.readouterr().out
+    assert "contribution" in out and "verify" in out
+
+
 def test_simulate_compare(capsys):
     assert main(["simulate", "--compare", "--tumor-type", "NSCLC", "--line", "first"]) == 0
     out = capsys.readouterr().out

@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.8 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.9 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -115,6 +115,31 @@ m["time_to_growth_weeks"]       # nadir time when genuine regrowth follows
 m["duration_of_response_weeks"] # RECIST PR (−30%) → PD (+20% from nadir); nan if no PR
 ```
 
+### Which uncertainty to verify first: sensitivity analysis
+
+Propagation gives a band; `onkos.sensitivity` attributes that band's variance to
+individual parameters. Because each IIV-bearing parameter is sampled
+independently, a parameter's standardized regression coefficient equals its
+correlation with the target and the squared coefficients partition the explained
+variance (a first-order Sobol decomposition). This is **curation triage**: the
+spec's highest-leverage contribution is verifying records against the source PDF
+(§9), and this says *which* parameter's uncertainty actually moves the survival
+prediction.
+
+![Parameter sensitivity tornado](docs/images/sensitivity.png)
+
+A genuinely useful nuance falls out: for the Claret NSCLC model the kill rate
+`kD` (CV 89%) drives ~90% of the median-OS variance — *more* than the resistance
+term `lambda` (CV 96%), because influence is variability × effect-strength, not
+CV alone. So `kD` is where verification pays off first.
+
+```python
+res = onkos.sensitivity(ds, "resistance.claret_2009.tgi", context=ctx, target="median_os_weeks")
+res.r_squared                  # first-order variance explained
+res.dominant.symbol            # "kD" — verify this parameter first
+[(p.symbol, round(p.contribution, 2), p.src) for p in res.indices]
+```
+
 ---
 
 ## Install & quick start
@@ -164,6 +189,11 @@ ens = onkos.simulate_ensemble(ds, "resistance.claret_2009.tgi", context=ctx, n=4
 ens.tumor_size.median, ens.tumor_size.lo, ens.tumor_size.hi   # 5–95% band arrays
 ens.os_curve.lo, ens.os_curve.hi                               # population-OS band
 ens.metrics["median_os_weeks"]             # {"median", "lo", "hi"}
+
+# Sensitivity — attribute the OS-prediction variance to parameters (verify first)
+res = onkos.sensitivity(ds, "resistance.claret_2009.tgi", context=ctx, target="median_os_weeks")
+res.dominant.symbol                        # "kD"
+res.indices                                # ranked [ParamSensitivity(symbol, src, contribution), …]
 ```
 
 ### CLI (cheat sheet)
@@ -177,6 +207,7 @@ ens.metrics["median_os_weeks"]             # {"median", "lo", "hi"}
 | `onkos simulate <id> [--tumor-type --line --drug-effect]` | one model's trajectory + metrics |
 | `onkos simulate --compare` | virtual-trial divergence across eligible models |
 | `onkos uncertainty <id> [--n --seed]` | Monte-Carlo parameter-uncertainty bands (propagates IIV CV) |
+| `onkos sensitivity <id> [--target --n]` | rank parameters by how much their IIV drives a target metric |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
 
 Export formats: `nonmem`, `sbml`, `pharmml`, `rxode2`, `pumas`, `vt-json`,
@@ -534,6 +565,7 @@ delay). An export bug therefore cannot ship silently.
 | Hypothesis-tier (immuno-oncology) is enforced in code, not just documented | A "do not predict" note in prose is easy to ignore. The validator fails the build if an IO record is not tier D, exports carry a machine-readable `predictionStatus`, and IO is excluded from the clinical view — so the frontier can be explored but never masquerade as validated. |
 | Parameter uncertainty is propagated, not just stored | Storing `iiv_cv_percent` but simulating on central values would let a ~90%-CV term pose as a point estimate. `simulate_ensemble` samples IIV lognormally (median-preserving) so the reported variability flows into tumor/OS bands — the second uncertainty axis alongside model-selection divergence. |
 | TGI metrics are extracted model-agnostically (Stein method), not read from params | Reading k_g/k_s off a record only works for the biexponential; the Claret/Simeoni structures have no such params. Extracting them from the trajectory the way Stein extracts them from RECIST data makes the metric panel uniform across kernels — and recovers the generating rates as a built-in correctness check. |
+| Sensitivity uses independent sampling so first-order indices are correlations | Sampling each IIV parameter independently makes the standardized regression coefficient equal the input-target correlation and the squared SRCs partition the variance — a first-order Sobol decomposition with no extra design. It also exposes that CV alone ≠ influence (influence is CV × effect-strength), pointing verification at the parameter that actually moves the prediction. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---
@@ -547,7 +579,7 @@ onkos/
 │   ├── records/                 # one JSON per model / context-baseline
 │   └── citations/               # Crossref/PubMed citation records
 ├── python/onkos/
-│   ├── load · filter · validate · tiers · simulate · metrics · compare · uncertainty · report · cli
+│   ├── load · filter · validate · tiers · simulate · metrics · compare · uncertainty · sensitivity · report · cli
 │   ├── py.typed                 # PEP 561 typing marker
 │   └── export/                  # registry · reference · nonmem · sbml · pharmml
 │       · rxode2 · pumas · virtual_trial_json · combine · annotate

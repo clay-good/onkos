@@ -379,6 +379,41 @@ def tgi_metrics_figure() -> None:
     plt.close(fig)
 
 
+def sensitivity_figure() -> None:
+    """Tornado: which parameter's IIV drives the survival prediction."""
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    res = onkos.sensitivity(ds, "resistance.claret_2009.tgi", context=ctx,
+                            target="median_os_weeks", n=600, seed=0)
+    rows = list(reversed(res.indices))  # largest at top
+    labels = [f"{p.symbol}\n(CV {p.iiv_cv_percent:.0f}%)" for p in rows]
+    contrib = [p.contribution * 100 for p in rows]
+    colors = ["#2f855a" if p.src > 0 else "#c53030" for p in rows]
+
+    fig, ax = plt.subplots(figsize=(8.0, 3.8))
+    ax.barh(labels, contrib, color=colors)
+    for i, p in enumerate(rows):
+        ax.text(p.contribution * 100 + 1, i, f"{p.contribution * 100:.0f}%  (SRC {p.src:+.2f})",
+                va="center", fontsize=8)
+    ax.set_xlim(0, 105)
+    ax.set_xlabel("contribution to median-OS variance (%)")
+    ax.set_title(
+        f"Parameter sensitivity (Claret NSCLC) — first-order R²={res.r_squared:.2f}; "
+        f"verify '{res.dominant.symbol}' first",
+        fontsize=10,
+    )
+    # legend for sign
+    from matplotlib.patches import Patch
+    ax.legend(
+        handles=[Patch(color="#2f855a", label="↑ param → ↑ OS"),
+                 Patch(color="#c53030", label="↑ param → ↓ OS")],
+        fontsize=8, loc="lower right",
+    )
+    fig.tight_layout()
+    fig.savefig(OUT / "sensitivity.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
@@ -389,4 +424,5 @@ if __name__ == "__main__":
     coverage_figure()
     uncertainty_figure()
     tgi_metrics_figure()
+    sensitivity_figure()
     print(f"Wrote figures to {OUT}")

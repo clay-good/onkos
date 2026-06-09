@@ -7,7 +7,7 @@ import csv
 import sys
 from pathlib import Path
 
-from . import __version__, compare, load, simulate, simulate_ensemble
+from . import __version__, compare, load, sensitivity, simulate, simulate_ensemble
 from .export.combine import build_omex
 from .export.nonmem import to_nonmem
 from .export.pharmml import to_pharmml
@@ -136,6 +136,24 @@ def _cmd_uncertainty(args) -> int:
     return 0
 
 
+def _cmd_sensitivity(args) -> int:
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    res = sensitivity(ds, args.record, context=ctx, target=args.target, n=args.n, seed=args.seed)
+    print(
+        f"{args.record}  target={res.target}  "
+        f"(n={res.n_used}/{res.n}, first-order R^2={res.r_squared:.2f})\n"
+    )
+    print(f"  {'parameter':<12} {'IIV CV%':>8} {'SRC':>8} {'contribution':>14}")
+    for p in res.indices:
+        bar = "█" * round(p.contribution * 20)
+        print(f"  {p.symbol:<12} {p.iiv_cv_percent:>8.0f} {p.src:>+8.3f} "
+              f"{p.contribution * 100:>12.0f}%  {bar}")
+    if res.dominant:
+        print(f"\n  -> verify '{res.dominant.symbol}' first (drives the prediction).")
+    return 0
+
+
 def _write_csv(ds, out: Path) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", newline="") as fh:
@@ -236,6 +254,17 @@ def build_parser() -> argparse.ArgumentParser:
     up.add_argument("--n", type=int, default=200, help="number of Monte-Carlo samples")
     up.add_argument("--seed", type=int, default=0)
     up.set_defaults(func=_cmd_uncertainty)
+
+    np_ = sub.add_parser(
+        "sensitivity", help="rank parameters by how much their IIV drives a target metric"
+    )
+    np_.add_argument("record", help="record id")
+    np_.add_argument("--tumor-type", default="NSCLC")
+    np_.add_argument("--line", default="first")
+    np_.add_argument("--target", default="median_os_weeks", help="metric key or median_os_weeks")
+    np_.add_argument("--n", type=int, default=400, help="number of Monte-Carlo samples")
+    np_.add_argument("--seed", type=int, default=0)
+    np_.set_defaults(func=_cmd_sensitivity)
 
     ep = sub.add_parser("export", help="generate export artifacts")
     ep.add_argument(

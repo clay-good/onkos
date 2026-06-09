@@ -11,6 +11,7 @@ from .compare import Comparison, compare
 from .filter import filter_records
 from .load import DATASET_VERSION, Dataset, load
 from .report import build_report
+from .sensitivity import SensitivityResult, sensitivity
 from .simulate import CLINICAL_USE, Trajectory, simulate
 from .uncertainty import Ensemble, simulate_ensemble
 from .validate import validate_dataset
@@ -23,9 +24,11 @@ __all__ = [
     "Trajectory",
     "Comparison",
     "Ensemble",
+    "SensitivityResult",
     "load",
     "simulate",
     "simulate_ensemble",
+    "sensitivity",
     "compare",
     "filter_records",
     "validate_dataset",

@@ -4,6 +4,18 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.9.0] — Variance-based parameter sensitivity
+
+- `onkos.sensitivity` / `onkos sensitivity`: ranks a record's IIV-bearing
+  parameters by how much their variability drives a target (median OS or any
+  metric). Independent lognormal sampling makes the standardized regression
+  coefficient equal the input-target correlation, so squared SRCs give a
+  first-order variance decomposition (with direction).
+- Turns uncertainty bands into curation triage: it shows *which* parameter to
+  verify first (for the Claret NSCLC model, the kill rate kD drives ~90% of the
+  median-OS variance — more than the higher-CV resistance term).
+- Tornado figure + notebook 08.
+
 ## [0.8.0] — TGI-metric extraction (Stein/Bruno panel)
 
 - `onkos.metrics.extract_tgi_metrics`: model-agnostic extraction of the derived
