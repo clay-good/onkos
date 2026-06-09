@@ -1,0 +1,23 @@
+Onkos dataset — Creative Commons Attribution 4.0 International (CC BY 4.0)
+========================================================================
+
+The contents of the `dataset/` directory (the curated records, parameter values,
+derivation-context and transportability annotations, tier assignments, and
+citation metadata) are licensed under CC BY 4.0.
+
+You are free to share and adapt the data for any purpose, including
+commercially, provided you give appropriate credit. When you use a record, cite
+both Onkos (see CITATION.cff) and the original source listed in that record's
+`primary_citation.doi`.
+
+Full legal text: https://creativecommons.org/licenses/by/4.0/legalcode
+
+Note on scope and warranty: the data describe published *model fits* and carry
+explicit, often large uncertainty (see each record's tier and `iiv_cv_percent`).
+They are provided for research, drug-development methodology, and education only.
+They are NOT a clinical decision tool, NOT a prognostic calculator, and NOT
+validated for any decision affecting a real patient. No warranty of fitness for
+any purpose is given.
+
+The software in this repository (everything outside `dataset/`) is licensed
+separately under the MIT License; see LICENSE.

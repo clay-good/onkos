@@ -1,0 +1,47 @@
+{
+  "id": "tumor_type_baselines.nsclc_first_line",
+  "kind": "context_baseline",
+  "purpose": "growth",
+  "subsystem": "tumor_type_baselines",
+  "name": "NSCLC first-line baseline tumor size and growth",
+  "description": "Context-baseline record: typical baseline RECIST sum-of-longest-diameters and unperturbed growth-rate constant for first-line non-small-cell lung cancer. Supplies y0 and a reference growth rate for the virtual-trial divergence view. Values illustrative and unverified.",
+  "structure": { "states": ["tumor_size"] },
+  "parameters": [
+    {
+      "symbol": "baseline_tumor_size",
+      "label": "baseline SLD",
+      "value": { "central": 80.0, "low": 40.0, "high": 140.0, "units": "mm" },
+      "iiv_cv_percent": 55,
+      "tier": "C",
+      "primary_citation": "wang-2009-tgi",
+      "extraction": { "review_status": "unverified", "source_locator": "indication summary; value illustrative", "tier_rationale": "Population baseline varies widely by stage and enrollment." }
+    },
+    {
+      "symbol": "kg",
+      "label": "unperturbed growth rate constant",
+      "value": { "central": 0.020, "low": null, "high": null, "units": "1/week" },
+      "iiv_cv_percent": 40,
+      "tier": "C",
+      "primary_citation": "wang-2009-tgi",
+      "extraction": { "review_status": "unverified", "source_locator": "indication summary; value illustrative", "tier_rationale": "Indication-level central estimate." }
+    }
+  ],
+  "derivation_context": {
+    "drug": null,
+    "drug_class": null,
+    "tumor_type": "NSCLC",
+    "line_of_therapy": "first",
+    "trial": "illustrative",
+    "n_patients": null,
+    "measurement": "RECIST_sum_longest_diameters"
+  },
+  "transportability": {
+    "validated_tumor_types": ["NSCLC"],
+    "validated_drug_classes": [],
+    "validated_lines": ["first"],
+    "out_of_context_action": "tier_down_to_D and warn"
+  },
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "wang-2009-tgi"
+}

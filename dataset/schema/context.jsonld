@@ -1,0 +1,16 @@
+{
+  "@context": {
+    "onkos": "https://onkos.dev/ns#",
+    "bqbiol": "http://biomodels.net/biology-qualifiers/",
+    "bqmodel": "http://biomodels.net/model-qualifiers/",
+    "dcterms": "http://purl.org/dc/terms/",
+    "id": "@id",
+    "confidenceTier": "onkos:confidenceTier",
+    "clinicalUse": "onkos:clinicalUse",
+    "datasetVersion": "onkos:datasetVersion",
+    "derivationContext": "onkos:derivationContext",
+    "transportability": "onkos:transportability",
+    "isDescribedBy": "bqbiol:isDescribedBy",
+    "doi": "dcterms:identifier"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "id": "tgi_metrics.wang_2009.biexponential",
+  "kind": "model",
+  "purpose": "tgi",
+  "subsystem": "tgi_metrics",
+  "name": "Wang/Stein 2009 biexponential clinical TGI model (NSCLC)",
+  "description": "Two-phase (shrink + regrowth) clinical tumor-size model y(t) = y0*(exp(-ks*E*t) + exp(kg*t) - 1), where ks is the drug-driven shrinkage rate scaled by drug effect E and kg the regrowth rate. Yields the Stein growth-rate-constant and the on-treatment tumor-size metrics. Values are illustrative NSCLC-scale and unverified.",
+  "kernel": "biexp_tgi",
+  "structure": {
+    "growth_law": "exponential_regrowth",
+    "kill_model": "first_order_shrink",
+    "resistance": "constant_regrowth",
+    "states": ["tumor_size"]
+  },
+  "parameters": [
+    {
+      "symbol": "kg",
+      "label": "tumor regrowth rate constant",
+      "value": { "central": 0.018, "low": null, "high": null, "units": "1/week" },
+      "iiv_cv_percent": 45,
+      "tier": "B",
+      "primary_citation": "wang-2009-tgi",
+      "extraction": { "review_status": "unverified", "source_locator": "model form; value illustrative", "tier_rationale": "Growth-rate constant is the strongly prognostic, well-identified term." }
+    },
+    {
+      "symbol": "ks",
+      "label": "tumor shrinkage rate constant (per unit effect)",
+      "value": { "central": 0.055, "low": null, "high": null, "units": "1/week per effect-unit" },
+      "iiv_cv_percent": 70,
+      "tier": "C",
+      "primary_citation": "wang-2009-tgi",
+      "extraction": { "review_status": "unverified", "source_locator": "model form; value illustrative", "tier_rationale": "Shrinkage rate depends on drug/dose; moderate identifiability." }
+    }
+  ],
+  "derivation_context": {
+    "drug": null,
+    "drug_class": null,
+    "tumor_type": "NSCLC",
+    "line_of_therapy": "first",
+    "trial": "illustrative",
+    "n_patients": 1000,
+    "measurement": "RECIST_sum_longest_diameters"
+  },
+  "transportability": {
+    "validated_tumor_types": ["NSCLC"],
+    "validated_drug_classes": [],
+    "validated_lines": ["first", "second"],
+    "out_of_context_action": "tier_down_to_D and warn"
+  },
+  "predictive_performance": [
+    { "metric": "OS_C_index_external", "value": 0.65, "population": "NSCLC registrational pooling (illustrative)", "citation": "wang-2009-tgi" }
+  ],
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "wang-2009-tgi"
+}

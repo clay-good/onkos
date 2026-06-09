@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://onkos.dev/schema/record.schema.json",
+  "title": "Onkos record",
+  "description": "A model record or context-baseline record in the Onkos TGI / survival dataset.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "kind", "purpose", "subsystem", "tier", "primary_citation"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+\\.[a-z0-9_.]+$",
+      "description": "Stable dotted identifier, e.g. resistance.claret_2009.tgi"
+    },
+    "kind": { "type": "string", "enum": ["model", "context_baseline"] },
+    "purpose": {
+      "type": "string",
+      "enum": ["growth", "drug_effect", "tgi", "exposure_response", "metric", "survival_link", "translation"]
+    },
+    "subsystem": {
+      "type": "string",
+      "enum": ["growth_laws", "drug_effect", "resistance", "exposure_response", "tgi_metrics", "survival_link", "tumor_type_baselines", "preclinical_translation", "immuno_oncology"]
+    },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "structure": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "growth_law": { "type": ["string", "null"] },
+        "kill_model": { "type": ["string", "null"] },
+        "resistance": { "type": ["string", "null"] },
+        "survival_baseline": { "type": ["string", "null"] },
+        "states": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "kernel": {
+      "type": "string",
+      "description": "Name of the bound reference kernel in onkos.export.reference."
+    },
+    "parameters": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/parameter" }
+    },
+    "derivation_context": { "$ref": "#/definitions/derivation_context" },
+    "transportability": { "$ref": "#/definitions/transportability" },
+    "known_failure_modes": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/failure_mode" }
+    },
+    "predictive_performance": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/predictive_performance" }
+    },
+    "tier": { "$ref": "#/definitions/tier" },
+    "review_status": { "type": "string", "enum": ["unverified", "verified", "contested"] },
+    "primary_citation": { "type": "string", "description": "Citation key in dataset/citations/." }
+  },
+  "definitions": {
+    "tier": { "type": "string", "enum": ["A", "B", "C", "D"] },
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["symbol", "label", "value", "tier"],
+      "properties": {
+        "symbol": { "type": "string" },
+        "label": { "type": "string" },
+        "value": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["central", "units"],
+          "properties": {
+            "central": { "type": "number" },
+            "low": { "type": ["number", "null"] },
+            "high": { "type": ["number", "null"] },
+            "units": { "type": "string" }
+          }
+        },
+        "iiv_cv_percent": { "type": ["number", "null"] },
+        "tier": { "$ref": "#/definitions/tier" },
+        "primary_citation": { "type": "string" },
+        "extraction": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "review_status": { "type": "string", "enum": ["unverified", "verified", "contested"] },
+            "source_locator": { "type": "string" },
+            "tier_rationale": { "type": "string" }
+          }
+        }
+      }
+    },
+    "derivation_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "drug": { "type": ["string", "null"] },
+        "drug_class": { "type": ["string", "null"] },
+        "tumor_type": { "type": ["string", "null"] },
+        "line_of_therapy": { "type": ["string", "null"] },
+        "trial": { "type": ["string", "null"] },
+        "n_patients": { "type": ["integer", "null"] },
+        "measurement": { "type": ["string", "null"] }
+      }
+    },
+    "transportability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "validated_tumor_types": { "type": "array", "items": { "type": "string" } },
+        "validated_drug_classes": { "type": "array", "items": { "type": "string" } },
+        "validated_lines": { "type": "array", "items": { "type": "string" } },
+        "out_of_context_action": { "type": "string", "enum": ["tier_down_to_D and warn", "warn", "none"] }
+      }
+    },
+    "failure_mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["condition", "behavior", "action"],
+      "properties": {
+        "condition": { "type": "string" },
+        "behavior": { "type": "string" },
+        "action": { "type": "string", "enum": ["tier_down_to_D and warn", "warn"] },
+        "citation": { "type": ["string", "null"] }
+      }
+    },
+    "predictive_performance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric", "value"],
+      "properties": {
+        "metric": { "type": "string" },
+        "value": { "type": "number" },
+        "population": { "type": ["string", "null"] },
+        "citation": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

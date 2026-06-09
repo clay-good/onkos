@@ -1,0 +1,73 @@
+{
+  "id": "resistance.claret_2009.tgi",
+  "kind": "model",
+  "purpose": "tgi",
+  "subsystem": "resistance",
+  "name": "Claret 2009 clinical TGI model (exponential decay of drug effect)",
+  "description": "Longitudinal clinical tumor-growth-inhibition model. Tumor size y evolves as dy/dt = kL*y - kD*E*exp(-lambda*t)*y, where E is the (exposure-driven) drug-effect magnitude and the kill term decays exponentially with rate lambda, encoding emergent resistance. Parameter values here are illustrative (dacomitinib/NSCLC-scale) and unverified.",
+  "kernel": "claret_tgi",
+  "structure": {
+    "growth_law": "exponential",
+    "kill_model": "first_order_exposure_driven",
+    "resistance": "exponential_decay_of_kill",
+    "states": ["tumor_size"]
+  },
+  "parameters": [
+    {
+      "symbol": "kL",
+      "label": "tumor growth rate constant",
+      "value": { "central": 0.021, "low": null, "high": null, "units": "1/week" },
+      "iiv_cv_percent": 38,
+      "tier": "B",
+      "primary_citation": "claret-2009-tgi",
+      "extraction": { "review_status": "unverified", "source_locator": "model form (Claret 2009); value illustrative", "tier_rationale": "Established model form; this rate is drug/indication-specific." }
+    },
+    {
+      "symbol": "kD",
+      "label": "drug-induced kill rate (per unit effect)",
+      "value": { "central": 0.30, "low": null, "high": null, "units": "1/week per effect-unit" },
+      "iiv_cv_percent": 89,
+      "tier": "C",
+      "primary_citation": "claret-2009-tgi",
+      "extraction": { "review_status": "unverified", "source_locator": "model form; value illustrative", "tier_rationale": "Kill rate poorly identified from short trials; high IIV CV." }
+    },
+    {
+      "symbol": "lambda",
+      "label": "resistance / drug-effect decay rate",
+      "value": { "central": 0.061, "low": null, "high": null, "units": "1/week" },
+      "iiv_cv_percent": 96,
+      "tier": "C",
+      "primary_citation": "claret-2009-tgi",
+      "extraction": { "review_status": "unverified", "source_locator": "model form; value illustrative", "tier_rationale": "Resistance term unidentifiable from short trials; ~90%+ CV is routine." }
+    }
+  ],
+  "derivation_context": {
+    "drug": "dacomitinib",
+    "drug_class": "EGFR_TKI",
+    "tumor_type": "NSCLC",
+    "line_of_therapy": "first",
+    "trial": "illustrative",
+    "n_patients": 266,
+    "measurement": "RECIST_sum_longest_diameters"
+  },
+  "transportability": {
+    "validated_tumor_types": ["NSCLC"],
+    "validated_drug_classes": ["EGFR_TKI"],
+    "validated_lines": ["first"],
+    "out_of_context_action": "tier_down_to_D and warn"
+  },
+  "known_failure_modes": [
+    {
+      "condition": "resistance term applied to a regimen that is not resistance-driven",
+      "behavior": "lambda unidentifiable; survival link unstable",
+      "action": "tier_down_to_D and warn",
+      "citation": "bruno-2020-review"
+    }
+  ],
+  "predictive_performance": [
+    { "metric": "OS_C_index_external", "value": 0.62, "population": "independent NSCLC cohort (illustrative)", "citation": "claret-2009-tgi" }
+  ],
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "claret-2009-tgi"
+}

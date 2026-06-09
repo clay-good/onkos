@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use Onkos, please cite it together with the primary source of each record you use (record.primary_citation.doi)."
+title: "Onkos: a curated, tier-annotated dataset of tumor-growth-inhibition and TGI to survival models"
+abstract: >-
+  Onkos is a curated, citation-backed, machine-readable dataset of the
+  tumor-growth-inhibition models, exposure-response links, and TGI-metric to
+  survival models that oncology drug development depends on. Every record carries
+  an explicit confidence tier, its derivation context, its validated
+  transportability boundary, the inter-individual variability on its
+  high-uncertainty terms, and its external-validation performance, and exports
+  into NONMEM, SBML, PharmML, nlmixr2/rxode2, and Pumas. It is not a prognostic
+  tool and not a treatment recommender.
+type: dataset
+authors:
+  - family-names: Good
+    given-names: Clay
+license: MIT
+license-url: "https://github.com/clay-good/onkos/blob/main/LICENSE"
+repository-code: "https://github.com/clay-good/onkos"
+version: 0.1.0
+keywords:
+  - oncology
+  - pharmacometrics
+  - tumor-growth-inhibition
+  - overall-survival
+  - NONMEM
+  - SBML
+  - PharmML

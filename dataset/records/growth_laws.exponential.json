@@ -1,0 +1,38 @@
+{
+  "id": "growth_laws.exponential",
+  "kind": "model",
+  "purpose": "growth",
+  "subsystem": "growth_laws",
+  "name": "Exponential (first-order) unperturbed tumor growth",
+  "description": "Unperturbed tumor growth law dV/dt = kg*V. The simplest growth model; valid only over short horizons before capacity effects appear.",
+  "kernel": "growth_exponential",
+  "structure": {
+    "growth_law": "exponential",
+    "kill_model": null,
+    "resistance": null,
+    "states": ["tumor_size"]
+  },
+  "parameters": [
+    {
+      "symbol": "kg",
+      "label": "tumor growth rate constant",
+      "value": { "central": 0.02, "low": null, "high": null, "units": "1/week" },
+      "iiv_cv_percent": null,
+      "tier": "B",
+      "primary_citation": "stein-2008-grc",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "general form",
+        "tier_rationale": "Established structural form; value is an illustrative NSCLC-scale default."
+      }
+    }
+  ],
+  "transportability": {
+    "validated_tumor_types": [],
+    "validated_drug_classes": [],
+    "out_of_context_action": "warn"
+  },
+  "tier": "B",
+  "review_status": "unverified",
+  "primary_citation": "stein-2008-grc"
+}
