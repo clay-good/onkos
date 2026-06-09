@@ -4,6 +4,19 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.18.0] — Norton-Simon kill model (fills the drug_effect subsystem)
+
+- `norton_simon` kernel: the Norton-Simon hypothesis on a Gompertz growth law,
+  `dV/dt = (g - k·E)·V·ln(Vmax/V)` — drug kill proportional to the GROWTH rate, so
+  a smaller, faster-growing tumor is more chemo-sensitive. Closed form + rhs +
+  per-state SBML round-trip; the scale-robust analytic-vs-ODE metric handles the
+  Gompertz collapse toward zero.
+- `drug_effect.norton_simon.nsclc` record fills the previously-empty `drug_effect`
+  subsystem (spec §3) and joins the NSCLC divergence view as a third, distinct
+  model — so the assumed *kill mechanism* (log-kill vs growth-proportional), not
+  just the parameters, is now a visible model-selection axis. Norton 2005 citation.
+- Kill-mechanism figure + notebook 13. Zero tier inflations after the add.
+
 ## [0.17.0] — PK composability bridge (dose → exposure → tumor → survival)
 
 - `onkos.pk`: a small, illustrative PK bridge that realizes the spec's headline

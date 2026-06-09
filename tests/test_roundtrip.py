@@ -21,6 +21,7 @@ ANALYTIC_RECORDS = [
     "growth_laws.gompertz",
     "resistance.claret_2009.tgi",
     "tgi_metrics.wang_2009.biexponential",
+    "drug_effect.norton_simon.nsclc",
 ]
 
 # Every ODE record (incl. multi-state Simeoni and the IO QSP) is round-tripped.
@@ -49,7 +50,11 @@ def test_analytic_matches_ode_integration(rid):
     t = np.linspace(0.0, 52.0, 261)
     analytic = np.asarray(spec.analytic(t, vals), dtype=float)
     ode = integrate(spec, t, vals, analytic[0])
-    rel = np.max(np.abs(ode - analytic) / np.maximum(np.abs(analytic), 1e-9))
+    # Scale-robust relative error: floor the denominator at 0.1% of the peak so
+    # trajectories that decay toward zero (Norton-Simon Gompertz collapse) stay
+    # well-conditioned instead of dividing by ~0.
+    floor = 1e-3 * np.max(np.abs(analytic))
+    rel = np.max(np.abs(ode - analytic) / np.maximum(np.abs(analytic), floor))
     assert rel < 1e-4, f"{rid}: analytic vs ODE rel err {rel}"
 
 

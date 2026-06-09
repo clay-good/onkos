@@ -175,6 +175,23 @@ def _claret_rhs(t, y, v):
 
 
 # ----------------------------------------------------------------------------
+# Norton-Simon kill on a Gompertz growth law: dV/dt = (g - k*E)*V*ln(Vmax/V).
+# The kill term is proportional to the GROWTH rate (not to tumor size), so a
+# small (fast-growing) tumor is more chemo-sensitive than a large one near
+# carrying capacity — the Norton-Simon hypothesis. Distinct from the log-kill
+# mechanism (kill proportional to V) used by the Claret model.
+# ----------------------------------------------------------------------------
+def _norton_simon_analytic(t, v):
+    g, Vmax, k, E, V0 = v["g"], v["Vmax"], v["k"], v["E"], v["V0"]
+    return Vmax * np.exp(np.log(V0 / Vmax) * np.exp(-(g - k * E) * t))
+
+
+def _norton_simon_rhs(t, y, v):
+    vc = max(float(y[0]), 1e-12)  # clip away from the ln singularity at V=0
+    return [(v["g"] - v["k"] * v["E"]) * vc * np.log(v["Vmax"] / vc)]
+
+
+# ----------------------------------------------------------------------------
 # Biexponential clinical TGI: y = y0*(exp(-ks*E*t) + exp(kg*t) - 1)
 # ----------------------------------------------------------------------------
 def _biexp_analytic(t, v):
@@ -337,6 +354,18 @@ KERNELS: dict[str, KernelSpec] = {
         analytic=_claret_analytic,
         rhs=_claret_rhs,
         rhs_infix={"tumor_size": "kL * tumor_size - kD * E * exp(-lam * t) * tumor_size"},
+    ),
+    "norton_simon": KernelSpec(
+        name="norton_simon",
+        kind="ode",
+        states=["tumor_size"],
+        params=["g", "Vmax", "k"],
+        record_symbols=["g", "Vmax", "k"],
+        inputs=["V0", "E"],
+        analytic=_norton_simon_analytic,
+        rhs=_norton_simon_rhs,
+        rhs_infix={"tumor_size": "(g - k * E) * tumor_size * ln(Vmax / tumor_size)"},
+        init_input="V0",
     ),
     "biexp_tgi": KernelSpec(
         name="biexp_tgi",

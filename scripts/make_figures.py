@@ -613,6 +613,47 @@ def composability_chain_figure() -> None:
     plt.close(fig)
 
 
+def kill_mechanism_figure() -> None:
+    """Norton-Simon (kill ∝ growth) vs log-kill (Claret, kill ∝ size) mechanisms."""
+    from onkos.export.registry import get_kernel, kernel_values
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    t = np.linspace(0.0, 156.0, 313)
+    ns = onkos.simulate(ds, "drug_effect.norton_simon.nsclc", context=ctx, drug_effect=1.0, t=t)
+    cl = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx, drug_effect=1.0, t=t)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    ax1.plot(t, ns.tumor_size, color=PALETTE[2], lw=1.8, label="Norton-Simon (kill ∝ growth)")
+    ax1.plot(t, cl.tumor_size, color=PALETTE[1], lw=1.8, label="Claret log-kill + resistance")
+    ax1.set_title("Same context, different kill mechanism")
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("tumor size (mm, SLD)")
+    ax1.legend(fontsize=8)
+    ax1.annotate("eradication\n(no resistance)", (110, 5), fontsize=8, color=PALETTE[2])
+    ax1.annotate("resistance-driven\nregrowth", (110, cl.tumor_size[220] + 20), fontsize=8,
+                 color=PALETTE[1])
+
+    # The Norton-Simon signature: fractional kill rises as the tumor shrinks.
+    spec = get_kernel(ds["drug_effect.norton_simon.nsclc"])
+    v = kernel_values(ds["drug_effect.norton_simon.nsclc"])
+    v["E"] = 1.0
+    sizes = np.linspace(5, 195, 100)
+    frac = np.array([-spec.rhs(0.0, [s], v)[0] / s for s in sizes])
+    ax2.plot(sizes, frac, color=PALETTE[2])
+    ax2.axhline(0, ls=":", color="grey", lw=1)
+    ax2.set_title("Norton-Simon hypothesis: smaller tumor → more sensitive")
+    ax2.set_xlabel("tumor size (mm)")
+    ax2.set_ylabel("fractional kill rate (1/week)")
+
+    fig.suptitle("Drug-effect subsystem (spec §3): the assumed KILL MECHANISM is itself a "
+                 "model-selection axis", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "kill_mechanism.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
@@ -628,4 +669,5 @@ if __name__ == "__main__":
     survival_model_choice_figure()
     line_of_therapy_figure()
     composability_chain_figure()
+    kill_mechanism_figure()
     print(f"Wrote figures to {OUT}")

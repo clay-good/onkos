@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.17 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.18 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -225,6 +225,24 @@ tr = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx, exposure=C,
                     exposure_response="exposure_response.emax_generic", t=t)
 ```
 
+### The kill mechanism is itself a model-selection axis
+
+The spec's `drug_effect` subsystem (§3) names **Norton-Simon** — a kill model where
+drug-induced regression is proportional to the *growth rate*, so a smaller,
+faster-growing (Gompertz) tumor is more chemo-sensitive: `dV/dt = (g − k·E)·V·ln(Vmax/V)`.
+That is mechanistically different from the **log-kill** assumption (kill ∝ tumor
+size) the Claret model uses. Adding it lets the divergence view show that *which
+kill mechanism you assume* — not just the parameters — moves the trajectory: with
+no resistance term, Norton-Simon predicts eradication, while the Claret log-kill +
+resistance model regrows.
+
+![Kill mechanism: Norton-Simon vs log-kill](docs/images/kill_mechanism.png)
+
+```python
+ns = onkos.simulate(ds, "drug_effect.norton_simon.nsclc", context=ctx, drug_effect=1.0)
+# fractional kill rate rises as the tumor shrinks — the Norton-Simon signature
+```
+
 ---
 
 ## Install & quick start
@@ -421,7 +439,8 @@ from a PK exposure through an exposure-response kernel (below).
 | `growth_exponential` | ODE | `dV/dt = kg·V` | `growth_laws.exponential` |
 | `growth_logistic` | ODE | `dV/dt = kg·V·(1 − V/Vmax)` | `growth_laws.logistic` |
 | `growth_gompertz` | ODE | `dV/dt = kg·V·ln(Vmax/V)` | `growth_laws.gompertz` |
-| `claret_tgi` | ODE | `dy/dt = kL·y − kD·E·e^(−λt)·y` (resistance = exp-decay of kill) | `resistance.claret_2009.tgi` |
+| `claret_tgi` | ODE | `dy/dt = kL·y − kD·E·e^(−λt)·y` (log-kill + resistance) | `resistance.claret_2009.tgi` |
+| `norton_simon` | ODE | `dV/dt = (g − k·E)·V·ln(Vmax/V)` (kill ∝ growth) | `drug_effect.norton_simon.nsclc` |
 | `biexp_tgi` | ODE | `y = y0·(e^(−ks·E·t) + e^(kg·t) − 1)` (shrink + regrowth) | `tgi_metrics.wang_2009.*`, `tgi_metrics.bruno_2020.*` |
 | `survival_weibull_ph` | survival | `S(t) = exp(−(t/scale)^shape · e^(β·x))`, `x` = week-8 change | `survival_link.*_os_week8`, `…_pfs_week8` |
 | `survival_cox_ph` | survival | `S(t) = S0(t)^e^(β·x)`, `S0` = tabulated baseline | `survival_link.nsclc_os_cox` |
@@ -720,6 +739,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | Confidence tiers are audited against evidence, not just hand-set | Spec §5 says tiers are "partly numeric." `onkos audit` derives the tier each clinical record's recorded external validation + IIV supports and fails `validate` on any inflation. A hand-set tier can't quietly over-claim — the honesty thesis applied to the honesty field itself. |
 | Survival matching is line-aware; an unsupported line yields no curve, not a borrowed one | The line of therapy is part of the context, so a second-line simulation must use second-line survival — matching only on tumor type would silently transport a 1L model. When no curated link exists for a line, the honest result is no survival curve, mirroring the no-fallback rule for tumor type. |
 | The PK bridge is a thin illustrative adapter, not a PK toolkit (that's Hypnos) | Onkos's scope is exposure → tumor → survival. `onkos.pk` exposes only the standard dose↔exposure relations and a profile-ingestion adapter so the composability chain is runnable self-contained; modelling the PK itself stays in Hypnos, and the generators are clearly labelled illustrative. |
+| Kill mechanism is a separate subsystem, so it can be a divergence axis | Bundling the kill model into each TGI record would hide that two trials might shrink tumors identically yet predict different outcomes because one assumed log-kill and the other Norton-Simon. The `drug_effect` subsystem makes the mechanism an explicit, comparable choice — the same "make the silent assumption visible" move as `transportability`. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---
