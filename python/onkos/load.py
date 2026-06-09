@@ -7,6 +7,7 @@ from collections import Counter
 from collections.abc import Iterator
 from pathlib import Path
 
+from ._const import VERSION
 from ._data import dataset_dir
 from .models import (
     Citation,
@@ -20,7 +21,7 @@ from .models import (
     Value,
 )
 
-DATASET_VERSION = "0.1.0"
+DATASET_VERSION = VERSION
 
 
 def _parameter(d: dict, citations: dict[str, Citation]) -> Parameter:

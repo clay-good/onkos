@@ -1,0 +1,57 @@
+{
+  "id": "exposure_response.sigmoid_emax_generic",
+  "kind": "model",
+  "purpose": "exposure_response",
+  "subsystem": "exposure_response",
+  "name": "Generic sigmoid (Hill) Emax exposure-response",
+  "description": "Sigmoid Emax exposure-response with Hill coefficient gamma: E = Emax*C^gamma/(EC50^gamma + C^gamma). A steeper alternative to the plain Emax form; including it lets the divergence view show how ER-shape choice moves the effect (and hence the survival prediction). Values illustrative and unverified.",
+  "kernel": "er_sigmoid_emax",
+  "structure": { "states": ["effect"] },
+  "parameters": [
+    {
+      "symbol": "Emax",
+      "label": "maximum drug-effect magnitude",
+      "value": { "central": 1.4, "low": null, "high": null, "units": "effect-unit" },
+      "iiv_cv_percent": 35,
+      "tier": "B",
+      "primary_citation": "holford-1981-emax",
+      "extraction": { "review_status": "unverified", "source_locator": "sigmoid Emax form", "tier_rationale": "Established form; ceiling well-identified." }
+    },
+    {
+      "symbol": "EC50",
+      "label": "exposure at half-maximal effect",
+      "value": { "central": 150.0, "low": null, "high": null, "units": "ug/L" },
+      "iiv_cv_percent": 60,
+      "tier": "C",
+      "primary_citation": "holford-1981-emax",
+      "extraction": { "review_status": "unverified", "source_locator": "sigmoid Emax form", "tier_rationale": "Drug-specific potency." }
+    },
+    {
+      "symbol": "gamma",
+      "label": "Hill coefficient (steepness)",
+      "value": { "central": 2.0, "low": null, "high": null, "units": "dimensionless" },
+      "iiv_cv_percent": null,
+      "tier": "C",
+      "primary_citation": "holford-1981-emax",
+      "extraction": { "review_status": "unverified", "source_locator": "sigmoid Emax form", "tier_rationale": "Steepness rarely identifiable without dense exposure sampling." }
+    }
+  ],
+  "derivation_context": {
+    "drug": null,
+    "drug_class": null,
+    "tumor_type": null,
+    "line_of_therapy": null,
+    "trial": "illustrative",
+    "n_patients": null,
+    "measurement": "C_avg"
+  },
+  "transportability": {
+    "validated_tumor_types": [],
+    "validated_drug_classes": [],
+    "validated_lines": [],
+    "out_of_context_action": "warn"
+  },
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "holford-1981-emax"
+}

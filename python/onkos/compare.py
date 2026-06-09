@@ -56,6 +56,8 @@ def compare(
     purpose: str = "tgi",
     context: dict | None = None,
     drug_effect: float = 1.0,
+    exposure=None,
+    exposure_response: str | None = None,
     t: np.ndarray | None = None,
     survival_link: str | None = None,
 ) -> Comparison:
@@ -77,7 +79,8 @@ def compare(
             cmp.excluded.append((r.id, "; ".join(warns)))
             continue
         traj = simulate(
-            ds, r.id, context=context, drug_effect=drug_effect, t=t, survival_link=survival_link
+            ds, r.id, context=context, drug_effect=drug_effect, exposure=exposure,
+            exposure_response=exposure_response, t=t, survival_link=survival_link,
         )
         cmp.included.append(traj)
 

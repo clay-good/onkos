@@ -6,12 +6,13 @@ from __future__ import annotations
 import json
 
 from .._const import CLINICAL_USE
+from .._const import VERSION as _V
 from ..models import Record
 from .annotate import identifier_uris
 from .registry import get_kernel, kernel_values
 
 
-def virtual_trial_dict(record: Record, *, tier=None, dataset_version: str = "0.1.0") -> dict:
+def virtual_trial_dict(record: Record, *, tier=None, dataset_version: str = _V) -> dict:
     spec = get_kernel(record)
     dc = record.derivation_context
     tp = record.transportability
@@ -56,7 +57,7 @@ def virtual_trial_dict(record: Record, *, tier=None, dataset_version: str = "0.1
     }
 
 
-def to_virtual_trial_json(record: Record, *, tier=None, dataset_version: str = "0.1.0") -> str:
+def to_virtual_trial_json(record: Record, *, tier=None, dataset_version: str = _V) -> str:
     return json.dumps(
         virtual_trial_dict(record, tier=tier, dataset_version=dataset_version),
         indent=2,

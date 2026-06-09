@@ -1,0 +1,48 @@
+{
+  "id": "exposure_response.power_generic",
+  "kind": "model",
+  "purpose": "exposure_response",
+  "subsystem": "exposure_response",
+  "name": "Generic power-law exposure-response",
+  "description": "Power (log-linear) exposure-response with no ceiling: E = slope*C^theta. Appropriate when the observed exposure range stays below any plateau; theta=1 gives the linear case. Values illustrative and unverified.",
+  "kernel": "er_power",
+  "structure": { "states": ["effect"] },
+  "parameters": [
+    {
+      "symbol": "slope",
+      "label": "potency slope",
+      "value": { "central": 0.02, "low": null, "high": null, "units": "effect-unit per (ug/L)^theta" },
+      "iiv_cv_percent": 80,
+      "tier": "C",
+      "primary_citation": "bruno-2020-review",
+      "extraction": { "review_status": "unverified", "source_locator": "power ER form", "tier_rationale": "Slope strongly correlated with theta; poorly identified alone." }
+    },
+    {
+      "symbol": "theta",
+      "label": "exposure exponent",
+      "value": { "central": 0.85, "low": null, "high": null, "units": "dimensionless" },
+      "iiv_cv_percent": null,
+      "tier": "C",
+      "primary_citation": "bruno-2020-review",
+      "extraction": { "review_status": "unverified", "source_locator": "power ER form", "tier_rationale": "Curvature exponent needs a wide exposure range to identify." }
+    }
+  ],
+  "derivation_context": {
+    "drug": null,
+    "drug_class": null,
+    "tumor_type": null,
+    "line_of_therapy": null,
+    "trial": "illustrative",
+    "n_patients": null,
+    "measurement": "AUC"
+  },
+  "transportability": {
+    "validated_tumor_types": [],
+    "validated_drug_classes": [],
+    "validated_lines": [],
+    "out_of_context_action": "warn"
+  },
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "bruno-2020-review"
+}

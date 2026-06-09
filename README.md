@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.2 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -202,19 +202,66 @@ Two rules are enforced in code (`onkos/tiers.py`, tested in `tests/`):
 
 ---
 
-## Models & kernels (Phase A)
+## Models & kernels
 
 Every model binds to a **pure-NumPy/SciPy reference kernel** in
-`onkos/export/reference.py`, the single computational ground truth.
+`onkos/export/reference.py`, the single computational ground truth. `E` is the
+drug-effect magnitude that scales the kill term — supplied directly or derived
+from a PK exposure through an exposure-response kernel (below).
 
-| Kernel | Dynamics | Records |
-| --- | --- | --- |
-| `growth_exponential` | `dV/dt = kg·V` | `growth_laws.exponential` |
-| `growth_logistic` | `dV/dt = kg·V·(1 − V/Vmax)` | `growth_laws.logistic` |
-| `growth_gompertz` | `dV/dt = kg·V·ln(Vmax/V)` | `growth_laws.gompertz` |
-| `claret_tgi` | `dy/dt = kL·y − kD·E·e^(−λt)·y` (resistance = exp-decay of kill) | `resistance.claret_2009.tgi` |
-| `biexp_tgi` | `y = y0·(e^(−ks·E·t) + e^(kg·t) − 1)` (shrink + regrowth) | `tgi_metrics.wang_2009.*`, `tgi_metrics.bruno_2020.*` |
-| `survival_weibull_ph` | `S(t) = exp(−(t/scale)^shape · e^(β·x))`, `x` = week-8 change | `survival_link.nsclc_os_week8` |
+| Kernel | Kind | Dynamics | Records |
+| --- | --- | --- | --- |
+| `growth_exponential` | ODE | `dV/dt = kg·V` | `growth_laws.exponential` |
+| `growth_logistic` | ODE | `dV/dt = kg·V·(1 − V/Vmax)` | `growth_laws.logistic` |
+| `growth_gompertz` | ODE | `dV/dt = kg·V·ln(Vmax/V)` | `growth_laws.gompertz` |
+| `claret_tgi` | ODE | `dy/dt = kL·y − kD·E·e^(−λt)·y` (resistance = exp-decay of kill) | `resistance.claret_2009.tgi` |
+| `biexp_tgi` | ODE | `y = y0·(e^(−ks·E·t) + e^(kg·t) − 1)` (shrink + regrowth) | `tgi_metrics.wang_2009.*`, `tgi_metrics.bruno_2020.*` |
+| `survival_weibull_ph` | survival | `S(t) = exp(−(t/scale)^shape · e^(β·x))`, `x` = week-8 change | `survival_link.nsclc_os_week8` |
+| `er_emax` | exposure-response | `E = Emax·C/(EC50+C)` | `exposure_response.emax_generic`, `…dacomitinib_egfr.emax` |
+| `er_sigmoid_emax` | exposure-response | `E = Emax·C^γ/(EC50^γ+C^γ)` | `exposure_response.sigmoid_emax_generic` |
+| `er_power` | exposure-response | `E = slope·C^θ` | `exposure_response.power_generic` |
+
+---
+
+## Exposure-response & PK composability (Phase B)
+
+The exposure-response (ER) layer maps a PK exposure metric `C` (C_avg, AUC,
+C_max) to the drug-effect magnitude `E` that drives a TGI model's kill term. This
+makes the **potency** of a regimen first-class (with its own tier and IIV) and
+completes the chain **PK → exposure → tumor dynamics → survival** — the seam
+where a [Hypnos](#licensing--citation) PK record composes with an Onkos TGI
+model. A *time-varying* exposure (a full PK profile aligned to `t`) yields a
+time-varying `E(t)`, and the tumor ODE is integrated numerically; a scalar
+exposure uses the fast closed form.
+
+![Exposure-response and PK-driven tumor dynamics](docs/images/exposure_response.png)
+
+```python
+import numpy as np, onkos
+ds = onkos.load()
+ctx = dict(tumor_type="NSCLC", line="first")
+
+# Scalar exposure -> Emax transform -> drug effect -> Claret TGI -> OS
+traj = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx,
+                      exposure=200.0,                                   # C_avg in µg/L
+                      exposure_response="exposure_response.dacomitinib_egfr.emax")
+
+# Time-varying PK profile (e.g. piped from Hypnos) -> E(t) -> ODE integration
+t = np.linspace(0, 104, 209)
+C = 300.0 * np.exp(-0.02 * t)                                          # declining exposure
+traj = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx,
+                      exposure=C, exposure_response="exposure_response.emax_generic", t=t)
+```
+
+```text
+$ onkos simulate resistance.claret_2009.tgi \
+    --exposure 200 --exposure-response exposure_response.dacomitinib_egfr.emax
+resistance.claret_2009.tgi  tier=C  (exposure=200.0 via exposure_response.dacomitinib_egfr.emax)
+```
+
+The ER record's tier and `transportability` propagate like any other component:
+an ER model validated only on NSCLC/EGFR-TKI floors an out-of-context simulation
+to **D** with a warning, exactly as the TGI and survival components do.
 
 ---
 
@@ -271,7 +318,9 @@ An export bug therefore cannot ship silently.
 | IIV CV surfaced on kill/resistance terms | A ~90%-CV term must not present as a point estimate. |
 | Tiers + transport warnings propagate; worst input wins | A forecast is only as trustworthy as its least-validated component. |
 | Population-level forward simulation only | The line between research tool and clinical tool is exactly individual prediction. Onkos stays on the safe side by construction. |
-| Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end. |
+| Exposure-response is a separate, tiered kernel (not baked into the TGI model) | Potency/uncertainty are drug-specific and reusable; decoupling them lets one ER record drive many TGI models and keeps the PK→effect seam explicit and tier-propagating. |
+| Scalar exposure uses the closed form; time-varying PK integrates the ODE | Exactness and speed for the common case; correctness for a full PK profile, where the constant-E closed form would be wrong. |
+| Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---
 
@@ -315,9 +364,9 @@ a real patient's tumor measurement and returns a prognosis or a therapy choice.
 
 | Phase | Content | Status |
 | --- | --- | --- |
-| **A — TGI spine** | Growth laws + Claret TGI + NSCLC context + TGI→OS link + divergence view; NONMEM + SBML; round-trip validation. | ✅ this release |
-| **B — Resistance + exposure-response** | λ and ER across more drugs/tumors; PharmML + rxode2/Pumas; IIV-CV surfacing. | exporters in place; breadth pending |
-| **C — Survival + baselines** | More TGI→survival models; the tumor-type baseline library. | scaffolded |
+| **A — TGI spine** | Growth laws + Claret TGI + NSCLC context + TGI→OS link + divergence view; NONMEM + SBML; round-trip validation. | ✅ v0.1 |
+| **B — Resistance + exposure-response** | Emax / sigmoid-Emax / power ER kernels driving the kill term; scalar **and** time-varying PK-driven simulation (Hypnos composability); ER tier + transportability propagation; PharmML + rxode2/Pumas; IIV-CV surfaced. | ✅ v0.2 (this release) |
+| **C — Survival + baselines** | More TGI→survival models; the tumor-type baseline library (breast, CRC, HCC, melanoma…, by line). | next |
 | **D — Preclinical translation** | Simeoni model; xenograft params; in-vitro → in-vivo. | planned |
 | **E — Immuno-oncology** | Tumor–immune QSP, hypothesis-tier, non-predictive. | planned |
 | **F — Hardening** | External-validation backfill; `.omex`; Zenodo DOI. | `.omex` + CITATION.cff done |

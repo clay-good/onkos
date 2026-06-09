@@ -36,7 +36,7 @@ def eval_infix(expr: str, env: dict[str, float]):
 @dataclass
 class KernelSpec:
     name: str
-    kind: str  # "ode" | "survival"
+    kind: str  # "ode" | "survival" | "exposure_response"
     states: list[str]
     params: list[str]  # kernel-internal parameter names (infix-safe)
     record_symbols: list[str]  # corresponding record symbols (same order)
@@ -132,6 +132,32 @@ def _weibull_ph_analytic(t, v):
     return np.exp(-((t / scale) ** shape) * np.exp(beta * x))
 
 
+# ----------------------------------------------------------------------------
+# Exposure-response transforms: PK exposure metric C -> drug-effect magnitude E.
+# These are algebraic (kind="exposure_response"); ``analytic(C, vals)`` returns E.
+# They let a PK exposure (optionally piped from a Hypnos record) drive the kill
+# term of a TGI model, completing the PK -> exposure -> tumor-dynamics chain.
+# ----------------------------------------------------------------------------
+def _er_emax(c, v):
+    return v["Emax"] * c / (v["EC50"] + c)
+
+
+def _er_sigmoid_emax(c, v):
+    g = v["gamma"]
+    return v["Emax"] * c**g / (v["EC50"] ** g + c**g)
+
+
+def _er_power(c, v):
+    return v["slope"] * c ** v["theta"]
+
+
+def effect(spec: KernelSpec, exposure, vals: dict[str, float]):
+    """Evaluate an exposure-response kernel: exposure metric C -> effect E."""
+    if spec.kind != "exposure_response":
+        raise ValueError(f"kernel '{spec.name}' is not an exposure-response transform")
+    return spec.analytic(np.asarray(exposure, dtype=float), vals)
+
+
 KERNELS: dict[str, KernelSpec] = {
     "growth_exponential": KernelSpec(
         name="growth_exponential",
@@ -196,5 +222,32 @@ KERNELS: dict[str, KernelSpec] = {
         record_symbols=["weibull_shape", "weibull_scale", "beta"],
         inputs=["x"],
         analytic=_weibull_ph_analytic,
+    ),
+    "er_emax": KernelSpec(
+        name="er_emax",
+        kind="exposure_response",
+        states=["effect"],
+        params=["Emax", "EC50"],
+        record_symbols=["Emax", "EC50"],
+        inputs=["C"],
+        analytic=_er_emax,
+    ),
+    "er_sigmoid_emax": KernelSpec(
+        name="er_sigmoid_emax",
+        kind="exposure_response",
+        states=["effect"],
+        params=["Emax", "EC50", "gamma"],
+        record_symbols=["Emax", "EC50", "gamma"],
+        inputs=["C"],
+        analytic=_er_sigmoid_emax,
+    ),
+    "er_power": KernelSpec(
+        name="er_power",
+        kind="exposure_response",
+        states=["effect"],
+        params=["slope", "theta"],
+        record_symbols=["slope", "theta"],
+        inputs=["C"],
+        analytic=_er_power,
     ),
 }

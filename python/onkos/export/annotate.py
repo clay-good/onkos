@@ -9,6 +9,7 @@ universal, machine-readable ``onkos:clinicalUse`` prohibition.
 from __future__ import annotations
 
 from .._const import CLINICAL_USE
+from .._const import VERSION as _V
 from ..models import Record
 
 
@@ -27,7 +28,7 @@ def identifier_uris(record: Record) -> list[str]:
 
 
 def annotations_block(
-    record: Record, *, tier: str | None = None, dataset_version: str = "0.1.0", warnings=None
+    record: Record, *, tier: str | None = None, dataset_version: str = _V, warnings=None
 ) -> str:
     """A compact, format-agnostic annotation block (RDF-flavored text).
 
@@ -59,7 +60,7 @@ def annotations_block(
     return "\n".join(lines)
 
 
-def sbml_rdf_xml(record: Record, *, tier: str | None = None, dataset_version: str = "0.1.0") -> str:
+def sbml_rdf_xml(record: Record, *, tier: str | None = None, dataset_version: str = _V) -> str:
     """RDF/XML island embeddable in an SBML <annotation> element."""
     tier = tier or record.tier
     desc = []

@@ -1,0 +1,48 @@
+{
+  "id": "exposure_response.dacomitinib_egfr.emax",
+  "kind": "model",
+  "purpose": "exposure_response",
+  "subsystem": "exposure_response",
+  "name": "Dacomitinib (EGFR-TKI, NSCLC) Emax exposure-response",
+  "description": "Drug-specific Emax exposure-response for an EGFR-TKI in first-line NSCLC, intended to drive the Claret TGI kill term from a measured average concentration. E = Emax*C/(EC50+C). Validated NSCLC / EGFR_TKI only; applying out of context floors the result to D. Values illustrative and unverified.",
+  "kernel": "er_emax",
+  "structure": { "states": ["effect"] },
+  "parameters": [
+    {
+      "symbol": "Emax",
+      "label": "maximum drug-effect magnitude",
+      "value": { "central": 1.8, "low": null, "high": null, "units": "effect-unit" },
+      "iiv_cv_percent": 40,
+      "tier": "C",
+      "primary_citation": "claret-2009-tgi",
+      "extraction": { "review_status": "unverified", "source_locator": "ER model form; value illustrative", "tier_rationale": "Single-context fit; ceiling effect not externally validated." }
+    },
+    {
+      "symbol": "EC50",
+      "label": "exposure at half-maximal effect",
+      "value": { "central": 90.0, "low": null, "high": null, "units": "ug/L" },
+      "iiv_cv_percent": 72,
+      "tier": "C",
+      "primary_citation": "claret-2009-tgi",
+      "extraction": { "review_status": "unverified", "source_locator": "ER model form; value illustrative", "tier_rationale": "Potency poorly identified; high IIV CV." }
+    }
+  ],
+  "derivation_context": {
+    "drug": "dacomitinib",
+    "drug_class": "EGFR_TKI",
+    "tumor_type": "NSCLC",
+    "line_of_therapy": "first",
+    "trial": "illustrative",
+    "n_patients": 266,
+    "measurement": "C_avg"
+  },
+  "transportability": {
+    "validated_tumor_types": ["NSCLC"],
+    "validated_drug_classes": ["EGFR_TKI"],
+    "validated_lines": ["first"],
+    "out_of_context_action": "tier_down_to_D and warn"
+  },
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "claret-2009-tgi"
+}

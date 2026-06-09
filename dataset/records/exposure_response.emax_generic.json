@@ -1,0 +1,48 @@
+{
+  "id": "exposure_response.emax_generic",
+  "kind": "model",
+  "purpose": "exposure_response",
+  "subsystem": "exposure_response",
+  "name": "Generic Emax exposure-response (kill-rate driver)",
+  "description": "Maps a PK exposure metric C (e.g. average steady-state concentration C_avg) to the drug-effect magnitude E that scales a TGI kill term: E = Emax*C/(EC50+C). Context-free baseline form for composing PK -> exposure -> tumor dynamics. Values illustrative and unverified.",
+  "kernel": "er_emax",
+  "structure": { "states": ["effect"] },
+  "parameters": [
+    {
+      "symbol": "Emax",
+      "label": "maximum drug-effect magnitude",
+      "value": { "central": 1.4, "low": null, "high": null, "units": "effect-unit" },
+      "iiv_cv_percent": 35,
+      "tier": "B",
+      "primary_citation": "holford-1981-emax",
+      "extraction": { "review_status": "unverified", "source_locator": "Emax model form", "tier_rationale": "Established Emax form; ceiling magnitude is well-identified relative to EC50." }
+    },
+    {
+      "symbol": "EC50",
+      "label": "exposure at half-maximal effect",
+      "value": { "central": 150.0, "low": null, "high": null, "units": "ug/L" },
+      "iiv_cv_percent": 60,
+      "tier": "C",
+      "primary_citation": "holford-1981-emax",
+      "extraction": { "review_status": "unverified", "source_locator": "Emax model form", "tier_rationale": "Potency is drug-specific and poorly identified without a wide exposure range." }
+    }
+  ],
+  "derivation_context": {
+    "drug": null,
+    "drug_class": null,
+    "tumor_type": null,
+    "line_of_therapy": null,
+    "trial": "illustrative",
+    "n_patients": null,
+    "measurement": "C_avg"
+  },
+  "transportability": {
+    "validated_tumor_types": [],
+    "validated_drug_classes": [],
+    "validated_lines": [],
+    "out_of_context_action": "warn"
+  },
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "holford-1981-emax"
+}

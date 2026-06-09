@@ -63,9 +63,22 @@ def _cmd_info(_args) -> int:
 def _cmd_simulate(args) -> int:
     ds = load()
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    # When an exposure-response record is supplied, derive E from the exposure
+    # metric; otherwise use the scalar drug effect.
+    er = args.exposure_response
+    exposure = args.exposure
+    drug_effect = None if (er and exposure is not None) else args.drug_effect
+    effect_desc = (
+        f"exposure={exposure} via {er}" if (er and exposure is not None)
+        else f"drug_effect={args.drug_effect}"
+    )
+
     if args.compare:
-        cmp = compare(ds, purpose="tgi", context=ctx, drug_effect=args.drug_effect)
-        print(f"Virtual-trial comparison — {ctx}, drug_effect={args.drug_effect}\n")
+        cmp = compare(
+            ds, purpose="tgi", context=ctx, drug_effect=drug_effect,
+            exposure=exposure, exposure_response=er,
+        )
+        print(f"Virtual-trial comparison — {ctx}, {effect_desc}\n")
         for tr in cmp.included:
             print(f"  [{tr.tier}] {tr.record_id:<48} median OS {tr.median_os}")
         for rid, reason in cmp.excluded:
@@ -77,8 +90,11 @@ def _cmd_simulate(args) -> int:
     if not args.record:
         print("error: provide a RECORD id or --compare", file=sys.stderr)
         return 2
-    tr = simulate(ds, args.record, context=ctx, drug_effect=args.drug_effect)
-    print(f"{args.record}  tier={tr.tier}")
+    tr = simulate(
+        ds, args.record, context=ctx, drug_effect=drug_effect,
+        exposure=exposure, exposure_response=er,
+    )
+    print(f"{args.record}  tier={tr.tier}  ({effect_desc})")
     for k, v in tr.metrics.items():
         print(f"  {k:<24} {v:.4f}")
     if tr.median_os is not None:
@@ -161,6 +177,14 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--tumor-type", default="NSCLC")
     sp.add_argument("--line", default="first")
     sp.add_argument("--drug-effect", type=float, default=1.0)
+    sp.add_argument(
+        "--exposure", type=float, default=None,
+        help="PK exposure metric (e.g. C_avg in ug/L); requires --exposure-response",
+    )
+    sp.add_argument(
+        "--exposure-response", default=None,
+        help="exposure-response record id mapping exposure -> drug effect E",
+    )
     sp.add_argument("--compare", action="store_true", help="virtual-trial divergence across models")
     sp.set_defaults(func=_cmd_simulate)
 
