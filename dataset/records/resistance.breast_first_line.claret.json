@@ -1,0 +1,103 @@
+{
+  "id": "resistance.breast_first_line.claret",
+  "kind": "model",
+  "purpose": "tgi",
+  "subsystem": "resistance",
+  "name": "Claret-form clinical TGI for first-line breast",
+  "description": "Claret 2009 clinical TGI form (exponential growth + exposure-driven kill with exponential decay of drug effect = emergent resistance) parameterized for first-line metastatic breast cancer: dy/dt = kL*y - kD*E*exp(-lambda*t)*y. Values illustrative and unverified.",
+  "kernel": "claret_tgi",
+  "structure": {
+    "growth_law": "exponential",
+    "kill_model": "first_order_exposure_driven",
+    "resistance": "exponential_decay_of_kill",
+    "states": [
+      "tumor_size"
+    ]
+  },
+  "parameters": [
+    {
+      "symbol": "kL",
+      "label": "tumor growth rate constant",
+      "value": {
+        "central": 0.012,
+        "low": null,
+        "high": null,
+        "units": "1/week"
+      },
+      "iiv_cv_percent": 38,
+      "tier": "B",
+      "primary_citation": "bruno-2020-review",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Established model form; this rate is indication-specific."
+      }
+    },
+    {
+      "symbol": "kD",
+      "label": "drug-induced kill rate (per unit effect)",
+      "value": {
+        "central": 0.28,
+        "low": null,
+        "high": null,
+        "units": "1/week per effect-unit"
+      },
+      "iiv_cv_percent": 85,
+      "tier": "C",
+      "primary_citation": "bruno-2020-review",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Kill rate poorly identified from short trials; high IIV CV."
+      }
+    },
+    {
+      "symbol": "lambda",
+      "label": "resistance / drug-effect decay rate",
+      "value": {
+        "central": 0.05,
+        "low": null,
+        "high": null,
+        "units": "1/week"
+      },
+      "iiv_cv_percent": 95,
+      "tier": "C",
+      "primary_citation": "bruno-2020-review",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Resistance term unidentifiable from short trials."
+      }
+    }
+  ],
+  "derivation_context": {
+    "drug": null,
+    "drug_class": null,
+    "tumor_type": "breast",
+    "line_of_therapy": "first",
+    "trial": "illustrative",
+    "n_patients": 700,
+    "measurement": "RECIST_sum_longest_diameters"
+  },
+  "transportability": {
+    "validated_tumor_types": [
+      "breast"
+    ],
+    "validated_drug_classes": [],
+    "validated_lines": [
+      "first"
+    ],
+    "out_of_context_action": "tier_down_to_D and warn"
+  },
+  "known_failure_modes": [
+    {
+      "condition": "resistance term applied to a regimen that is not resistance-driven",
+      "behavior": "lambda unidentifiable; survival link unstable",
+      "action": "tier_down_to_D and warn",
+      "citation": "bruno-2020-review"
+    }
+  ],
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "bruno-2020-review"
+}

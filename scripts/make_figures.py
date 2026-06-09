@@ -44,11 +44,10 @@ def divergence_figure() -> None:
     ax2.set_ylim(0, 1.02)
     ax2.legend(fontsize=8)
 
-    excluded = ", ".join(rid.split(".")[1] for rid, _ in cmp.excluded)
     fig.suptitle(
-        f"Virtual-trial divergence — model choice moves median OS across "
-        f"{cmp.median_os_range[0]:.0f}-{cmp.median_os_range[1]:.0f} wk  "
-        f"(greyed out for out-of-context transport: {excluded})",
+        f"Virtual-trial divergence (NSCLC, 1L) — model choice moves median OS across "
+        f"{cmp.median_os_range[0]:.0f}-{cmp.median_os_range[1]:.0f} wk; "
+        f"{len(cmp.excluded)} models greyed out for out-of-context transport",
         fontsize=10,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.95))
@@ -125,8 +124,54 @@ def exposure_response_figure() -> None:
     plt.close(fig)
 
 
+def context_library_figure() -> None:
+    """Cross-tumor-context divergence: per-context OS spread + model-choice risk."""
+    ds = onkos.load()
+    contexts = ["NSCLC", "breast", "CRC", "HCC", "melanoma"]
+    t = np.linspace(0.0, 156.0, 313)  # 3 years, so long-OS contexts reach their median
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    divergences = []
+    for i, tt in enumerate(contexts):
+        cmp = onkos.compare(
+            ds, purpose="tgi", context={"tumor_type": tt, "line": "first"}, drug_effect=1.0, t=t
+        )
+        color = PALETTE[i % len(PALETTE)]
+        # Plot the OS envelope (min..max across eligible models) for this context.
+        curves = np.vstack([tr.os_curve for tr in cmp.included])
+        ax1.fill_between(t, curves.min(axis=0), curves.max(axis=0), color=color, alpha=0.25)
+        ax1.plot(t, curves.mean(axis=0), color=color, lw=1.5, label=f"{tt} (n={len(cmp.included)})")
+        divergences.append((tt, cmp.os_divergence))
+
+    ax1.axhline(0.5, ls=":", color="grey", lw=1)
+    ax1.set_title("Population OS by tumor context (band = model-choice spread)")
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("survival fraction")
+    ax1.set_ylim(0, 1.02)
+    ax1.legend(fontsize=8)
+
+    labels = [d[0] for d in divergences]
+    vals = [d[1] for d in divergences]
+    ax2.bar(labels, vals, color=[PALETTE[i % len(PALETTE)] for i in range(len(labels))])
+    ax2.set_title("Model-selection risk (max OS divergence) by context")
+    ax2.set_ylabel("OS divergence (max pointwise)")
+    for i, v in enumerate(vals):
+        ax2.text(i, v + 0.004, f"{v:.2f}", ha="center", fontsize=8)
+
+    fig.suptitle(
+        "Tumor-context library (Phase C): each context has its own baseline + survival link "
+        "+ >=2 eligible TGI models",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "context_library.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
     exposure_response_figure()
+    context_library_figure()
     print(f"Wrote figures to {OUT}")

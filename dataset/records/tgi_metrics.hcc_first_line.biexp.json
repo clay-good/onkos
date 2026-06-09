@@ -1,0 +1,77 @@
+{
+  "id": "tgi_metrics.hcc_first_line.biexp",
+  "kind": "model",
+  "purpose": "tgi",
+  "subsystem": "tgi_metrics",
+  "name": "Biexponential clinical TGI for first-line HCC",
+  "description": "Two-phase (shrink + regrowth) clinical tumor-size model for first-line hepatocellular carcinoma: y(t) = y0*(exp(-ks*E*t) + exp(kg*t) - 1). Yields the Stein growth-rate-constant and on-treatment size metrics. Values illustrative and unverified.",
+  "kernel": "biexp_tgi",
+  "structure": {
+    "growth_law": "exponential_regrowth",
+    "kill_model": "first_order_shrink",
+    "resistance": "constant_regrowth",
+    "states": [
+      "tumor_size"
+    ]
+  },
+  "parameters": [
+    {
+      "symbol": "kg",
+      "label": "tumor regrowth rate constant",
+      "value": {
+        "central": 0.03,
+        "low": null,
+        "high": null,
+        "units": "1/week"
+      },
+      "iiv_cv_percent": 45,
+      "tier": "B",
+      "primary_citation": "bruno-2020-review",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Growth-rate constant is the strongly prognostic, well-identified term."
+      }
+    },
+    {
+      "symbol": "ks",
+      "label": "tumor shrinkage rate constant (per unit effect)",
+      "value": {
+        "central": 0.045,
+        "low": null,
+        "high": null,
+        "units": "1/week per effect-unit"
+      },
+      "iiv_cv_percent": 68,
+      "tier": "C",
+      "primary_citation": "bruno-2020-review",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Shrinkage rate depends on drug/dose; moderate identifiability."
+      }
+    }
+  ],
+  "derivation_context": {
+    "drug": null,
+    "drug_class": null,
+    "tumor_type": "HCC",
+    "line_of_therapy": "first",
+    "trial": "illustrative",
+    "n_patients": 350,
+    "measurement": "RECIST_sum_longest_diameters"
+  },
+  "transportability": {
+    "validated_tumor_types": [
+      "HCC"
+    ],
+    "validated_drug_classes": [],
+    "validated_lines": [
+      "first"
+    ],
+    "out_of_context_action": "tier_down_to_D and warn"
+  },
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "bruno-2020-review"
+}

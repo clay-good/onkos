@@ -1,0 +1,102 @@
+{
+  "id": "survival_link.melanoma_os_week8",
+  "kind": "model",
+  "purpose": "survival_link",
+  "subsystem": "survival_link",
+  "name": "melanoma OS link from week-8 relative tumor-size change (Weibull PH)",
+  "description": "Parametric proportional-hazards link from a TGI metric to population overall survival for first-line advanced melanoma. Baseline hazard is Weibull; the model-predicted week-8 relative change in tumor size enters as a covariate: S(t) = exp(-(t/scale)^shape * exp(beta * x)), x = (y(8w) - y0)/y0. Population/trial-level only; NOT a personal prognosis. Values illustrative and unverified.",
+  "kernel": "survival_weibull_ph",
+  "structure": {
+    "growth_law": null,
+    "survival_baseline": "weibull",
+    "states": [
+      "survival_fraction"
+    ]
+  },
+  "parameters": [
+    {
+      "symbol": "weibull_shape",
+      "label": "Weibull shape (k)",
+      "value": {
+        "central": 1.2,
+        "low": null,
+        "high": null,
+        "units": "dimensionless"
+      },
+      "iiv_cv_percent": null,
+      "tier": "B",
+      "primary_citation": "wang-2009-tgi",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Baseline-hazard shape."
+      }
+    },
+    {
+      "symbol": "weibull_scale",
+      "label": "Weibull scale (median-OS scale)",
+      "value": {
+        "central": 85.0,
+        "low": null,
+        "high": null,
+        "units": "week"
+      },
+      "iiv_cv_percent": null,
+      "tier": "B",
+      "primary_citation": "wang-2009-tgi",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Sets baseline median OS scale for first-line melanoma."
+      }
+    },
+    {
+      "symbol": "beta",
+      "label": "log-hazard coefficient on week-8 relative change",
+      "value": {
+        "central": 1.0,
+        "low": null,
+        "high": null,
+        "units": "per unit relative change"
+      },
+      "iiv_cv_percent": null,
+      "tier": "C",
+      "primary_citation": "wang-2009-tgi",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Link strength varies across trials and tumor types."
+      }
+    }
+  ],
+  "derivation_context": {
+    "drug": null,
+    "drug_class": null,
+    "tumor_type": "melanoma",
+    "line_of_therapy": "first",
+    "trial": "illustrative",
+    "n_patients": 420,
+    "measurement": "RECIST_sum_longest_diameters"
+  },
+  "transportability": {
+    "validated_tumor_types": [
+      "melanoma"
+    ],
+    "validated_drug_classes": [],
+    "validated_lines": [
+      "first"
+    ],
+    "out_of_context_action": "tier_down_to_D and warn"
+  },
+  "predictive_performance": [
+    {
+      "metric": "OS_C_index_external",
+      "value": 0.63,
+      "population": "independent melanoma cohort (illustrative)",
+      "citation": "wang-2009-tgi"
+    }
+  ],
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "wang-2009-tgi"
+}

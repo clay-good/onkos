@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.2 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.3 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -53,17 +53,18 @@ unquantified, sends drugs into doomed phase-3 trials.
 
 In the figure above (NSCLC, first line, E = 1.0), two NSCLC-validated models that
 fit early tumor data comparably imply median OS anywhere from ~54 to ~91 weeks.
-The breast-only model is **greyed out automatically** because applying it to
-NSCLC leaves its validated envelope (tier → D + warning). That spread *is* the
-model-selection risk.
+Every model validated only on another tumor type is **greyed out automatically**
+because applying it to NSCLC leaves its validated envelope (tier → D + warning).
+That spread *is* the model-selection risk.
 
 ```text
 $ onkos simulate --compare --tumor-type NSCLC --line first --drug-effect 1.0
 
   [C] resistance.claret_2009.tgi              median OS 90.8
   [C] tgi_metrics.wang_2009.biexponential     median OS 53.7
-  [-] tgi_metrics.bruno_2020.breast_biexponential  EXCLUDED
-        (tumor_type 'NSCLC' is outside validated ['breast'] -> tier_down_to_D and warn)
+  [-] resistance.crc_first_line.claret        EXCLUDED
+        (tumor_type 'NSCLC' is outside validated ['CRC'] -> tier_down_to_D and warn)
+  [-] ... 6 more excluded for out-of-context transport (breast, HCC, melanoma)
 
   OS divergence (max pointwise): 0.247
   Median OS range: (53.7, 90.8)
@@ -265,6 +266,43 @@ to **D** with a warning, exactly as the TGI and survival components do.
 
 ---
 
+## Tumor-context library (Phase C)
+
+The divergence view is only broadly useful if it has a context to run in. Phase C
+builds the `tumor_type_baselines` library and the matching per-context survival
+links, so every supported tumor type carries:
+
+- a **baseline** (`tumor_type_baselines.*`) — baseline SLD `y0` and unperturbed
+  growth, supplying the simulation's initial conditions;
+- a **survival link** (`survival_link.*_os_week8`) — a tumor-specific Weibull-PH
+  OS model whose scale reflects that indication's baseline prognosis;
+- **≥2 eligible TGI models** (a Claret resistance form + a biexponential form),
+  so model-selection risk is measurable rather than hypothetical.
+
+| Context (1L) | baseline SLD | OS scale (wk) | eligible TGI models | OS divergence |
+| --- | --- | --- | --- | --- |
+| NSCLC | 80 mm | 60 | Claret 2009 · Wang 2009 biexp | 0.25 |
+| breast | 55 mm | 130 | breast Claret · Bruno 2020 biexp | 0.16 |
+| CRC | 90 mm | 95 | CRC Claret (capecitabine) · CRC biexp | 0.26 |
+| HCC | 110 mm | 48 | HCC Claret · HCC biexp | 0.33 |
+| melanoma | 60 mm | 85 | melanoma Claret · melanoma biexp | 0.25 |
+
+![Tumor-context library](docs/images/context_library.png)
+
+Each context resolves its own baseline and survival link automatically; a model
+from one tumor type applied to another is greyed out (floored to **D**) by the
+same transportability rule. Values are illustrative and `unverified` by design.
+
+```python
+import onkos
+ds = onkos.load()
+for tt in ["NSCLC", "breast", "CRC", "HCC", "melanoma"]:
+    cmp = onkos.compare(ds, purpose="tgi", context=dict(tumor_type=tt, line="first"))
+    print(tt, len(cmp.included), round(cmp.os_divergence, 2))
+```
+
+---
+
 ## Architecture
 
 The **dataset is the single source of truth**; everything else is a
@@ -365,9 +403,9 @@ a real patient's tumor measurement and returns a prognosis or a therapy choice.
 | Phase | Content | Status |
 | --- | --- | --- |
 | **A — TGI spine** | Growth laws + Claret TGI + NSCLC context + TGI→OS link + divergence view; NONMEM + SBML; round-trip validation. | ✅ v0.1 |
-| **B — Resistance + exposure-response** | Emax / sigmoid-Emax / power ER kernels driving the kill term; scalar **and** time-varying PK-driven simulation (Hypnos composability); ER tier + transportability propagation; PharmML + rxode2/Pumas; IIV-CV surfaced. | ✅ v0.2 (this release) |
-| **C — Survival + baselines** | More TGI→survival models; the tumor-type baseline library (breast, CRC, HCC, melanoma…, by line). | next |
-| **D — Preclinical translation** | Simeoni model; xenograft params; in-vitro → in-vivo. | planned |
+| **B — Resistance + exposure-response** | Emax / sigmoid-Emax / power ER kernels driving the kill term; scalar **and** time-varying PK-driven simulation (Hypnos composability); ER tier + transportability propagation; PharmML + rxode2/Pumas; IIV-CV surfaced. | ✅ v0.2 |
+| **C — Survival + baselines** | `tumor_type_baselines` library + per-context Weibull-PH survival links across NSCLC, breast, CRC, HCC, melanoma; ≥2 eligible TGI models per context; cross-context divergence; orphan-record invariant enforced in CI. | ✅ v0.3 (this release) |
+| **D — Preclinical translation** | Simeoni model; xenograft params; in-vitro → in-vivo. | next |
 | **E — Immuno-oncology** | Tumor–immune QSP, hypothesis-tier, non-predictive. | planned |
 | **F — Hardening** | External-validation backfill; `.omex`; Zenodo DOI. | `.omex` + CITATION.cff done |
 
