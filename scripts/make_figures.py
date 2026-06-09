@@ -258,6 +258,49 @@ def immuno_oncology_figure() -> None:
     plt.close(fig)
 
 
+def coverage_figure() -> None:
+    """Tier x subsystem coverage heatmap + external-validation gauge (Phase F)."""
+    from onkos.report import external_validation_coverage
+
+    ds = onkos.load()
+    subsystems = sorted({r.subsystem for r in ds})
+    tiers = ["A", "B", "C", "D"]
+    grid = np.zeros((len(subsystems), len(tiers)), dtype=int)
+    for r in ds:
+        grid[subsystems.index(r.subsystem), tiers.index(r.tier)] += 1
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.6), gridspec_kw={"width_ratios": [3, 1]})
+
+    im = ax1.imshow(grid, cmap="Blues", aspect="auto")
+    ax1.set_xticks(range(len(tiers)), tiers)
+    ax1.set_yticks(range(len(subsystems)), subsystems)
+    ax1.set_xlabel("confidence tier")
+    ax1.set_title("Records by subsystem × tier")
+    for i in range(len(subsystems)):
+        for j in range(len(tiers)):
+            if grid[i, j]:
+                ax1.text(j, i, str(grid[i, j]), ha="center", va="center",
+                         color="white" if grid[i, j] > grid.max() / 2 else "black", fontsize=9)
+    fig.colorbar(im, ax=ax1, shrink=0.8, label="records")
+
+    n_val, n_elig, frac = external_validation_coverage(ds)
+    ax2.barh([0], [1.0], color="#e2e8f0")
+    ax2.barh([0], [frac], color="#2f855a")
+    ax2.set_xlim(0, 1)
+    ax2.set_ylim(-1, 1)
+    ax2.set_yticks([])
+    ax2.set_xlabel("fraction")
+    ax2.set_title("External-validation coverage")
+    ax2.text(0.5, 0, f"{n_val}/{n_elig}\n({frac * 100:.0f}%)", ha="center", va="center",
+             fontsize=12, fontweight="bold")
+
+    fig.suptitle("Dataset health (Phase F): tier/subsystem coverage + external-validation",
+                 fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "coverage.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
@@ -265,4 +308,5 @@ if __name__ == "__main__":
     context_library_figure()
     preclinical_figure()
     immuno_oncology_figure()
+    coverage_figure()
     print(f"Wrote figures to {OUT}")

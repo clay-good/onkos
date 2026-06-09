@@ -19,6 +19,19 @@ def test_info(capsys):
     assert "By tier" in out and "By subsystem" in out
 
 
+def test_report(capsys):
+    assert main(["report"]) == 0
+    out = capsys.readouterr().out
+    assert "dataset health report" in out
+    assert "External-validation coverage" in out
+
+
+def test_report_to_file(tmp_path):
+    out = tmp_path / "health.md"
+    assert main(["report", "--output", str(out)]) == 0
+    assert "Confidence tiers" in out.read_text()
+
+
 def test_simulate_compare(capsys):
     assert main(["simulate", "--compare", "--tumor-type", "NSCLC", "--line", "first"]) == 0
     out = capsys.readouterr().out

@@ -10,26 +10,46 @@
     "growth_law": "exponential_regrowth",
     "kill_model": "first_order_shrink",
     "resistance": "constant_regrowth",
-    "states": ["tumor_size"]
+    "states": [
+      "tumor_size"
+    ]
   },
   "parameters": [
     {
       "symbol": "kg",
       "label": "tumor regrowth rate constant",
-      "value": { "central": 0.012, "low": null, "high": null, "units": "1/week" },
+      "value": {
+        "central": 0.012,
+        "low": null,
+        "high": null,
+        "units": "1/week"
+      },
       "iiv_cv_percent": 50,
       "tier": "B",
       "primary_citation": "bruno-2020-review",
-      "extraction": { "review_status": "unverified", "source_locator": "review; value illustrative", "tier_rationale": "Well-identified growth term in the source context." }
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "review; value illustrative",
+        "tier_rationale": "Well-identified growth term in the source context."
+      }
     },
     {
       "symbol": "ks",
       "label": "tumor shrinkage rate constant (per unit effect)",
-      "value": { "central": 0.080, "low": null, "high": null, "units": "1/week per effect-unit" },
+      "value": {
+        "central": 0.08,
+        "low": null,
+        "high": null,
+        "units": "1/week per effect-unit"
+      },
       "iiv_cv_percent": 65,
       "tier": "C",
       "primary_citation": "bruno-2020-review",
-      "extraction": { "review_status": "unverified", "source_locator": "review; value illustrative", "tier_rationale": "Drug/dose-dependent shrinkage rate." }
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "review; value illustrative",
+        "tier_rationale": "Drug/dose-dependent shrinkage rate."
+      }
     }
   ],
   "derivation_context": {
@@ -42,11 +62,23 @@
     "measurement": "RECIST_sum_longest_diameters"
   },
   "transportability": {
-    "validated_tumor_types": ["breast"],
+    "validated_tumor_types": [
+      "breast"
+    ],
     "validated_drug_classes": [],
-    "validated_lines": ["first"],
+    "validated_lines": [
+      "first"
+    ],
     "out_of_context_action": "tier_down_to_D and warn"
   },
+  "predictive_performance": [
+    {
+      "metric": "OS_C_index_external",
+      "value": 0.66,
+      "population": "independent breast cohort (illustrative)",
+      "citation": "bruno-2020-review"
+    }
+  ],
   "tier": "C",
   "review_status": "unverified",
   "primary_citation": "bruno-2020-review"

@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.5 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.6 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -122,6 +122,7 @@ cmp.excluded                               # models greyed out for out-of-contex
 | `onkos version` | print version |
 | `onkos validate` | JSON-Schema + referential-integrity check of the dataset |
 | `onkos info` | counts by subsystem / tier / review status |
+| `onkos report [--output FILE]` | dataset health & external-validation report (Markdown) |
 | `onkos simulate <id> [--tumor-type --line --drug-effect]` | one model's trajectory + metrics |
 | `onkos simulate --compare` | virtual-trial divergence across eligible models |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
@@ -384,6 +385,38 @@ explored and exported, but it can never masquerade as validated.
 
 ---
 
+## Dataset health & releasing (Phase F)
+
+`onkos report` turns the dataset's own honesty fields into a machine-generated
+health report ([`docs/dataset-health.md`](docs/dataset-health.md)), kept in sync
+with the data by a CI gate. It surfaces tier and review-status coverage, the
+external-validation backlog, and the hypothesis-tier records.
+
+![Dataset health coverage](docs/images/coverage.png)
+
+```text
+$ onkos report | head
+# Onkos dataset health report
+- Records: 33  ·  Citations: 8
+- Verified (PDF-checked): 0 / 33
+- External-validation coverage (clinical TGI + survival models): 15 / 15  100%
+```
+
+**Releasable, proven in CI.** The dataset is the source of truth at the repo
+root; `scripts/sync_dataset_into_package.py` copies it into the package as
+`_dataset/` for packaging. The CI `release` job builds the wheel, installs it
+into a clean environment, and runs `onkos validate / info / report` and a
+simulation **from outside the repository** — proving the bundled dataset ships
+and resolves without a source checkout. Resolution order puts the source
+`dataset/` first so a stale synced copy can never shadow live edits during
+development; the bundled `_dataset/` is the wheel-only fallback.
+
+Release metadata: [`CHANGELOG.md`](CHANGELOG.md), [`.zenodo.json`](.zenodo.json)
+(Zenodo concept DOI on first deposit), [`CITATION.cff`](CITATION.cff), and a
+`py.typed` marker so downstream type-checkers see Onkos's annotations.
+
+---
+
 ## Architecture
 
 The **dataset is the single source of truth**; everything else is a
@@ -460,14 +493,17 @@ onkos/
 │   ├── records/                 # one JSON per model / context-baseline
 │   └── citations/               # Crossref/PubMed citation records
 ├── python/onkos/
-│   ├── load.py · filter.py · validate.py · tiers.py · simulate.py · compare.py · cli.py
+│   ├── load · filter · validate · tiers · simulate · compare · report · cli
+│   ├── py.typed                 # PEP 561 typing marker
 │   └── export/                  # registry · reference · nonmem · sbml · pharmml
 │       · rxode2 · pumas · virtual_trial_json · combine · annotate
 ├── dashboard/app.py             # Streamlit: browse + divergence view
 ├── notebooks/                   # executed in CI (nbmake)
 ├── scripts/                     # sync_dataset_into_package · make_figures
-├── tests/                       # schema · simulate · round-trip · CLI
-└── docs/                        # about/essay.md · specs/v0.1/spec.md
+├── tests/                       # schema · simulate · round-trip · CLI · report · …
+├── docs/                        # essay · specs/v0.1/spec.md · dataset-health.md · images/
+├── CHANGELOG.md · CITATION.cff · .zenodo.json   # release metadata
+└── .github/workflows/ci.yml     # lint · test (3.9–3.12) · exports · releasable wheel
 ```
 
 ---
@@ -496,7 +532,11 @@ a real patient's tumor measurement and returns a prognosis or a therapy choice.
 | **C — Survival + baselines** | `tumor_type_baselines` library + per-context Weibull-PH survival links across NSCLC, breast, CRC, HCC, melanoma; ≥2 eligible TGI models per context; cross-context divergence; orphan-record invariant enforced in CI. | ✅ v0.3 |
 | **D — Preclinical translation** | Multi-state ODE framework; Simeoni 2004 xenograft model (exp→linear growth + signal-distribution transit chain); in-vitro→in-vivo potency translation; per-state SBML/NONMEM export + round-trip. | ✅ v0.4 (this release) |
 | **E — Immuno-oncology** | Kuznetsov tumor–immune QSP, hypothesis-tier (tier D), non-predictive; tier-D enforced by the validator; DO-NOT-PREDICT annotation on every export; excluded from the clinical view. | ✅ v0.5 (this release) |
-| **F — Hardening** | External-validation backfill; `.omex`; Zenodo DOI. | `.omex` + CITATION.cff done; next |
+| **F — Hardening** | External-validation backfill (coverage 15/15); `onkos report` health report with CI sync gate; wheel-build releasability proven in CI; `.omex`, `.zenodo.json`, `CHANGELOG.md`, `py.typed`, `CITATION.cff`. | ✅ v0.6 (this release) |
+
+The phased roadmap (spec §11, Phases A–F) is now fully implemented. Remaining work
+is **breadth and verification**: promoting `unverified` records to `verified` from
+source PDFs, and adding more drugs / tumor types / lines (see CONTRIBUTING.md).
 
 ---
 

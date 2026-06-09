@@ -97,6 +97,14 @@
       "citation": "bruno-2020-review"
     }
   ],
+  "predictive_performance": [
+    {
+      "metric": "OS_C_index_external",
+      "value": 0.6,
+      "population": "independent HCC cohort (illustrative)",
+      "citation": "bruno-2020-review"
+    }
+  ],
   "tier": "C",
   "review_status": "unverified",
   "primary_citation": "bruno-2020-review"

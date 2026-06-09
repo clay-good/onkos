@@ -1,0 +1,24 @@
+{
+  "title": "Onkos: a curated, tier-annotated dataset of tumor-growth-inhibition and TGI-to-survival models",
+  "description": "Onkos is a curated, citation-backed, machine-readable dataset of the tumor-growth-inhibition (TGI) models, exposure-response links, TGI-metric to survival models, preclinical-translation (Simeoni) models, and hypothesis-tier tumor-immune QSP models that oncology drug development depends on. Every record carries an explicit confidence tier, its derivation context, its validated transportability boundary, the inter-individual variability on its high-uncertainty terms, and its external-validation performance, and exports into NONMEM, SBML, PharmML, nlmixr2/rxode2, and Pumas. NOT a prognostic tool and NOT a treatment recommender; for research, drug-development methodology, and education only.",
+  "upload_type": "software",
+  "license": "MIT",
+  "access_right": "open",
+  "creators": [
+    { "name": "Good, Clay" }
+  ],
+  "keywords": [
+    "oncology",
+    "pharmacometrics",
+    "tumor-growth-inhibition",
+    "overall-survival",
+    "exposure-response",
+    "quantitative-systems-pharmacology",
+    "NONMEM",
+    "SBML",
+    "PharmML"
+  ],
+  "related_identifiers": [
+    { "relation": "isSupplementTo", "identifier": "https://github.com/clay-good/onkos", "scheme": "url" }
+  ]
+}

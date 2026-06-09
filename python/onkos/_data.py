@@ -1,11 +1,14 @@
 """Locate the dataset directory (source of truth).
 
-Resolution order:
+Resolution order (source-of-truth first, so a stale synced copy can never shadow
+the live dataset during development):
+
 1. ``$ONKOS_DATASET`` environment variable, if set.
-2. A ``_dataset`` directory bundled inside the installed package
-   (produced by ``scripts/sync_dataset_into_package.py``).
-3. A ``dataset`` directory found by walking up from this file
-   (the source checkout / editable install).
+2. A ``dataset`` directory found by walking up from this file (the source
+   checkout / editable install) — always the freshest.
+3. A ``_dataset`` directory bundled inside the installed package (produced by
+   ``scripts/sync_dataset_into_package.py``) — the fallback for a built wheel,
+   where no source ``dataset`` is on the walk-up path.
 """
 
 from __future__ import annotations
@@ -26,14 +29,14 @@ def dataset_dir() -> Path:
             return p
         raise FileNotFoundError(f"ONKOS_DATASET={env} does not contain records/ and schema/")
 
-    bundled = Path(__file__).resolve().parent / "_dataset"
-    if _has_records(bundled):
-        return bundled
-
     for parent in Path(__file__).resolve().parents:
         candidate = parent / "dataset"
         if _has_records(candidate):
             return candidate
+
+    bundled = Path(__file__).resolve().parent / "_dataset"
+    if _has_records(bundled):
+        return bundled
 
     raise FileNotFoundError(
         "Could not locate the Onkos dataset. Set ONKOS_DATASET or run from a source checkout."

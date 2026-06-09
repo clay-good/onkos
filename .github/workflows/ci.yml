@@ -39,6 +39,10 @@ jobs:
         run: pytest -q
       - name: Execute notebooks (nbmake)
         run: pytest --nbmake notebooks/ -q
+      - name: Dataset health report is in sync
+        run: |
+          onkos report --output /tmp/report.md
+          diff -u docs/dataset-health.md /tmp/report.md
 
   exports:
     runs-on: ubuntu-latest
@@ -59,3 +63,30 @@ jobs:
         with:
           name: onkos-exports
           path: exports/
+
+  release:
+    name: releasable wheel (bundled dataset)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - name: Sync dataset into the package and build the wheel
+        run: |
+          python scripts/sync_dataset_into_package.py
+          python -m build --wheel
+      - name: Install the wheel into a clean environment and run from outside the repo
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install dist/*.whl
+          cd /tmp                                  # no source dataset/ on the path here
+          /tmp/clean/bin/onkos validate
+          /tmp/clean/bin/onkos info
+          /tmp/clean/bin/onkos report > /dev/null
+          /tmp/clean/bin/python -c "import onkos, numpy as np; ds=onkos.load(); assert len(ds)>=33; onkos.simulate(ds,'resistance.claret_2009.tgi',context={'tumor_type':'NSCLC','line':'first'})"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: onkos-wheel
+          path: dist/*.whl

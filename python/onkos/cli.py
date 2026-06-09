@@ -16,6 +16,7 @@ from .export.registry import get_kernel
 from .export.rxode2 import to_rxode2
 from .export.sbml import to_sbml
 from .export.virtual_trial_json import to_virtual_trial_json
+from .report import build_report
 from .validate import validate_dataset
 
 _TEXT_EXPORTERS = {
@@ -42,6 +43,18 @@ def _cmd_validate(_args) -> int:
         return 1
     ds = load()
     print(f"OK: {len(ds)} record(s) valid against schema.")
+    return 0
+
+
+def _cmd_report(args) -> int:
+    md = build_report(load())
+    if args.output:
+        out = Path(args.output)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(md)
+        print(f"Wrote {out}")
+    else:
+        print(md)
     return 0
 
 
@@ -171,6 +184,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("version", help="print version").set_defaults(func=_cmd_version)
     sub.add_parser("validate", help="JSON-Schema-validate the dataset").set_defaults(func=_cmd_validate)
     sub.add_parser("info", help="counts by subsystem / tier / review status").set_defaults(func=_cmd_info)
+
+    rp = sub.add_parser("report", help="dataset health & validation report (Markdown)")
+    rp.add_argument("--output", default=None, help="write report to a file instead of stdout")
+    rp.set_defaults(func=_cmd_report)
 
     sp = sub.add_parser("simulate", help="population-level forward simulation")
     sp.add_argument("record", nargs="?", help="record id (omit with --compare)")

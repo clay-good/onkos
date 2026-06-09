@@ -71,6 +71,14 @@
     ],
     "out_of_context_action": "tier_down_to_D and warn"
   },
+  "predictive_performance": [
+    {
+      "metric": "OS_C_index_external",
+      "value": 0.65,
+      "population": "independent melanoma cohort (illustrative)",
+      "citation": "bruno-2020-review"
+    }
+  ],
   "tier": "C",
   "review_status": "unverified",
   "primary_citation": "bruno-2020-review"
