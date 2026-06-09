@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.18 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.19 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -644,32 +644,72 @@ Release metadata: [`CHANGELOG.md`](CHANGELOG.md), [`.zenodo.json`](.zenodo.json)
 
 ## Architecture
 
-The **dataset is the single source of truth**; everything else is a
-deterministic projection.
+The **dataset is the single source of truth**; everything else is a deterministic
+projection. The system is layered — data → core → kernels → analyses → exports →
+presentation — and the layering is pinned by `tests/test_architecture.py` (every
+declared subsystem has records, every kernel is bound, the CLI export formats
+match the builders *and* the CI sweep, the public API surface is stable).
 
 ```mermaid
 flowchart TD
-    DS["<b>dataset/</b> — source of truth<br/>JSON records + JSON Schema + JSON-LD context<br/>models · params · derivation context · transportability · tiers · citations"]
-    DS -->|sync_dataset_into_package.py| PKG["<b>onkos</b> package<br/>load · filter · validate · simulate · compare"]
-    PKG --> CLI["<b>onkos</b> CLI"]
-    PKG --> DASH["Streamlit dashboard<br/>browse + virtual-trial divergence"]
-    PKG --> NB["Notebooks<br/>executed in CI (nbmake)"]
-    PKG --> EXP["<b>onkos.export</b>"]
-    EXP --> NM["NONMEM"]
-    EXP --> SBML["SBML L3v2"]
-    EXP --> PHARMML["PharmML"]
-    EXP --> RX["rxode2 / Pumas"]
-    EXP --> VT["virtual-trial JSON"]
-    EXP --> OMEX["COMBINE .omex"]
+    subgraph data["① data — source of truth"]
+        DS["dataset/records · schema · citations · JSON-LD context"]
+    end
+    subgraph core["② core"]
+        LOAD["load · models · filter"]
+        VAL["validate (schema + referential + tier audit)"]
+        TIER["tiers (worst-input-wins + transport floor)"]
+    end
+    subgraph kern["③ kernels"]
+        REG["registry — bind record → kernel"]
+        REF["reference — NumPy/SciPy kernels<br/>(ODE · survival · transform)"]
+    end
+    subgraph ana["④ analyses"]
+        SIM["simulate (OS+PFS)"]
+        MET["metrics (Stein/Bruno panel)"]
+        PKM["pk (dose → exposure bridge)"]
+        CMP["compare (virtual-trial divergence)"]
+        UNC["uncertainty (IIV bands)"]
+        SEN["sensitivity (variance attribution)"]
+        AUD["audit (evidence-based tiers)"]
+    end
+    subgraph exp["⑤ exports — generated, never hand-edited"]
+        EXP["NONMEM · SBML · PharmML · SO · rxode2 · Pumas<br/>vt-json · JSON-LD · COMBINE .omex · CSV · BibTeX"]
+    end
+    subgraph pres["⑥ presentation"]
+        CLI["onkos CLI"]
+        DASH["Streamlit dashboard"]
+        REP["health report + tier audit"]
+        NB["13 CI-executed notebooks"]
+    end
+    DS --> LOAD --> REG --> REF
+    LOAD --> VAL & TIER
+    REG --> SIM --> CMP
+    PKM --> SIM
+    SIM --> MET & UNC & SEN
+    CMP & UNC & SEN & AUD --> CLI & DASH & REP & NB
+    REG --> EXP
+    REF -. "round-trip validates" .-> EXP
 ```
+
+### Kernel taxonomy
+
+Every model binds to one **pure-NumPy/SciPy reference kernel** (the single
+computational ground truth). Kernels come in three kinds:
+
+| Kind | What it computes | Kernels |
+| --- | --- | --- |
+| **ODE** | tumor-size dynamics `dV/dt` (closed form where one exists, else integrated) | `growth_exponential/logistic/gompertz`, `claret_tgi`, `norton_simon`, `biexp_tgi`, `simeoni_exp_linear`, `simeoni_tgi` (4-state), `io_tumor_immune` (2-state) |
+| **survival** | population survival `S(t \| x)` from a TGI metric | `survival_weibull_ph` (parametric), `survival_cox_ph` (nonparametric baseline) |
+| **transform** | algebraic map (exposure → effect, or in-vitro → in-vivo) | `er_emax`, `er_sigmoid_emax`, `er_power`, `ivive_power` |
 
 ```mermaid
 flowchart LR
-    P["dataset/records/*.json"] --> REG["registry.py<br/>bind record → kernel"]
-    REG --> REF["reference.py<br/>NumPy/SciPy kernels"]
-    REG --> B["nonmem / sbml / pharmml / rxode2 / pumas"]
-    ANN["annotate.py<br/>clinicalUse=PROHIBITED · tier · DOI RDF"] --> B
-    REF -. "round-trip validates (1e-6 algebraic / 1e-4 ODE)" .-> B
+    P["dataset/records/*.json"] --> REG["registry — bind record → kernel"]
+    REG --> REF["reference — ODE / survival / transform kernels"]
+    REG --> B["NONMEM · SBML · PharmML · SO · rxode2 · Pumas · JSON-LD"]
+    ANN["annotate — clinicalUse=PROHIBITED · tier · DOI RDF · predictionStatus"] --> B
+    REF -. "round-trip: analytic↔ODE (1e-4) · MathML↔rhs per state (1e-6) · cross-format" .-> B
 ```
 
 ### Round-trip validation — why exports cannot lie
@@ -740,6 +780,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | Survival matching is line-aware; an unsupported line yields no curve, not a borrowed one | The line of therapy is part of the context, so a second-line simulation must use second-line survival — matching only on tumor type would silently transport a 1L model. When no curated link exists for a line, the honest result is no survival curve, mirroring the no-fallback rule for tumor type. |
 | The PK bridge is a thin illustrative adapter, not a PK toolkit (that's Hypnos) | Onkos's scope is exposure → tumor → survival. `onkos.pk` exposes only the standard dose↔exposure relations and a profile-ingestion adapter so the composability chain is runnable self-contained; modelling the PK itself stays in Hypnos, and the generators are clearly labelled illustrative. |
 | Kill mechanism is a separate subsystem, so it can be a divergence axis | Bundling the kill model into each TGI record would hide that two trials might shrink tumors identically yet predict different outcomes because one assumed log-kill and the other Norton-Simon. The `drug_effect` subsystem makes the mechanism an explicit, comparable choice — the same "make the silent assumption visible" move as `transportability`. |
+| The architecture is a *tested* contract, not just a diagram | `tests/test_architecture.py` asserts every declared subsystem has records, every kernel is bound (no orphans/dead kernels), the CLI export formats match both the builders and the CI sweep, and the public API surface is stable. These checks have already caught real drift (an empty `drug_effect` subsystem; a CI export loop missing `so`/`jsonld`), so the diagrams above stay honest. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---

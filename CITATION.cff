@@ -17,7 +17,7 @@ authors:
 license: MIT
 license-url: "https://github.com/clay-good/onkos/blob/main/LICENSE"
 repository-code: "https://github.com/clay-good/onkos"
-version: 0.18.0
+version: 0.19.0
 keywords:
   - oncology
   - pharmacometrics

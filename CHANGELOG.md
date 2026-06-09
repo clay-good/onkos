@@ -4,6 +4,17 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.19.0] — Architecture as a tested contract + refreshed system design
+
+- `tests/test_architecture.py`: pins the system structure so docs and code cannot
+  silently drift — every declared subsystem has records (would have caught the
+  empty `drug_effect`), the CLI export formats match the builders *and* the CI
+  export sweep (would have caught `so`/`jsonld` missing from the loop), kernel
+  kinds are known, no kernel is dead/orphaned, and the public API surface is stable.
+- README architecture refreshed to the current 18-version system: a layered
+  diagram (data → core → kernels → analyses → exports → presentation), a kernel
+  taxonomy (ODE / survival / transform), and an updated round-trip data-flow.
+
 ## [0.18.0] — Norton-Simon kill model (fills the drug_effect subsystem)
 
 - `norton_simon` kernel: the Norton-Simon hypothesis on a Gompertz growth law,
