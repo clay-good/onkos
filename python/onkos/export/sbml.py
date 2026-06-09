@@ -86,6 +86,19 @@ def mathml_to_infix(mathml: str) -> str:
     return _elem_to_infix(ET.fromstring(mathml))
 
 
+def initial_amounts(record: Record, y0: float) -> list:
+    """Per-state initial amounts: seeds (V0/y0/w0/T0) -> y0; others from params
+    (e.g. the Simeoni transit compartments start at 0; the IO effector at eff0)."""
+    from .reference import init_vector
+
+    spec = get_kernel(record)
+    seed_vals = dict(kernel_values(record))
+    for inp in spec.inputs:
+        if inp in ("V0", "y0", "w0", "T0"):
+            seed_vals[inp] = y0
+    return [float(v) for v in init_vector(spec, seed_vals)]
+
+
 def _sbml_parameters(record: Record, y0: float, drug_effect: float):
     spec = get_kernel(record)
     vals = kernel_values(record)
@@ -108,9 +121,9 @@ def to_sbml(record: Record, *, y0: float = 100.0, drug_effect: float = 1.0, tier
     p_xml = "\n".join(
         f'      <parameter id="{k}" value="{v}" constant="true"/>' for k, v in params.items()
     )
-    # The seed input fills the first state's initial amount; other states start at 0.
+    amounts = initial_amounts(record, y0)
     species_xml = "\n".join(
-        f'      <species id="{s}" compartment="body" initialAmount="{y0 if i == 0 else 0.0}" '
+        f'      <species id="{s}" compartment="body" initialAmount="{amounts[i]}" '
         'hasOnlySubstanceUnits="true" boundaryCondition="false" constant="false"/>'
         for i, s in enumerate(spec.states)
     )

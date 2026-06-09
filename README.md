@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.4 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.5 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -224,6 +224,7 @@ from a PK exposure through an exposure-response kernel (below).
 | `simeoni_exp_linear` | ODE | `dw/dt = λ0·w / (1+(λ0·w/λ1)^ψ)^(1/ψ)` (exp→linear) | `growth_laws.simeoni_exp_linear` |
 | `simeoni_tgi` | ODE (4-state) | transit-chain TGI; observe `w = x1+x2+x3+x4` | `preclinical_translation.simeoni_2004.xenograft` |
 | `ivive_power` | exposure-response | `potency = scale·IC50^power` | `preclinical_translation.ivive_potency` |
+| `io_tumor_immune` | ODE (2-state) | Kuznetsov tumor–immune predator-prey (**hypothesis-tier**) | `immuno_oncology.kuznetsov_1994.tumor_immune`, `…poorly_immunogenic.hypothesis` |
 
 ---
 
@@ -350,6 +351,39 @@ floors the result to **D** — the translation gap, made explicit.
 
 ---
 
+## Immuno-oncology (Phase E) — represented honestly, not predictively
+
+> 🛑 **HYPOTHESIS-TIER. NOT FOR PREDICTION.** The immuno-oncology subsystem ships
+> **tier D by construction** because the quantitative validation to do otherwise
+> honestly does not yet exist (spec §2, §3, §5, §10).
+
+Onkos includes the **Kuznetsov 1994** tumor–immune QSP model — a 2-state
+predator-prey system (tumor + effector cells) that reproduces the field's
+qualitative regimes: immune **control / dormancy**, immune **escape**, and the
+bistable **rescue** when an immunotherapy effect (e.g. checkpoint blockade)
+pushes the system across its threshold.
+
+```
+d tumor/dt    = α·tumor·(1 − β·tumor) − (1+E)·effector·tumor
+d effector/dt = s + ρ·effector·tumor/(η+tumor) − μ·effector·tumor − δ·effector
+```
+
+![Tumor–immune QSP (hypothesis-tier)](docs/images/immuno_oncology.png)
+
+The non-predictive stance is enforced in code, not just documented:
+
+- the **validator rejects** any immuno-oncology record (or parameter) that is not
+  tier D — `onkos validate` fails otherwise;
+- every export carries `onkos:predictionStatus = "DO NOT USE FOR PREDICTION
+  (hypothesis-tier)"` and the virtual-trial JSON sets `DO_NOT_USE_FOR_PREDICTION: true`;
+- IO models are **excluded from the clinical divergence view** and never receive
+  a survival link (no OS curve).
+
+This is the Nidus "Phase-C" convention: the frontier is represented so it can be
+explored and exported, but it can never masquerade as validated.
+
+---
+
 ## Architecture
 
 The **dataset is the single source of truth**; everything else is a
@@ -412,6 +446,7 @@ delay). An export bug therefore cannot ship silently.
 | Exposure-response is a separate, tiered kernel (not baked into the TGI model) | Potency/uncertainty are drug-specific and reusable; decoupling them lets one ER record drive many TGI models and keeps the PK→effect seam explicit and tier-propagating. |
 | Scalar exposure uses the closed form; time-varying PK integrates the ODE | Exactness and speed for the common case; correctness for a full PK profile, where the constant-E closed form would be wrong. |
 | Multi-state kernels keep `analytic` optional; an `observable` maps states → the measured quantity | The Simeoni transit model has no closed form. Numerical integration + a per-state SBML round-trip preserve export-correctness guarantees without forcing a closed form; the observable (total weight = Σ compartments) decouples the measured signal from the latent states. |
+| Hypothesis-tier (immuno-oncology) is enforced in code, not just documented | A "do not predict" note in prose is easy to ignore. The validator fails the build if an IO record is not tier D, exports carry a machine-readable `predictionStatus`, and IO is excluded from the clinical view — so the frontier can be explored but never masquerade as validated. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---
@@ -460,8 +495,8 @@ a real patient's tumor measurement and returns a prognosis or a therapy choice.
 | **B — Resistance + exposure-response** | Emax / sigmoid-Emax / power ER kernels driving the kill term; scalar **and** time-varying PK-driven simulation (Hypnos composability); ER tier + transportability propagation; PharmML + rxode2/Pumas; IIV-CV surfaced. | ✅ v0.2 |
 | **C — Survival + baselines** | `tumor_type_baselines` library + per-context Weibull-PH survival links across NSCLC, breast, CRC, HCC, melanoma; ≥2 eligible TGI models per context; cross-context divergence; orphan-record invariant enforced in CI. | ✅ v0.3 |
 | **D — Preclinical translation** | Multi-state ODE framework; Simeoni 2004 xenograft model (exp→linear growth + signal-distribution transit chain); in-vitro→in-vivo potency translation; per-state SBML/NONMEM export + round-trip. | ✅ v0.4 (this release) |
-| **E — Immuno-oncology** | Tumor–immune QSP, hypothesis-tier, non-predictive. | planned |
-| **F — Hardening** | External-validation backfill; `.omex`; Zenodo DOI. | `.omex` + CITATION.cff done |
+| **E — Immuno-oncology** | Kuznetsov tumor–immune QSP, hypothesis-tier (tier D), non-predictive; tier-D enforced by the validator; DO-NOT-PREDICT annotation on every export; excluded from the clinical view. | ✅ v0.5 (this release) |
+| **F — Hardening** | External-validation backfill; `.omex`; Zenodo DOI. | `.omex` + CITATION.cff done; next |
 
 ---
 

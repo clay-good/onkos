@@ -1,0 +1,189 @@
+{
+  "id": "immuno_oncology.poorly_immunogenic.hypothesis",
+  "kind": "model",
+  "purpose": "tgi",
+  "subsystem": "immuno_oncology",
+  "name": "Poorly-immunogenic tumor-immune QSP variant (HYPOTHESIS-TIER, NOT FOR PREDICTION)",
+  "description": "The Kuznetsov tumor-immune model with weakened immune recruitment (lower s and rho), illustrating the immune-escape regime: the tumor outpaces immune control and approaches its carrying capacity unless an immunotherapy effect E is applied. Included to show the qualitative range of tumor-immune outcomes. HYPOTHESIS-TIER: tier D, non-predictive. Values illustrative and unverified.",
+  "kernel": "io_tumor_immune",
+  "structure": {
+    "growth_law": "logistic",
+    "kill_model": "immune_mediated_mass_action",
+    "resistance": null,
+    "states": [
+      "tumor",
+      "effector"
+    ]
+  },
+  "parameters": [
+    {
+      "symbol": "alpha",
+      "label": "tumor growth rate",
+      "value": {
+        "central": 1.636,
+        "low": null,
+        "high": null,
+        "units": "dimensionless"
+      },
+      "iiv_cv_percent": null,
+      "tier": "D",
+      "primary_citation": "kuznetsov-1994-tumor-immune",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "variant of nondimensional set",
+        "tier_rationale": "Hypothesis-tier QSP; not for prediction."
+      }
+    },
+    {
+      "symbol": "beta",
+      "label": "inverse tumor carrying capacity",
+      "value": {
+        "central": 0.002,
+        "low": null,
+        "high": null,
+        "units": "dimensionless"
+      },
+      "iiv_cv_percent": null,
+      "tier": "D",
+      "primary_citation": "kuznetsov-1994-tumor-immune",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "variant of nondimensional set",
+        "tier_rationale": "Hypothesis-tier QSP; not for prediction."
+      }
+    },
+    {
+      "symbol": "s",
+      "label": "baseline effector source",
+      "value": {
+        "central": 0.04,
+        "low": null,
+        "high": null,
+        "units": "dimensionless"
+      },
+      "iiv_cv_percent": null,
+      "tier": "D",
+      "primary_citation": "kuznetsov-1994-tumor-immune",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "weakened immune variant",
+        "tier_rationale": "Hypothesis-tier QSP; not for prediction."
+      }
+    },
+    {
+      "symbol": "rho",
+      "label": "effector recruitment rate",
+      "value": {
+        "central": 0.4,
+        "low": null,
+        "high": null,
+        "units": "dimensionless"
+      },
+      "iiv_cv_percent": null,
+      "tier": "D",
+      "primary_citation": "kuznetsov-1994-tumor-immune",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "weakened immune variant",
+        "tier_rationale": "Hypothesis-tier QSP; not for prediction."
+      }
+    },
+    {
+      "symbol": "eta",
+      "label": "recruitment half-saturation",
+      "value": {
+        "central": 20.19,
+        "low": null,
+        "high": null,
+        "units": "dimensionless"
+      },
+      "iiv_cv_percent": null,
+      "tier": "D",
+      "primary_citation": "kuznetsov-1994-tumor-immune",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "variant of nondimensional set",
+        "tier_rationale": "Hypothesis-tier QSP; not for prediction."
+      }
+    },
+    {
+      "symbol": "mu",
+      "label": "effector inactivation by tumor",
+      "value": {
+        "central": 0.00311,
+        "low": null,
+        "high": null,
+        "units": "dimensionless"
+      },
+      "iiv_cv_percent": null,
+      "tier": "D",
+      "primary_citation": "kuznetsov-1994-tumor-immune",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "variant of nondimensional set",
+        "tier_rationale": "Hypothesis-tier QSP; not for prediction."
+      }
+    },
+    {
+      "symbol": "delta",
+      "label": "effector death rate",
+      "value": {
+        "central": 0.374,
+        "low": null,
+        "high": null,
+        "units": "dimensionless"
+      },
+      "iiv_cv_percent": null,
+      "tier": "D",
+      "primary_citation": "kuznetsov-1994-tumor-immune",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "variant of nondimensional set",
+        "tier_rationale": "Hypothesis-tier QSP; not for prediction."
+      }
+    },
+    {
+      "symbol": "eff0",
+      "label": "baseline effector level (initial condition)",
+      "value": {
+        "central": 0.9,
+        "low": null,
+        "high": null,
+        "units": "dimensionless"
+      },
+      "iiv_cv_percent": null,
+      "tier": "D",
+      "primary_citation": "kuznetsov-1994-tumor-immune",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "tumor-free effector baseline (illustrative)",
+        "tier_rationale": "Hypothesis-tier QSP; not for prediction."
+      }
+    }
+  ],
+  "derivation_context": {
+    "drug": null,
+    "drug_class": "immune_checkpoint_inhibitor",
+    "tumor_type": "poorly_immunogenic_tumor",
+    "line_of_therapy": null,
+    "trial": "mathematical model (no clinical trial)",
+    "n_patients": null,
+    "measurement": "nondimensional_cell_counts"
+  },
+  "transportability": {
+    "validated_tumor_types": [],
+    "validated_drug_classes": [],
+    "out_of_context_action": "warn"
+  },
+  "known_failure_modes": [
+    {
+      "condition": "any use as a quantitative prediction of a real tumor or patient",
+      "behavior": "no quantitative validation exists; output is qualitative shape only",
+      "action": "warn",
+      "citation": "kuznetsov-1994-tumor-immune"
+    }
+  ],
+  "tier": "D",
+  "review_status": "unverified",
+  "primary_citation": "kuznetsov-1994-tumor-immune"
+}

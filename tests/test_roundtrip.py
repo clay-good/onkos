@@ -23,10 +23,11 @@ ANALYTIC_RECORDS = [
     "tgi_metrics.wang_2009.biexponential",
 ]
 
-# Every ODE record (incl. multi-state Simeoni) is round-tripped through SBML/NONMEM.
+# Every ODE record (incl. multi-state Simeoni and the IO QSP) is round-tripped.
 ODE_RECORDS = ANALYTIC_RECORDS + [
     "growth_laws.simeoni_exp_linear",
     "preclinical_translation.simeoni_2004.xenograft",
+    "immuno_oncology.kuznetsov_1994.tumor_immune",
 ]
 
 
@@ -34,7 +35,7 @@ def _vals(record):
     spec = get_kernel(record)
     vals = kernel_values(record)
     for inp in spec.inputs:
-        if inp in ("V0", "y0", "w0"):
+        if inp in ("V0", "y0", "w0", "T0"):
             vals[inp] = 80.0
         elif inp == "E":
             vals[inp] = 1.0

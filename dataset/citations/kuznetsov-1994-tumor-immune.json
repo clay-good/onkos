@@ -1,0 +1,13 @@
+{
+  "key": "kuznetsov-1994-tumor-immune",
+  "type": "article",
+  "title": "Nonlinear dynamics of immunogenic tumors: parameter estimation and global bifurcation analysis",
+  "authors": ["Kuznetsov VA", "Makalkin IA", "Taylor MA", "Perelson AS"],
+  "journal": "Bulletin of Mathematical Biology",
+  "year": 1994,
+  "volume": "56",
+  "issue": "2",
+  "pages": "295-321",
+  "doi": "10.1007/BF02460644",
+  "pmid": "8186756"
+}

@@ -42,6 +42,11 @@ def to_nonmem(record: Record, *, y0: float = 100.0, drug_effect: float = 1.0, ti
     pk_lines = "\n".join(f"  {n.upper()} = THETA({i + 1})" for i, n in enumerate(names))
     theta_lines = "\n".join(f"  (0, {vals[n]})  ; {n.upper()}" for n in names)
     comp_lines = "\n".join(f"  COMP=({s.upper()})" for s in spec.states)
+    from .sbml import initial_amounts
+
+    a0_lines = "\n".join(
+        f"  A_0({i + 1}) = {amt}" for i, amt in enumerate(initial_amounts(record, y0))
+    )
     des_lines = "\n".join(
         f"  DADT({i + 1}) = {_to_nm_expr(spec.rhs_infix[s], spec.states, names)}"
         for i, s in enumerate(spec.states)
@@ -62,7 +67,7 @@ $MODEL
 {comp_lines}
 $PK
 {pk_lines}
-  A_0(1) = {y0}
+{a0_lines}
 $DES
 {des_lines}
 $ERROR

@@ -218,10 +218,51 @@ def preclinical_figure() -> None:
     plt.close(fig)
 
 
+def immuno_oncology_figure() -> None:
+    """Hypothesis-tier tumor-immune QSP: control vs escape, and checkpoint rescue."""
+    ds = onkos.load()
+    t = np.linspace(0.0, 200.0, 801)
+
+    def sim(rid, E):
+        return onkos.simulate(ds, rid, context={"tumor_type": "x", "y0": 10.0},
+                              drug_effect=E, t=t).tumor_size
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    ax1.plot(t, sim("immuno_oncology.kuznetsov_1994.tumor_immune", 0.0),
+             color=PALETTE[2], label="immunogenic — immune control")
+    ax1.plot(t, sim("immuno_oncology.poorly_immunogenic.hypothesis", 0.0),
+             color=PALETTE[1], label="poorly immunogenic — escape")
+    ax1.axhline(500, ls=":", color="grey", lw=1)
+    ax1.text(5, 510, "carrying capacity (1/β)", fontsize=7, color="grey")
+    ax1.set_title("Tumor-immune dynamics: control vs escape")
+    ax1.set_xlabel("time (nondimensional)")
+    ax1.set_ylabel("tumor (nondimensional)")
+    ax1.legend(fontsize=8)
+
+    poorly = "immuno_oncology.poorly_immunogenic.hypothesis"
+    for E in [0.0, 6.0, 12.0]:
+        ax2.plot(t, sim(poorly, E), label=f"checkpoint effect E={E:g}")
+    ax2.set_title("Checkpoint blockade rescues escape (bistable threshold)")
+    ax2.set_xlabel("time (nondimensional)")
+    ax2.set_ylabel("tumor (nondimensional)")
+    ax2.legend(fontsize=8)
+
+    fig.suptitle(
+        "Immuno-oncology (Phase E): HYPOTHESIS-TIER (tier D) — qualitative shapes "
+        "only, NOT FOR PREDICTION",
+        fontsize=10, color="#c53030",
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "immuno_oncology.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
     exposure_response_figure()
     context_library_figure()
     preclinical_figure()
+    immuno_oncology_figure()
     print(f"Wrote figures to {OUT}")

@@ -56,6 +56,20 @@ def validate_dataset(path: str | None = None) -> list[str]:
         if kernel is not None and kernel not in KERNELS:
             errors.append(f"{fp.name}: unknown kernel '{kernel}'")
 
+        # Hypothesis-tier safety rule (spec §5, §10): immuno-oncology records ship
+        # tier D, non-predictive — at the record level and every parameter.
+        if record.get("subsystem") == "immuno_oncology":
+            if record.get("tier") != "D":
+                errors.append(
+                    f"{fp.name}: immuno_oncology records must be tier D (hypothesis-tier), "
+                    f"got '{record.get('tier')}'"
+                )
+            for p in record.get("parameters", []):
+                if p.get("tier") != "D":
+                    errors.append(
+                        f"{fp.name}: immuno_oncology parameter '{p.get('symbol')}' must be tier D"
+                    )
+
     return errors
 
 

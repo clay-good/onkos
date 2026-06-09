@@ -49,6 +49,9 @@ class KernelSpec:
     observable: str | None = None
     # Which input seeds the first state's initial condition (V0/y0/w0).
     init_input: str | None = None
+    # For multi-state systems whose non-first states start nonzero: the value
+    # name (input or parameter) seeding each state, by position.
+    init_inputs: list[str] = field(default_factory=list)
 
     def map_values(self, record_values: dict[str, float]) -> dict[str, float]:
         """Translate record symbols to kernel-internal names (e.g. lambda->lam)."""
@@ -64,9 +67,17 @@ class KernelSpec:
 
 
 def init_vector(spec: KernelSpec, vals: dict[str, float]) -> np.ndarray:
-    """Initial state vector: the seed input fills the first state, others 0."""
-    seed = spec.init_input or next((i for i in spec.inputs if i in ("V0", "y0", "w0")), None)
+    """Initial state vector.
+
+    With ``init_inputs`` (multi-state), each state is seeded by the named value
+    (input or parameter). Otherwise the single seed input fills the first state
+    and the rest start at zero."""
     y0 = np.zeros(spec.n_states, dtype=float)
+    if spec.init_inputs:
+        for i, name in enumerate(spec.init_inputs):
+            y0[i] = float(vals.get(name, 0.0))
+        return y0
+    seed = spec.init_input or next((i for i in spec.inputs if i in ("V0", "y0", "w0")), None)
     if seed is not None and seed in vals:
         y0[0] = float(vals[seed])
     return y0
@@ -245,6 +256,28 @@ def _ivive_power(c, v):
     return v["scale"] * c ** v["power"]
 
 
+# ----------------------------------------------------------------------------
+# Immuno-oncology tumor-immune QSP (Kuznetsov 1994, nondimensional).
+#
+# HYPOTHESIS-TIER, NOT FOR PREDICTION. Effector cells and tumor cells interact
+# predator-prey-style; the model reproduces immune control / dormancy / escape
+# QUALITATIVELY. An immunotherapy effect E (e.g. checkpoint blockade) augments
+# the immune-mediated kill (1+E). Effectors start at 0 (immune-naive).
+#     d tumor/dt    = alpha*tumor*(1 - beta*tumor) - (1+E)*effector*tumor
+#     d effector/dt = s + rho*effector*tumor/(eta+tumor) - mu*effector*tumor - delta*effector
+# ----------------------------------------------------------------------------
+def _io_tumor_immune_rhs(t, y, v):
+    tumor, eff = y
+    d_tumor = v["alpha"] * tumor * (1 - v["beta"] * tumor) - (1 + v["E"]) * eff * tumor
+    d_eff = (
+        v["s"]
+        + v["rho"] * eff * tumor / (v["eta"] + tumor)
+        - v["mu"] * eff * tumor
+        - v["delta"] * eff
+    )
+    return [d_tumor, d_eff]
+
+
 KERNELS: dict[str, KernelSpec] = {
     "growth_exponential": KernelSpec(
         name="growth_exponential",
@@ -375,5 +408,20 @@ KERNELS: dict[str, KernelSpec] = {
         record_symbols=["scale", "power"],
         inputs=["C"],
         analytic=_ivive_power,
+    ),
+    "io_tumor_immune": KernelSpec(
+        name="io_tumor_immune",
+        kind="ode",
+        states=["tumor", "effector"],
+        params=["alpha", "beta", "s", "rho", "eta", "mu", "delta", "eff0"],
+        record_symbols=["alpha", "beta", "s", "rho", "eta", "mu", "delta", "eff0"],
+        inputs=["T0", "E"],
+        rhs=_io_tumor_immune_rhs,
+        rhs_infix={
+            "tumor": "alpha * tumor * (1 - beta * tumor) - (1 + E) * effector * tumor",
+            "effector": "s + rho * effector * tumor / (eta + tumor) "
+            "- mu * effector * tumor - delta * effector",
+        },
+        init_inputs=["T0", "eff0"],
     ),
 }

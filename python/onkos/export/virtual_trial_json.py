@@ -8,7 +8,7 @@ import json
 from .._const import CLINICAL_USE
 from .._const import VERSION as _V
 from ..models import Record
-from .annotate import identifier_uris
+from .annotate import PREDICTION_PROHIBITED, identifier_uris, is_hypothesis_tier
 from .registry import get_kernel, kernel_values
 
 
@@ -19,6 +19,8 @@ def virtual_trial_dict(record: Record, *, tier=None, dataset_version: str = _V) 
     return {
         "onkos:clinicalUse": CLINICAL_USE,
         "NOT_FOR_CLINICAL_USE": True,
+        "DO_NOT_USE_FOR_PREDICTION": is_hypothesis_tier(record),
+        "onkos:predictionStatus": PREDICTION_PROHIBITED if is_hypothesis_tier(record) else None,
         "datasetVersion": dataset_version,
         "id": record.id,
         "name": record.name,

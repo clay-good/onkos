@@ -70,15 +70,17 @@ def compare(
 
     cmp = Comparison(context=context, drug_effect=drug_effect, t=t)
 
-    # The clinical divergence view excludes the preclinical-translation subsystem
-    # (xenograft models are validated in mice, not human trials).
+    # The clinical divergence view excludes non-clinical subsystems: preclinical
+    # xenograft models (validated in mice) and the hypothesis-tier immuno-oncology
+    # QSP models (not for prediction).
+    _excluded_subsystems = {"preclinical_translation", "immuno_oncology"}
     candidates = [
         r
         for r in ds
         if r.purpose == purpose
         and r.kind == "model"
         and r.kernel
-        and r.subsystem != "preclinical_translation"
+        and r.subsystem not in _excluded_subsystems
     ]
     for r in sorted(candidates, key=lambda x: x.id):
         warns = transport_check(r, tumor_type=tumor_type, line=line)

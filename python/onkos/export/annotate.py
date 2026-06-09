@@ -12,9 +12,16 @@ from .._const import CLINICAL_USE
 from .._const import VERSION as _V
 from ..models import Record
 
+PREDICTION_PROHIBITED = "DO NOT USE FOR PREDICTION (hypothesis-tier)"
+
 
 def clinical_use_rdf() -> str:
     return f'onkos:clinicalUse "{CLINICAL_USE}"'
+
+
+def is_hypothesis_tier(record: Record) -> bool:
+    """Hypothesis-tier (non-predictive) records: the immuno-oncology subsystem."""
+    return record.subsystem == "immuno_oncology"
 
 
 def identifier_uris(record: Record) -> list[str]:
@@ -41,6 +48,8 @@ def annotations_block(
         f"onkos:confidenceTier {tier}",
         clinical_use_rdf(),
     ]
+    if is_hypothesis_tier(record):
+        lines.append(f'onkos:predictionStatus "{PREDICTION_PROHIBITED}"')
     for uri in identifier_uris(record):
         lines.append(f"bqbiol:isDescribedBy <{uri}>")
     dc = record.derivation_context
@@ -67,6 +76,11 @@ def sbml_rdf_xml(record: Record, *, tier: str | None = None, dataset_version: st
     for uri in identifier_uris(record):
         desc.append(f'      <rdf:li rdf:resource="{uri}"/>')
     bag = "\n".join(desc)
+    prediction = (
+        f"        <onkos:predictionStatus>{PREDICTION_PROHIBITED}</onkos:predictionStatus>\n"
+        if is_hypothesis_tier(record)
+        else ""
+    )
     return (
         '    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"\n'
         '             xmlns:bqbiol="http://biomodels.net/biology-qualifiers/"\n'
@@ -74,6 +88,7 @@ def sbml_rdf_xml(record: Record, *, tier: str | None = None, dataset_version: st
         f'      <rdf:Description rdf:about="#{record.id}">\n'
         f'        <onkos:clinicalUse>{CLINICAL_USE}</onkos:clinicalUse>\n'
         f"        <onkos:confidenceTier>{tier}</onkos:confidenceTier>\n"
+        f"{prediction}"
         f"        <onkos:datasetVersion>{dataset_version}</onkos:datasetVersion>\n"
         "        <bqbiol:isDescribedBy>\n"
         "          <rdf:Bag>\n"

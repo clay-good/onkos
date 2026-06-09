@@ -162,7 +162,7 @@ def simulate(
 
     vals = kernel_values(record)
     for inp in spec.inputs:
-        if inp in ("V0", "y0", "w0"):
+        if inp in ("V0", "y0", "w0", "T0"):
             vals[inp] = y0
         elif inp == "E":
             vals[inp] = float(e_arr[0])
