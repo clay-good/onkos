@@ -51,6 +51,15 @@ def test_simulate_compare(capsys):
     assert "EXCLUDED" in out
 
 
+def test_simulate_compare_json(capsys):
+    import json
+
+    assert main(["simulate", "--compare", "--tumor-type", "NSCLC", "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["NOT_FOR_CLINICAL_USE"] is True
+    assert "os_divergence" in d and "pfs_divergence" in d and d["included"]
+
+
 def test_export_sbml(tmp_path, capsys):
     out = tmp_path / "sbml"
     assert main(["export", "--format", "sbml", "--output", str(out)]) == 0

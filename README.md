@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.13 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.14 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -220,9 +220,10 @@ traj.metrics["week8_relative_change"]      # the TGI metric feeding the survival
 
 # Virtual-trial comparison — the headline feature
 cmp = onkos.compare(ds, purpose="tgi", context=ctx, drug_effect=1.0)
-cmp.os_divergence                          # model-choice dependence of the OS prediction
+cmp.os_divergence, cmp.pfs_divergence      # model-choice dependence of OS / PFS
 cmp.median_os_range                        # (lo, hi) median OS across models
 cmp.excluded                               # models greyed out for out-of-context transport
+cmp.to_json(include_curves=True)           # serializable result for dashboards / external simulators
 
 # Parameter uncertainty — propagate the stored IIV CVs (Monte-Carlo bands)
 ens = onkos.simulate_ensemble(ds, "resistance.claret_2009.tgi", context=ctx, n=400, seed=0)
@@ -245,7 +246,7 @@ res.indices                                # ranked [ParamSensitivity(symbol, sr
 | `onkos info` | counts by subsystem / tier / review status |
 | `onkos report [--output FILE]` | dataset health & external-validation report (Markdown) |
 | `onkos simulate <id> [--tumor-type --line --drug-effect]` | one model's trajectory + metrics |
-| `onkos simulate --compare` | virtual-trial divergence across eligible models |
+| `onkos simulate --compare [--json --include-curves]` | virtual-trial divergence across eligible models (text or JSON) |
 | `onkos uncertainty <id> [--n --seed]` | Monte-Carlo parameter-uncertainty bands (propagates IIV CV) |
 | `onkos sensitivity <id> [--target --n]` | rank parameters by how much their IIV drives a target metric |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
@@ -261,6 +262,14 @@ provenance into one citable archive.
 pip install -e ".[dashboard]"
 streamlit run dashboard/app.py
 ```
+
+The Streamlit dashboard is a thin presentation layer over the tested package API
+(`compare`, `simulate_ensemble`, `sensitivity`) — three tabs: the **divergence
+view** (tumor / OS / PFS curves + divergences + the greyed-out excluded models),
+an **analyze-a-model** tab (uncertainty bands + the sensitivity tornado for any
+included model), and a **dataset browser**. Because all logic lives in the
+package, the dashboard's data is unit-tested and CI keeps `dashboard/app.py`
+linted and compiling against the current API.
 
 ---
 
@@ -636,6 +645,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | Linked data is validated by RDF expansion, not just emitted | A JSON file with `onkos:` keys is not automatically valid JSON-LD. Shipping a single `@context`, typing `isDescribedBy` as `@id`, and having CI expand the output with rdflib to check the triples means the machine-readability claim is enforced rather than assumed. |
 | OS and PFS share one mechanism (a tagged survival link), not two code paths | Both endpoints are Weibull-PH links on the same week-8 TGI metric, distinguished only by a `structure.endpoint` tag and their scale. `simulate` returns a curve per endpoint found for the context, so adding PFS needed data, not new kernels — and every analysis (divergence, uncertainty, sensitivity) works on either endpoint for free. |
 | The Cox link is non-default and opt-in, not an auto-selected competitor | Auto-discovery assumes one link per (context, endpoint). The Cox alternative carries `structure.default: false`, so it's reachable only via explicit `survival_link=` — turning "Weibull vs Cox" into a deliberate survival-model-choice comparison instead of a silent collision. Its tabulated baseline rides along in the vt-json / JSON-LD exports. |
+| The dashboard owns no logic — it renders a tested, serializable result | The virtual-trial result is a `Comparison.to_dict()/to_json()` the package builds and tests; the Streamlit file only draws it. That keeps the headline view honest (the same numbers everywhere), lets external simulators ingest the JSON, and means CI catches UI/API drift by lint + compile, not by screenshots. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---

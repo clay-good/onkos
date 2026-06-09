@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "onkos"
-version = "0.13.0"
+version = "0.14.0"
 description = "Curated, citation-backed, tier-annotated dataset of tumor-growth-inhibition (TGI) and TGI→survival models for oncology drug development."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -56,3 +56,7 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+filterwarnings = [
+    # rdflib's JSON-LD parser uses a deprecated rdflib internal; not ours.
+    "ignore:ConjunctiveGraph is deprecated:DeprecationWarning",
+]

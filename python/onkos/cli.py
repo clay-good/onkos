@@ -95,6 +95,9 @@ def _cmd_simulate(args) -> int:
             ds, purpose="tgi", context=ctx, drug_effect=drug_effect,
             exposure=exposure, exposure_response=er,
         )
+        if args.json:
+            print(cmp.to_json(include_curves=args.include_curves))
+            return 0
         print(f"Virtual-trial comparison — {ctx}, {effect_desc}\n")
         for tr in cmp.included:
             mos = f"{tr.median_os:.1f}" if tr.median_os else "n/r"
@@ -248,6 +251,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="exposure-response record id mapping exposure -> drug effect E",
     )
     sp.add_argument("--compare", action="store_true", help="virtual-trial divergence across models")
+    sp.add_argument("--json", action="store_true", help="emit the comparison as JSON (with --compare)")
+    sp.add_argument("--include-curves", action="store_true", help="include tumor/OS/PFS arrays in --json")
     sp.set_defaults(func=_cmd_simulate)
 
     up = sub.add_parser(

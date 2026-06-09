@@ -63,6 +63,51 @@ class Comparison:
     def median_pfs_range(self) -> tuple[float, float] | None:
         return self._median_range("PFS")
 
+    def to_dict(self, *, include_curves: bool = False) -> dict:
+        """A JSON-serializable summary of the virtual-trial result.
+
+        Per-model summaries (tier, median OS/PFS, key TGI metrics, warnings),
+        the excluded models with reasons, and the OS/PFS divergence. With
+        ``include_curves`` the tumor/OS/PFS arrays are included as plain lists for
+        a dashboard or external simulator to ingest (spec §7)."""
+        from ._const import CLINICAL_USE
+
+        def model(tr: Trajectory) -> dict:
+            d = {
+                "id": tr.record_id,
+                "tier": tr.tier,
+                "median_os_weeks": tr.median_os,
+                "median_pfs_weeks": tr.median_pfs,
+                "week8_relative_change": tr.metrics.get("week8_relative_change"),
+                "depth_of_response": tr.metrics.get("depth_of_response"),
+                "tumor_growth_rate_kg": tr.metrics.get("tumor_growth_rate_kg"),
+                "warnings": list(tr.warnings),
+            }
+            if include_curves:
+                d["t"] = self.t.tolist()
+                d["tumor_size"] = tr.tumor_size.tolist()
+                d["survival"] = {k: v.tolist() for k, v in tr.survival.items()}
+            return d
+
+        return {
+            "onkos:clinicalUse": CLINICAL_USE,
+            "NOT_FOR_CLINICAL_USE": True,
+            "context": self.context,
+            "drug_effect": self.drug_effect,
+            "n_included": len(self.included),
+            "os_divergence": self.os_divergence,
+            "pfs_divergence": self.pfs_divergence,
+            "median_os_range": list(self.median_os_range) if self.median_os_range else None,
+            "median_pfs_range": list(self.median_pfs_range) if self.median_pfs_range else None,
+            "included": [model(tr) for tr in self.included],
+            "excluded": [{"id": rid, "reason": reason} for rid, reason in self.excluded],
+        }
+
+    def to_json(self, *, include_curves: bool = False, indent: int = 2) -> str:
+        import json
+
+        return json.dumps(self.to_dict(include_curves=include_curves), indent=indent)
+
 
 def compare(
     ds: Dataset,

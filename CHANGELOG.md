@@ -4,6 +4,19 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.14.0] — Serializable virtual-trial result + rebuilt dashboard
+
+- `Comparison.to_dict()` / `.to_json(include_curves=...)`: the virtual-trial
+  divergence view is now a JSON-serializable result (per-model OS/PFS medians and
+  TGI metrics, excluded models + reasons, OS/PFS divergence, optional curves) for
+  dashboard / external-simulator ingestion. `onkos simulate --compare --json`.
+- The Streamlit dashboard is rebuilt as a thin renderer over the tested package
+  API: divergence view (tumor/OS/PFS), an analyze-a-model tab (uncertainty bands +
+  sensitivity tornado), and a dataset browser. Its data logic is unit-tested and
+  CI lints + compiles `dashboard/app.py` against the current API.
+- Housekeeping: silence the external rdflib `ConjunctiveGraph` DeprecationWarning
+  in pytest; lint scope now includes `dashboard/`.
+
 ## [0.13.0] — Cox survival link + survival-model-choice divergence
 
 - `survival_cox_ph` kernel: Cox proportional hazards with a NONPARAMETRIC

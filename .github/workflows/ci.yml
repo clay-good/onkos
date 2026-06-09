@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff
-      - run: ruff check python/ tests/ scripts/
+      - run: ruff check python/ tests/ scripts/ dashboard/
 
   test:
     runs-on: ubuntu-latest
