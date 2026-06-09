@@ -4,6 +4,46 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.23.0] — Drug-combination interaction: the interaction model as a model-selection axis
+
+Implements the research-track spec `docs/specs/research/combination-interaction.md`
+(steps 1–4): oncology is overwhelmingly combination therapy, and a composed forecast
+for a combination silently depends on one unmeasured choice — *how do the two drugs'
+effects combine?* This makes that choice a first-class, quantified model-selection axis.
+
+- `onkos.interaction`: `combine_effects(E_A, E_B, model, psi)` combines two single-agent
+  effect magnitudes under three declared interaction nulls — `hsa` (highest single
+  agent, `max`), `additive` (Bliss-independence / effect-additive, `E_A + E_B`), and
+  `greco` (interaction index `E_A + E_B + ψ·√(E_A·E_B)`, ψ>0 synergy, ψ<0 antagonism).
+  `simulate_combination(...)` feeds the combined effect through the *existing* TGI →
+  survival chain unchanged; `compare_interactions(...)` returns an
+  `InteractionComparison` with the per-model OS/tumor trajectories and the
+  **interaction-model divergence** — how much the predicted survival depends on the
+  interaction assumption alone (≈77–100 wk median OS for the Claret NSCLC model at
+  `E_A=E_B=0.6`, driven purely by the assumption).
+- **Synergy is an assumption, not a finding.** `ψ` is a *declared* input (default 0, the
+  additive null), never estimated from the dataset; a non-zero value carries a
+  `synergy_is_an_assumption` warning — distinguishing synergy from additivity needs a
+  combination trial designed for it. The underlying TGI model's propagated tier governs
+  and cannot be raised; an inactive partner reduces to monotherapy under every model
+  (no manufactured interaction).
+- Guardrails, enforced by a landmark suite (`tests/test_interaction.py`, 13 closed-form
+  checks of the combination rules themselves): the additive null (`greco(ψ=0)=additive`),
+  the **Bliss≡additive identity** for log-linear kill (`1−(1−f_A)(1−f_B)=1−e^{−(E_A+E_B)}`),
+  the `hsa ≤ additive ≤ greco(ψ>0)` ordering, monotonicity in ψ and in each effect,
+  single-agent degeneracy, symmetry, the antagonism floor at 0, plus integration checks
+  (divergence positive with synergy / zero with an inactive partner, tier passthrough,
+  the synergy warning).
+- Surfaces: `onkos interactions <id> [--effect-a --effect-b --psi --json]`; a combination
+  figure (combined effect vs ψ + OS divergence by interaction model) and
+  `notebooks/16_combination_interaction.ipynb` (executed in CI); README section framing
+  the interaction model as a model-selection axis (the kill-mechanism move one layer up),
+  cheat sheets, roadmap, and the public-API contract test updated.
+- Methodological provenance (Bliss 1939; Loewe 1953 additivity and the dose-level
+  boundary Onkos names but does not yet cross; HSA / Berenbaum 1989; the Greco 1995
+  interaction index) is documented in the README and spec; Crossref-verified citation
+  curation is deferred, consistent with the honest-by-default stance.
+
 ## [0.22.0] — Practical identifiability: could a trial even estimate this parameter?
 
 Implements the research-track spec `docs/specs/research/practical-identifiability.md`

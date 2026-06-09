@@ -752,6 +752,66 @@ def identifiability_figure() -> None:
     plt.close(fig)
 
 
+def combination_interaction_figure() -> None:
+    """Drug-combination interaction as a model-selection axis: how the combined effect
+    and the predicted OS depend on the (unmeasured) interaction assumption."""
+    from onkos.interaction import combine_effects, compare_interactions
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    rid = "resistance.claret_2009.tgi"
+    ea = eb = 0.6
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    # Left: combined effect E_AB vs the interaction parameter ψ, with the HSA and
+    # additive nulls as horizontal references. ψ is a declared assumption, not fitted.
+    psis = np.linspace(-1.0, 2.0, 121)
+    greco = [combine_effects(ea, eb, model="greco", psi=p) for p in psis]
+    hsa = combine_effects(ea, eb, model="hsa")
+    add = combine_effects(ea, eb, model="additive")
+    ax1.plot(psis, greco, color="#6b46c1", lw=1.8, label="greco E_AB(ψ)")
+    ax1.axhline(add, ls="--", color="#2b6cb0", lw=1.2, label=f"additive / Bliss null = {add:g}")
+    ax1.axhline(hsa, ls=":", color="#2f855a", lw=1.2, label=f"HSA (highest single agent) = {hsa:g}")
+    ax1.axvline(0, color="grey", lw=0.8)
+    ax1.fill_betweenx([0, max(greco)], -1.0, 0, color="#c53030", alpha=0.06)
+    ax1.fill_betweenx([0, max(greco)], 0, 2.0, color="#2f855a", alpha=0.06)
+    ax1.text(-0.92, max(greco) * 0.95, "antagonism", fontsize=7, color="#c53030")
+    ax1.text(1.2, max(greco) * 0.95, "synergy", fontsize=7, color="#2f855a")
+    ax1.set_title(f"Combined effect of E_A={ea:g} + E_B={eb:g} vs interaction ψ", fontsize=9)
+    ax1.set_xlabel("interaction parameter ψ (DECLARED assumption)")
+    ax1.set_ylabel("combined drug effect E_AB")
+    ax1.legend(fontsize=7, loc="upper left")
+
+    # Right: population OS under each interaction model for the SAME single-agent
+    # activity — the survival divergence driven purely by the interaction assumption.
+    t = np.linspace(0.0, 156.0, 313)
+    cmp = compare_interactions(ds, rid, context=ctx, effect_a=ea, effect_b=eb, psi=0.5, t=t)
+    colors = {"hsa": "#2f855a", "additive": "#2b6cb0", "greco+0.5": "#6b46c1",
+              "greco-0.5": "#c05621"}
+    for label, tr in cmp.trajectories.items():
+        mos = f" (mOS {tr.median_os:.0f})" if tr.median_os else ""
+        ax2.plot(t, tr.os_curve, color=colors.get(label, "grey"), lw=1.7,
+                 label=f"{label}{mos}")
+    ax2.axhline(0.5, ls=":", color="grey", lw=1)
+    ax2.set_ylim(0, 1.02)
+    ax2.set_title(f"Population OS by interaction model — divergence {cmp.os_divergence:.2f}",
+                  fontsize=9)
+    ax2.set_xlabel("weeks")
+    ax2.set_ylabel("survival fraction")
+    ax2.legend(fontsize=7)
+
+    rng = cmp.median_os_range
+    fig.suptitle(
+        "Combination therapy: the interaction model is itself a model-selection axis — same "
+        f"single-agent activity, median OS {rng[0]:.0f}-{rng[1]:.0f} wk by assumption",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "combination_interaction.png", dpi=120)
+    plt.close(fig)
+
+
 def kill_mechanism_figure() -> None:
     """Norton-Simon (kill ∝ growth) vs log-kill (Claret, kill ∝ size) mechanisms."""
     from onkos.export.registry import get_kernel, kernel_values
@@ -811,4 +871,5 @@ if __name__ == "__main__":
     kill_mechanism_figure()
     model_average_figure()
     identifiability_figure()
+    combination_interaction_figure()
     print(f"Wrote figures to {OUT}")

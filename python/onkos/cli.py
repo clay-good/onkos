@@ -286,6 +286,39 @@ def _cmd_identify(args) -> int:
     return 0
 
 
+def _cmd_interactions(args) -> int:
+    from .interaction import SYNERGY_IS_AN_ASSUMPTION, compare_interactions
+
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    cmp = compare_interactions(
+        ds, args.record, context=ctx, effect_a=args.effect_a, effect_b=args.effect_b,
+        psi=args.psi,
+    )
+    if args.json:
+        print(cmp.to_json())
+        return 0
+    print(
+        f"{args.record}  tier={cmp.tier}  (combination: E_A={args.effect_a:g} + "
+        f"E_B={args.effect_b:g}, {ctx})\n"
+    )
+    print(f"  {'interaction':<14} {'combined E':>11} {'median OS':>11}")
+    for label, tr in cmp.trajectories.items():
+        e = cmp.combined_effects[label]
+        mos = f"{tr.median_os:.1f}" if tr.median_os else "n/r"
+        print(f"  {label:<14} {e:>11.3f} {mos:>11}")
+    rng = cmp.median_os_range
+    span = f"{rng[0]:.0f}-{rng[1]:.0f}" if rng else "n/r"
+    print(
+        f"\n  OS divergence across interaction models = {cmp.os_divergence:.3f}  "
+        f"| median OS range {span} wk"
+    )
+    print("  >> the interaction model is a model-selection axis (not a measured quantity)")
+    if cmp.warnings:
+        print(f"  ! {SYNERGY_IS_AN_ASSUMPTION}")
+    return 0
+
+
 def _write_csv(ds, out: Path) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", newline="") as fh:
@@ -439,6 +472,20 @@ def build_parser() -> argparse.ArgumentParser:
     ip.add_argument("--sigma-add", type=float, default=0.0, help="additive residual error")
     ip.add_argument("--json", action="store_true", help="emit the result as JSON")
     ip.set_defaults(func=_cmd_identify)
+
+    xp = sub.add_parser(
+        "interactions",
+        help="drug-combination divergence: the interaction model as a model-selection axis",
+    )
+    xp.add_argument("record", help="record id (a TGI model driven by a drug effect)")
+    xp.add_argument("--tumor-type", default="NSCLC")
+    xp.add_argument("--line", default="first")
+    xp.add_argument("--effect-a", type=float, default=0.6, help="single-agent effect of drug A")
+    xp.add_argument("--effect-b", type=float, default=0.6, help="single-agent effect of drug B")
+    xp.add_argument("--psi", type=float, default=0.5,
+                    help="synergy/antagonism bracket magnitude (DECLARED assumption, not fitted)")
+    xp.add_argument("--json", action="store_true", help="emit the result as JSON")
+    xp.set_defaults(func=_cmd_interactions)
 
     ep = sub.add_parser("export", help="generate export artifacts")
     ep.add_argument(

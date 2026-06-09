@@ -13,6 +13,12 @@ from .combine import ModelAverage
 from .compare import Comparison, compare
 from .filter import filter_records
 from .identify import Identifiability, identifiability
+from .interaction import (
+    InteractionComparison,
+    combine_effects,
+    compare_interactions,
+    simulate_combination,
+)
 from .load import DATASET_VERSION, Dataset, load
 from .report import build_report
 from .sensitivity import SensitivityResult, sensitivity
@@ -31,11 +37,15 @@ __all__ = [
     "ModelAverage",
     "SensitivityResult",
     "Identifiability",
+    "InteractionComparison",
     "load",
     "simulate",
     "simulate_ensemble",
     "sensitivity",
     "identifiability",
+    "combine_effects",
+    "simulate_combination",
+    "compare_interactions",
     "compare",
     "filter_records",
     "validate_dataset",

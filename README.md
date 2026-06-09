@@ -385,6 +385,50 @@ ns = onkos.simulate(ds, "drug_effect.norton_simon.nsclc", context=ctx, drug_effe
 # fractional kill rate rises as the tumor shrinks — the Norton-Simon signature
 ```
 
+### Combination therapy: the interaction model is itself a model-selection axis
+
+Oncology is overwhelmingly *combination* therapy, and a composed forecast for a
+combination hides one unmeasured choice — **how do the two drugs' effects combine?**
+`onkos.interaction` makes that choice a quantified model-selection axis, the same
+"make the silent assumption visible" move as the kill mechanism above, one layer up.
+Two single-agent effects `E_A, E_B` combine into one effective effect under each
+declared interaction rule, which then drives the *existing* TGI → survival chain:
+
+```text
+hsa       E_AB = max(E_A, E_B)                 highest single agent (conservative null)
+additive  E_AB = E_A + E_B                     Bliss-independence / effect-additive null
+greco     E_AB = E_A + E_B + ψ·√(E_A·E_B)      interaction index (ψ>0 synergy, ψ<0 antagonism)
+```
+
+![Combination interaction as a model-selection axis](docs/images/combination_interaction.png)
+
+For the *same* single-agent activity, the interaction assumption alone moves predicted
+median OS across a wide range (≈77–100 wk for `E_A=E_B=0.6` on the Claret NSCLC model)
+— the over-optimism that sinks combination programs, now a measured divergence rather
+than a buried assumption. **Synergy is treated as an assumption, never a finding:** `ψ`
+is a declared input (default 0, the additive null), never fitted from the dataset, and a
+non-zero value carries a warning — distinguishing synergy from additivity requires a
+combination trial designed for it. A neat identity falls out and is landmark-tested:
+for log-linear kill, **Bliss independence is exactly additive kill rates**
+(`e^{−E_A·Δt}·e^{−E_B·Δt} = e^{−(E_A+E_B)·Δt}`), so Onkos states the equivalence rather
+than hiding it. Population/regimen level only — it simulates one combination under
+different interaction *assumptions*, never ranks regimens, and the underlying model's
+tier governs and cannot be raised. An inactive partner reduces to monotherapy under
+every model (no manufactured interaction). The combination math is proven against a
+landmark suite (`tests/test_interaction.py`): the layer *is* the standard interaction
+nulls (Bliss 1939, Loewe 1953, HSA/Berenbaum 1989, the Greco 1995 interaction index) and
+a monotone interaction index, not an unconstrained synergy knob.
+
+```python
+from onkos.interaction import compare_interactions
+cmp = onkos.compare_interactions(ds, "resistance.claret_2009.tgi", context=ctx,
+                                 effect_a=0.6, effect_b=0.6, psi=0.5)
+cmp.combined_effects        # {hsa, additive, greco±ψ} -> E_AB
+cmp.median_os               # predicted median OS per interaction model
+cmp.os_divergence           # how much OS depends on the interaction assumption alone
+cmp.median_os_range, cmp.warnings   # incl. the synergy-is-an-assumption note
+```
+
 ---
 
 ## Install & quick start
@@ -458,6 +502,13 @@ idn.practically_identifiable               # False — under this design
 idn.collinearity_index                     # γ_K ≈ 22 (confounded combination)
 [(p.symbol, round(p.rse_percent), p.iiv_cv_percent) for p in idn.params]  # RSE vs stored CV
 idn.worst.symbol                           # least-identifiable parameter (curation triage)
+
+# Combination therapy — the interaction model as a model-selection axis
+cmp = onkos.compare_interactions(ds, "resistance.claret_2009.tgi", context=ctx,
+                                 effect_a=0.6, effect_b=0.6, psi=0.5)
+cmp.combined_effects                       # {hsa, additive, greco±ψ} -> combined effect E_AB
+cmp.median_os, cmp.os_divergence           # predicted OS per model; interaction-model divergence
+onkos.combine_effects(0.6, 0.6, model="greco", psi=0.5)   # the pure interaction math
 ```
 
 ### CLI (cheat sheet)
@@ -475,6 +526,7 @@ idn.worst.symbol                           # least-identifiable parameter (curat
 | `onkos uncertainty <id> [--n --seed]` | Monte-Carlo parameter-uncertainty bands (propagates IIV CV) |
 | `onkos sensitivity <id> [--target --n]` | rank parameters by how much their IIV drives a target metric |
 | `onkos identify <id> [--schedule --sigma-prop]` | predicted RSE vs stored CV — can a realistic trial design estimate the parameters? |
+| `onkos interactions <id> [--effect-a --effect-b --psi]` | drug-combination divergence — the interaction model as a model-selection axis |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
 
 Export formats: `nonmem`, `sbml`, `pharmml`, `so` (PharmML Standard Output),
@@ -967,6 +1019,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | Survival matching is line-aware; an unsupported line yields no curve, not a borrowed one | The line of therapy is part of the context, so a second-line simulation must use second-line survival — matching only on tumor type would silently transport a 1L model. When no curated link exists for a line, the honest result is no survival curve, mirroring the no-fallback rule for tumor type. |
 | The PK bridge is a thin illustrative adapter, not a PK toolkit (that's Hypnos) | Onkos's scope is exposure → tumor → survival. `onkos.pk` exposes only the standard dose↔exposure relations and a profile-ingestion adapter so the composability chain is runnable self-contained; modelling the PK itself stays in Hypnos, and the generators are clearly labelled illustrative. |
 | Kill mechanism is a separate subsystem, so it can be a divergence axis | Bundling the kill model into each TGI record would hide that two trials might shrink tumors identically yet predict different outcomes because one assumed log-kill and the other Norton-Simon. The `drug_effect` subsystem makes the mechanism an explicit, comparable choice — the same "make the silent assumption visible" move as `transportability`. |
+| The drug-interaction model is a model-selection axis, and synergy is an assumption not a finding | A combination's predicted benefit depends on how the two effects are assumed to combine (HSA / additive-Bliss / synergy), so `onkos.interaction` combines at the effect level and reports the OS divergence across those assumptions rather than picking one. The interaction parameter ψ is a *declared* input (never fitted from the dataset, flagged when non-zero): distinguishing synergy from additivity needs a combination trial designed for it, and asserting it without one is the over-optimism the divergence exposes. Combination at the effect level (not dose-level Loewe over the ER curves) is the v0.x scope, named not hidden. |
 | The architecture is a *tested* contract, not just a diagram | `tests/test_architecture.py` asserts every declared subsystem has records, every kernel is bound (no orphans/dead kernels), the CLI export formats match both the builders and the CI sweep, and the public API surface is stable. These checks have already caught real drift (an empty `drug_effect` subsystem; a CI export loop missing `so`/`jsonld`), so the diagrams above stay honest. |
 | Model-averaging weights are *combination* weights, never model posteriors | Posterior model probabilities `P(model\|data)` require the candidates to share one dataset; Onkos models are fit to different trials, so a posterior is not identifiable and would be invented. Framing the weights as Bates–Granger forecast-combination weights (and printing that everywhere) keeps the no-false-precision discipline; the headline output is a *fraction of uncertainty no better estimation can remove*, not a manufactured central probability. |
 | The model average is structurally inseparable from its disagreement | A single combined curve *looks* like an answer, so `ModelAverage` cannot be serialized or drawn without its `model_selection_fraction` and worst tier; averaging cannot raise a tier, never rehabilitates an excluded model, and `M=1` returns fraction 0 *with* a warning. The combiner is post-processing over `compare`, validated by a landmark suite proving it *is* the law of total variance and a convex combination. |
@@ -983,7 +1036,7 @@ onkos/
 │   ├── records/                 # one JSON per model / context-baseline
 │   └── citations/               # Crossref/PubMed citation records
 ├── python/onkos/
-│   ├── load · filter · validate · tiers · simulate · metrics · pk · compare · uncertainty · sensitivity · combine · identify · audit · report · cli
+│   ├── load · filter · validate · tiers · simulate · metrics · pk · compare · uncertainty · sensitivity · combine · identify · interaction · audit · report · cli
 │   ├── py.typed                 # PEP 561 typing marker
 │   └── export/                  # registry · reference · nonmem · sbml · pharmml · pharmml_so
 │       · rxode2 · pumas · virtual_trial_json · jsonld · combine · annotate
@@ -1032,6 +1085,7 @@ own thesis rather than adding breadth:
 | --- | --- | --- |
 | **Model-selection uncertainty** | `onkos.combine`: law-of-total-variance split of a composed forecast into parameter (within) vs model-selection (between) variance; the `model_selection_fraction`; declared `equal`/`tier`/`evidence` combination weights with cross-scheme fragility; the model-averaged `S̄(t)` curve + between-model band; report ranks contexts by irreducible model-choice risk. | ✅ v0.21 |
 | **Practical identifiability** | `onkos.identify`: the design Fisher information + Cramér–Rao RSE + Brun collinearity index over the existing kernels; measures whether a realistic trial could estimate each parameter, pairs predicted RSE with stored IIV CV (flagging flat-likelihood-artifact CVs), and ranks models a realistic design cannot support; landmark-proven; cannot move a tier. | ✅ v0.22 |
+| **Combination interaction** | `onkos.interaction`: combines two single-agent effects under declared interaction nulls (HSA / additive-Bliss / Greco interaction index ψ) and propagates through the existing TGI → survival chain; the interaction model becomes a quantified model-selection axis with its own OS divergence; synergy is a *declared assumption*, never fitted; the Bliss≡additive identity is landmark-tested; cannot rank regimens or raise a tier. | ✅ v0.23 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

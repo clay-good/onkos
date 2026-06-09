@@ -86,6 +86,7 @@ def test_public_api_surface_is_stable():
     """The documented public API names remain exported (catches accidental removal)."""
     expected = {
         "load", "simulate", "simulate_ensemble", "sensitivity", "compare",
+        "identifiability", "combine_effects", "simulate_combination", "compare_interactions",
         "build_report", "audit_tiers", "evidence_ceiling", "validate_dataset",
         "filter_records", "pk", "Dataset", "Trajectory", "Comparison",
     }
