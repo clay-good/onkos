@@ -4,6 +4,52 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.22.0] — Practical identifiability: could a trial even estimate this parameter?
+
+Implements the research-track spec `docs/specs/research/practical-identifiability.md`
+(steps 1–4): the project's load-bearing *claim* — that the ~90% IIV CV on
+kill/resistance terms is there because "resistance is poorly identifiable from short
+trials" — becomes a measured, tested quantity instead of an assertion.
+
+- `onkos.identify`: from the **Fisher information of a clinical observation schedule**
+  (`M = SᵀWS`, finite-difference sensitivities over the existing reference kernels,
+  combined proportional+additive residual error), it returns the **Cramér–Rao** lower
+  bound on each structural parameter's relative standard error (`rse_percent`) and the
+  Brun–Reichert–Künsch **collinearity index** `γ_K`. `onkos.identifiability(...)`
+  returns an `Identifiability` with the per-parameter predicted RSE paired with the
+  stored IIV CV, the `practically_identifiable` verdict (`max RSE < 50%` AND
+  `γ_K < 15`), and the least-identifiable parameter (curation triage).
+- The headline pairing — **predicted RSE next to stored IIV CV** — operationalizes the
+  thesis: for the Claret NSCLC model under a realistic RECIST cadence the kill rate
+  `kD` is well identified (RSE ≈ 9%) while the growth rate `kL` and resistance decay
+  `lambda` are flat (RSE ≈ 229%, 53%) and confounded (`γ_K ≈ 22`), so `lambda`'s 96%
+  CV is flagged `cv_is_identifiability_artifact` — partly a flat-likelihood artifact of
+  the originating design, not a clean estimate of biological spread. Identifiability is
+  design-relative: lengthen the follow-up past resistance-driven regrowth and `lambda`
+  finally crosses below the ceiling.
+- Guardrails, enforced by a landmark suite (`tests/test_identifiability.py`, 14
+  closed-form checks of the information algebra itself): the exponential single-
+  parameter CRLB closed form `RSE_k = σ_prop/(|k|·√Σtᵢ²)`, Fisher-information
+  additivity over observations, monotonic precision (more scans never raise an RSE),
+  residual-error scaling, singular-design honesty (`inf`, never a fabricated bound),
+  the orthogonal-design `γ_K = 1` floor and its scale-invariance, and CRLB
+  consistency. Identifiability **cannot move a tier** (it passes the record's
+  propagated tier through; an out-of-context transport still floors to D), emits no
+  individual-level quantity, and is the individual (fixed-effects) design FIM — not the
+  population/NLME FIM, stated explicitly to avoid overclaim.
+- Surfaces: `onkos identify <id> [--schedule --sigma-prop --json]`; `onkos report`
+  gains a per-model **practical-identifiability** section ranking the clinical TGI
+  models a realistic design cannot support (the 2-parameter biexponential models are
+  identifiable; every 3-parameter resistance-augmented model is not) — binned to a
+  binary verdict so the CI report-in-sync diff stays byte-stable; an identifiability
+  figure (RSE-vs-CV bars + RSE-vs-follow-up curves) and `notebooks/15_practical_
+  identifiability.ipynb` (executed in CI).
+- Methodological provenance (the pharmacometric optimal-design FIM, PFIM/PopED; the
+  structural-vs-practical identifiability distinction of Raue et al. 2009; the Brun et
+  al. 2001 collinearity index; the Cramér–Rao bound) is documented in the README and
+  spec; Crossref-verified citation curation is deferred, consistent with the honest-by-
+  default stance.
+
 ## [0.21.0] — Model-selection uncertainty: the third uncertainty axis
 
 Implements the research-track spec `docs/specs/research/model-selection-uncertainty.md`

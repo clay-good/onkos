@@ -114,6 +114,52 @@ def model_selection_summary(ds: Dataset) -> list[dict]:
     return out
 
 
+# Practical-identifiability reference design (research spec practical-identifiability
+# §6): a realistic RECIST scan cadence + 20% proportional assay error. The verdict
+# reported is the binary `practically_identifiable` bool (RSE < 50% on every
+# parameter AND collinearity index < 15) plus the least-identifiable parameter — no
+# raw floats, so the CI report-in-sync diff stays byte-stable. The eligible models
+# bifurcate cleanly (worst RSE either <=47% or >=127%), well clear of the boundary.
+_PI_SIGMA_PROP = 0.2
+
+
+def practical_identifiability_summary(ds: Dataset) -> list[dict]:
+    """Per-clinical-TGI-model practical-identifiability under a fixed reference
+    design: can a realistic trial even estimate the model's structural parameters,
+    or is its precision (and the stored IIV CV) a flat-likelihood artifact? Ranks the
+    models whose estimates a realistic trial cannot support to the top — the
+    design-level analog of the sensitivity / model-selection curation triage.
+
+    Deferred import avoids loading the simulation stack at report import time."""
+    from .export.registry import get_kernel
+    from .identify import identifiability
+
+    out: list[dict] = []
+    for r in ds:
+        if r.purpose not in ("tgi", "metric") or r.subsystem == "immuno_oncology":
+            continue
+        if r.kernel is None or get_kernel(r).kind != "ode":
+            continue
+        dc = r.derivation_context
+        ctx = {
+            "tumor_type": dc.tumor_type if dc else None,
+            "line": dc.line_of_therapy if dc else None,
+        }
+        res = identifiability(ds, r.id, context=ctx, sigma_prop=_PI_SIGMA_PROP)
+        worst = res.worst
+        out.append({
+            "record_id": r.id,
+            "tier": res.tier,
+            "n_params": len(res.params),
+            "identifiable": res.practically_identifiable,
+            "worst": worst.symbol if worst else "-",
+        })
+    # Not-identifiable first (the triage priority), then alphabetically — a
+    # deterministic order independent of the raw (platform-sensitive) RSE values.
+    out.sort(key=lambda d: (d["identifiable"], d["record_id"]))
+    return out
+
+
 def _tier_by_subsystem(ds: Dataset) -> dict:
     table: dict = {}
     for r in ds:
@@ -212,6 +258,37 @@ def build_report(ds: Dataset) -> str:
             f"| {m['tumor_type']} | {m['line']} | {m['n_models']} | {m['tier']} | {m['risk']} |"
             for m in msu
         ]
+
+    pid = practical_identifiability_summary(ds)
+    if pid:
+        n_unident = sum(1 for m in pid if not m["identifiable"])
+        lines += [
+            "",
+            "## Practical identifiability by model",
+            "",
+            "Under a realistic RECIST scan cadence (weeks 0, 6, 12, 18, 24, 36, 48; 20% "
+            "proportional assay error), could a trial of that shape even *estimate* each "
+            "model's structural parameters? A model flagged *not identifiable* has a "
+            "parameter whose predicted relative standard error exceeds 50% (or a collinear, "
+            "non-separable parameter combination) — so its reported point value, and often "
+            "the large IIV CV travelling with it, are partly a flat-likelihood artifact of "
+            "the design rather than clean estimates. These are the models where a richer "
+            "trial design or an external constraint is needed before an estimate should be "
+            "reused (curation triage). Design level only; identifiability cannot move a "
+            "tier. See `onkos.identify`.",
+            "",
+            f"- **Not practically identifiable** under the reference design: {n_unident} / "
+            f"{len(pid)} clinical TGI models.",
+            "",
+            "| model | params | tier | identifiable? | least-identifiable |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        for m in pid:
+            verdict = "yes" if m["identifiable"] else "**no**"
+            worst = "—" if m["identifiable"] else f"`{m['worst']}`"
+            lines.append(
+                f"| `{m['record_id']}` | {m['n_params']} | {m['tier']} | {verdict} | {worst} |"
+            )
 
     if s["hypothesis_tier"]:
         lines += [

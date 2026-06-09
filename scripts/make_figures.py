@@ -684,6 +684,74 @@ def model_average_figure() -> None:
     plt.close(fig)
 
 
+def identifiability_figure() -> None:
+    """Practical identifiability (design axis): predicted RSE vs stored IIV CV, and
+    how follow-up length identifies (or fails to identify) each parameter."""
+    from onkos.identify import identifiability
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    rid = "resistance.claret_2009.tgi"
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    # Left: per-parameter predicted RSE (Cramér-Rao) next to the stored IIV CV under
+    # a realistic RECIST cadence. The kill rate kD is well identified; the growth and
+    # resistance terms are flat — so λ's ~90% CV is partly a flat-likelihood artifact.
+    res = identifiability(ds, rid, context=ctx)
+    order = ["kL", "kD", "lambda"]  # growth, kill, resistance (kernel order)
+    by = {p.symbol: p for p in res.params}
+    rse = [by[s].rse_percent for s in order]
+    cv = [by[s].iiv_cv_percent or 0 for s in order]
+    x = np.arange(len(order))
+    ax1.bar(x - 0.2, rse, 0.4, color="#c53030", label="predicted RSE (design)")
+    ax1.bar(x + 0.2, cv, 0.4, color="#3182ce", label="stored IIV CV")
+    ax1.axhline(res.rse_ceiling_percent, ls=":", color="grey", lw=1)
+    ax1.text(2.3, res.rse_ceiling_percent * 1.05, "RSE ceiling 50%", fontsize=7, color="grey",
+             ha="right")
+    ax1.set_yscale("log")
+    ax1.set_xticks(x, ["kL\ngrowth", "kD\nkill", "λ\nresistance"], fontsize=8)
+    ax1.set_ylabel("percent (log)")
+    ax1.set_title("Predicted RSE vs stored IIV CV (NSCLC, RECIST cadence)", fontsize=9)
+    ax1.legend(fontsize=8)
+    ax1.annotate("flat likelihood:\nCV is partly an artifact", (2, max(rse[2], cv[2])),
+                 textcoords="offset points", xytext=(-4, 18), fontsize=7, color="#c53030",
+                 ha="center")
+
+    # Right: predicted RSE for each parameter as the trial follow-up lengthens
+    # (q6w to the horizon). kD is identifiable from any short trial; λ only drops
+    # below the ceiling once follow-up runs past resistance-driven regrowth; kL
+    # (growth, masked by treatment) stays the hardest to pin down.
+    horizons = [24, 36, 48, 72, 104, 156]
+    curves = {s: [] for s in order}
+    for h in horizons:
+        sched = list(np.arange(0.0, h + 1e-9, 6.0))
+        r = identifiability(ds, rid, context=ctx, schedule=sched)
+        b = {p.symbol: p for p in r.params}
+        for s in order:
+            curves[s].append(b[s].rse_percent)
+    labels = {"kL": "kL growth", "kD": "kD kill", "lambda": "λ resistance"}
+    colors = {"kL": "#b7791f", "kD": "#2f855a", "lambda": "#c53030"}
+    for s in order:
+        ax2.plot(horizons, curves[s], "o-", color=colors[s], label=labels[s], ms=4)
+    ax2.axhline(50, ls=":", color="grey", lw=1)
+    ax2.text(26, 56, "identifiable below here", fontsize=7, color="grey")
+    ax2.set_yscale("log")
+    ax2.set_xlabel("trial follow-up horizon (weeks, q6w sampling)")
+    ax2.set_ylabel("predicted RSE % (log)")
+    ax2.set_title("Identifiability vs follow-up length", fontsize=9)
+    ax2.legend(fontsize=8)
+
+    fig.suptitle(
+        "Practical identifiability (design axis): the Fisher information says which "
+        "parameters a realistic trial can estimate — NOT a patient-level quantity",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "identifiability.png", dpi=120)
+    plt.close(fig)
+
+
 def kill_mechanism_figure() -> None:
     """Norton-Simon (kill ∝ growth) vs log-kill (Claret, kill ∝ size) mechanisms."""
     from onkos.export.registry import get_kernel, kernel_values
@@ -742,4 +810,5 @@ if __name__ == "__main__":
     composability_chain_figure()
     kill_mechanism_figure()
     model_average_figure()
+    identifiability_figure()
     print(f"Wrote figures to {OUT}")

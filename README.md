@@ -213,6 +213,75 @@ res.dominant.symbol            # "kD" — verify this parameter first
 [(p.symbol, round(p.contribution, 2), p.src) for p in res.indices]
 ```
 
+### Could a trial even estimate this parameter? Practical identifiability
+
+Sensitivity asks *which* uncertainty drives the forecast; `onkos.identify` asks the
+prior question — was the uncertainty ever *resolvable* by the trial that reported
+it? The dataset's defining honesty move is surfacing the ~90% CV on kill/resistance
+terms, with the stated reason that *resistance is poorly identifiable from short
+trials*. This module measures that claim instead of asserting it. Given a model and
+a realistic RECIST scan schedule, it builds the **Fisher information of the design**
+and returns the **Cramér–Rao** lower bound on each parameter's precision — the best
+relative standard error (RSE) any estimator could achieve from data of that shape.
+
+```text
+Sᵢⱼ = ∂f(tᵢ)/∂θⱼ        M = SᵀWS,  W = diag(1/σᵢ²)        (the design FIM)
+RSEⱼ = √(M⁻¹)ⱼⱼ / |θⱼ|    γ_K = 1 / √(λ_min of the column-normalized SᵀWS)
+practically_identifiable = (maxⱼ RSEⱼ < 50%) AND (γ_K < 15)
+```
+
+![Predicted RSE vs stored CV, and identifiability vs follow-up length](docs/images/identifiability.png)
+
+The payload is the **stored IIV CV next to the predicted RSE**. For the Claret NSCLC
+model under a realistic cadence, the kill rate `kD` is well identified (RSE ≈ 9%, its
+early-shrinkage signal is strong), but the growth rate `kL` and the resistance decay
+`lambda` are flat (RSE ≈ 229% and 53%) and confounded (collinearity index γ_K ≈ 22).
+So `lambda`'s 96% CV is, at least in part, a **flat-likelihood artifact** of the
+originating design — not a clean estimate of biological spread — and Onkos says so
+with a `cv_is_identifiability_artifact` flag. Identifiability is a property of the
+*design*: lengthen the follow-up past resistance-driven regrowth (right panel) and
+`lambda` finally drops below the ceiling, while `kL` (growth, masked by treatment)
+stays the hardest to pin down. Across the dataset the verdict bifurcates cleanly —
+the parsimonious 2-parameter biexponential (Stein/Bruno) models are identifiable;
+every 3-parameter resistance-augmented model is not — and `onkos report` ranks the
+models whose estimates a realistic trial cannot support (design-level curation
+triage).
+
+```python
+res = onkos.identifiability(ds, "resistance.claret_2009.tgi", context=ctx,
+                            schedule=[0, 6, 12, 18, 24, 36, 48])   # weeks
+res.practically_identifiable   # False — under this design
+res.collinearity_index         # γ_K ≈ 22  (a confounded parameter combination)
+res.worst.symbol               # "kL" — needs a richer design / external constraint first
+[(p.symbol, round(p.rse_percent), p.iiv_cv_percent) for p in res.params]
+res.tier                       # unchanged — identifiability cannot move a tier
+```
+
+A diagnostic *about* a model under a design, never about a patient and never a
+tier-mover: a singular design reports `inf` (honest) rather than a fabricated bound,
+and "unidentifiable" always means *under this schedule and residual-error model*. It
+is the individual (fixed-effects) design FIM — the standard local practical-
+identifiability tool of pharmacometric optimal design (PFIM/PopED; the structural-vs-
+practical distinction of Raue et al. 2009; the collinearity index of Brun et al.
+2001). The information algebra is proven against a landmark suite
+(`tests/test_identifiability.py`): the analyzer *is* the Cramér–Rao bound and the
+Brun collinearity index — exponential closed form, information additivity, monotonic
+precision, residual-error scaling, and singular-design honesty — not a precision
+guess.
+
+```text
+$ onkos identify resistance.claret_2009.tgi
+
+  parameter       central  pred. RSE   IIV CV   identifiable?
+  kL                0.021       229%      38%   NO
+  lambda            0.061        53%      96%   NO
+  kD                  0.3         9%      89%   yes
+
+  collinearity index γ_K = 22.3  (ceiling 15)  ->  NOT identifiable under this design
+  ! cv_is_identifiability_artifact: 'lambda' carries IIV CV 96% and is practically
+    unidentifiable (RSE 53%) — its variability is partly a flat-likelihood artifact
+```
+
 ### Two survival endpoints: OS and PFS
 
 The spec (§2, §6) calls for both **overall survival (OS)** and **progression-free
@@ -381,6 +450,14 @@ ens.metrics["median_os_weeks"]             # {"median", "lo", "hi"}
 res = onkos.sensitivity(ds, "resistance.claret_2009.tgi", context=ctx, target="median_os_weeks")
 res.dominant.symbol                        # "kD"
 res.indices                                # ranked [ParamSensitivity(symbol, src, contribution), …]
+
+# Practical identifiability — can a realistic trial design even estimate the params?
+idn = onkos.identifiability(ds, "resistance.claret_2009.tgi", context=ctx,
+                            schedule=[0, 6, 12, 18, 24, 36, 48])   # weeks
+idn.practically_identifiable               # False — under this design
+idn.collinearity_index                     # γ_K ≈ 22 (confounded combination)
+[(p.symbol, round(p.rse_percent), p.iiv_cv_percent) for p in idn.params]  # RSE vs stored CV
+idn.worst.symbol                           # least-identifiable parameter (curation triage)
 ```
 
 ### CLI (cheat sheet)
@@ -397,6 +474,7 @@ res.indices                                # ranked [ParamSensitivity(symbol, sr
 | `onkos compare --average [--weights --decompose --json]` | model-averaged forecast + within/between variance decomposition |
 | `onkos uncertainty <id> [--n --seed]` | Monte-Carlo parameter-uncertainty bands (propagates IIV CV) |
 | `onkos sensitivity <id> [--target --n]` | rank parameters by how much their IIV drives a target metric |
+| `onkos identify <id> [--schedule --sigma-prop]` | predicted RSE vs stored CV — can a realistic trial design estimate the parameters? |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
 
 Export formats: `nonmem`, `sbml`, `pharmml`, `so` (PharmML Standard Output),
@@ -905,7 +983,7 @@ onkos/
 │   ├── records/                 # one JSON per model / context-baseline
 │   └── citations/               # Crossref/PubMed citation records
 ├── python/onkos/
-│   ├── load · filter · validate · tiers · simulate · metrics · pk · compare · uncertainty · sensitivity · audit · report · cli
+│   ├── load · filter · validate · tiers · simulate · metrics · pk · compare · uncertainty · sensitivity · combine · identify · audit · report · cli
 │   ├── py.typed                 # PEP 561 typing marker
 │   └── export/                  # registry · reference · nonmem · sbml · pharmml · pharmml_so
 │       · rxode2 · pumas · virtual_trial_json · jsonld · combine · annotate
@@ -953,6 +1031,7 @@ own thesis rather than adding breadth:
 | Research track | Content | Status |
 | --- | --- | --- |
 | **Model-selection uncertainty** | `onkos.combine`: law-of-total-variance split of a composed forecast into parameter (within) vs model-selection (between) variance; the `model_selection_fraction`; declared `equal`/`tier`/`evidence` combination weights with cross-scheme fragility; the model-averaged `S̄(t)` curve + between-model band; report ranks contexts by irreducible model-choice risk. | ✅ v0.21 |
+| **Practical identifiability** | `onkos.identify`: the design Fisher information + Cramér–Rao RSE + Brun collinearity index over the existing kernels; measures whether a realistic trial could estimate each parameter, pairs predicted RSE with stored IIV CV (flagging flat-likelihood-artifact CVs), and ranks models a realistic design cannot support; landmark-proven; cannot move a tier. | ✅ v0.22 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

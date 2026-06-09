@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 import sys
 from pathlib import Path
 
@@ -247,6 +248,44 @@ def _cmd_sensitivity(args) -> int:
     return 0
 
 
+def _cmd_identify(args) -> int:
+    from .identify import identifiability
+
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    schedule = [float(x) for x in args.schedule.split(",")] if args.schedule else None
+    kw = {"schedule": schedule} if schedule else {}
+    res = identifiability(
+        ds, args.record, context=ctx, drug_effect=args.drug_effect,
+        sigma_prop=args.sigma_prop, sigma_add=args.sigma_add, **kw,
+    )
+    if args.json:
+        print(res.to_json())
+        return 0
+    sched = ", ".join(f"{x:g}" for x in res.schedule)
+    print(
+        f"{args.record}  tier={res.tier}  (design: scans [{sched}] wk, "
+        f"residual σ={res.sigma_prop:g}·y + {res.sigma_add:g})\n"
+    )
+    print(f"  {'parameter':<12} {'central':>10} {'pred. RSE':>10} {'IIV CV':>8}  identifiable?")
+    for p in res.params:
+        rse = "  inf" if not math.isfinite(p.rse_percent) else f"{p.rse_percent:>8.0f}%"
+        cv = "   -" if p.iiv_cv_percent is None else f"{p.iiv_cv_percent:>6.0f}%"
+        mark = "yes" if p.identifiable else "NO"
+        print(f"  {p.symbol:<12} {p.central:>10.4g} {rse:>10} {cv:>8}  {mark}")
+    gamma = "inf" if not math.isfinite(res.collinearity_index) else f"{res.collinearity_index:.1f}"
+    verdict = "IDENTIFIABLE" if res.practically_identifiable else "NOT identifiable"
+    print(
+        f"\n  collinearity index γ_K = {gamma}  (ceiling {res.collinearity_ceiling:g})  "
+        f"->  {verdict} under this design"
+    )
+    if res.worst and not res.worst.identifiable:
+        print(f"  -> richer design / external constraint needed first for '{res.worst.symbol}'.")
+    for w in res.warnings:
+        print(f"  ! {w}")
+    return 0
+
+
 def _write_csv(ds, out: Path) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", newline="") as fh:
@@ -384,6 +423,22 @@ def build_parser() -> argparse.ArgumentParser:
     np_.add_argument("--n", type=int, default=400, help="number of Monte-Carlo samples")
     np_.add_argument("--seed", type=int, default=0)
     np_.set_defaults(func=_cmd_sensitivity)
+
+    ip = sub.add_parser(
+        "identify",
+        help="practical identifiability: can a trial design even estimate the parameters?",
+    )
+    ip.add_argument("record", help="record id (a dynamic TGI/growth model)")
+    ip.add_argument("--tumor-type", default="NSCLC")
+    ip.add_argument("--line", default="first")
+    ip.add_argument("--drug-effect", type=float, default=1.0)
+    ip.add_argument("--schedule", default=None,
+                    help="comma-separated scan times in weeks (default: 0,6,12,18,24,36,48)")
+    ip.add_argument("--sigma-prop", type=float, default=0.2,
+                    help="proportional residual error (CV) of the tumor-size assay")
+    ip.add_argument("--sigma-add", type=float, default=0.0, help="additive residual error")
+    ip.add_argument("--json", action="store_true", help="emit the result as JSON")
+    ip.set_defaults(func=_cmd_identify)
 
     ep = sub.add_parser("export", help="generate export artifacts")
     ep.add_argument(

@@ -12,6 +12,7 @@ from .audit import audit_tiers, evidence_ceiling
 from .combine import ModelAverage
 from .compare import Comparison, compare
 from .filter import filter_records
+from .identify import Identifiability, identifiability
 from .load import DATASET_VERSION, Dataset, load
 from .report import build_report
 from .sensitivity import SensitivityResult, sensitivity
@@ -29,10 +30,12 @@ __all__ = [
     "Ensemble",
     "ModelAverage",
     "SensitivityResult",
+    "Identifiability",
     "load",
     "simulate",
     "simulate_ensemble",
     "sensitivity",
+    "identifiability",
     "compare",
     "filter_records",
     "validate_dataset",
