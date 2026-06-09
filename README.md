@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.7 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.8 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -87,6 +87,33 @@ For the Claret NSCLC model, whose resistance and kill terms carry ~90% CV, this
 turns a deceptively precise "80% week-8 shrinkage" into an honest
 `[-100%, -30%]` band and a median-OS interval of roughly 58–103 weeks — the
 uncertainty was always in the data; now it is in the answer.
+
+### TGI metrics — the Stein/Bruno panel
+
+Every simulated trajectory is summarized into the derived metrics oncology
+pharmacometrics actually reports (spec §3, §6): depth of response, nadir and
+**time-to-growth**, the **tumor growth-rate constant k_g** (the strongly
+prognostic Stein/Bruno quantity), the shrinkage-rate constant k_s, and the
+RECIST-style **duration of response** (partial response → progression). They feed
+both the survival link (via the week-8 change) and the reports.
+
+![TGI-metric extraction](docs/images/tgi_metrics.png)
+
+The extractor is **model-agnostic** — it estimates k_g / k_s from the trajectory
+the way the Stein method estimates them from RECIST data, so the metrics are
+comparable across the Claret, biexponential, and Simeoni kernels. It is also
+self-checking: run on the biexponential kernel it recovers that kernel's
+*generating* k_g and k_s to within ~10%, and on the Claret model the extracted
+k_g recovers the model's growth constant k_L. Metrics that don't apply (no
+regrowth, no RECIST response) are returned as `nan`, never fabricated.
+
+```python
+m = onkos.simulate(ds, "tgi_metrics.wang_2009.biexponential", context=ctx).metrics
+m["tumor_growth_rate_kg"]       # late-phase log-linear regrowth rate (≈ generating kg)
+m["tumor_shrinkage_rate_ks"]    # initial shrink rate via k_s = k_g − s0
+m["time_to_growth_weeks"]       # nadir time when genuine regrowth follows
+m["duration_of_response_weeks"] # RECIST PR (−30%) → PD (+20% from nadir); nan if no PR
+```
 
 ---
 
@@ -506,6 +533,7 @@ delay). An export bug therefore cannot ship silently.
 | Multi-state kernels keep `analytic` optional; an `observable` maps states → the measured quantity | The Simeoni transit model has no closed form. Numerical integration + a per-state SBML round-trip preserve export-correctness guarantees without forcing a closed form; the observable (total weight = Σ compartments) decouples the measured signal from the latent states. |
 | Hypothesis-tier (immuno-oncology) is enforced in code, not just documented | A "do not predict" note in prose is easy to ignore. The validator fails the build if an IO record is not tier D, exports carry a machine-readable `predictionStatus`, and IO is excluded from the clinical view — so the frontier can be explored but never masquerade as validated. |
 | Parameter uncertainty is propagated, not just stored | Storing `iiv_cv_percent` but simulating on central values would let a ~90%-CV term pose as a point estimate. `simulate_ensemble` samples IIV lognormally (median-preserving) so the reported variability flows into tumor/OS bands — the second uncertainty axis alongside model-selection divergence. |
+| TGI metrics are extracted model-agnostically (Stein method), not read from params | Reading k_g/k_s off a record only works for the biexponential; the Claret/Simeoni structures have no such params. Extracting them from the trajectory the way Stein extracts them from RECIST data makes the metric panel uniform across kernels — and recovers the generating rates as a built-in correctness check. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---
@@ -519,7 +547,7 @@ onkos/
 │   ├── records/                 # one JSON per model / context-baseline
 │   └── citations/               # Crossref/PubMed citation records
 ├── python/onkos/
-│   ├── load · filter · validate · tiers · simulate · compare · uncertainty · report · cli
+│   ├── load · filter · validate · tiers · simulate · metrics · compare · uncertainty · report · cli
 │   ├── py.typed                 # PEP 561 typing marker
 │   └── export/                  # registry · reference · nonmem · sbml · pharmml
 │       · rxode2 · pumas · virtual_trial_json · combine · annotate

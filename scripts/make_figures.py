@@ -342,6 +342,43 @@ def uncertainty_figure() -> None:
     plt.close(fig)
 
 
+def tgi_metrics_figure() -> None:
+    """Annotated TGI-metric panel extracted from a simulated trajectory."""
+    ds = onkos.load()
+    t = np.linspace(0.0, 156.0, 313)
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    tr = onkos.simulate(ds, "tgi_metrics.wang_2009.biexponential", context=ctx, drug_effect=1.2, t=t)
+    v = tr.tumor_size
+    m = tr.metrics
+    y0 = v[0]
+
+    fig, ax = plt.subplots(figsize=(8.6, 4.6))
+    ax.semilogy(t, v, color=PALETTE[0], lw=1.8, label="tumor size (log)")
+    ax.axhline(y0, ls=":", color="grey", lw=1)
+    ax.axhline(0.7 * y0, ls="--", color="#2f855a", lw=1, label="RECIST PR (−30% from baseline)")
+
+    nadir, tnad = m["nadir_tumor_size"], m["time_to_nadir_weeks"]
+    ax.axhline(1.2 * nadir, ls="--", color="#c53030", lw=1, label="RECIST PD (+20% from nadir)")
+    ax.scatter([tnad], [nadir], color="#c53030", zorder=5)
+    ax.annotate(
+        f"nadir / time-to-growth = {tnad:.0f} wk\ndepth of response = {m['depth_of_response'] * 100:.0f}%",
+        (tnad, nadir), textcoords="offset points", xytext=(10, 14), fontsize=8,
+    )
+    ax.annotate(f"shrink phase\nk_s ≈ {m['tumor_shrinkage_rate_ks']:.3f}/wk",
+                (1.0, y0 * 0.9), fontsize=8, color="#2f855a", va="top")
+    ax.annotate(f"regrowth phase\nk_g ≈ {m['tumor_growth_rate_kg']:.3f}/wk",
+                (t[-1] * 0.62, v[-1] * 0.5), fontsize=8, color="#c05621")
+    dor = m["duration_of_response_weeks"]
+    title_dor = f"duration of response = {dor:.0f} wk" if np.isfinite(dor) else "no RECIST PR"
+    ax.set_title(f"TGI-metric extraction (Stein/Bruno panel) — {title_dor}", fontsize=10)
+    ax.set_xlabel("weeks")
+    ax.set_ylabel("tumor size (mm, SLD, log)")
+    ax.legend(fontsize=7, loc="lower right")
+    fig.tight_layout()
+    fig.savefig(OUT / "tgi_metrics.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
@@ -351,4 +388,5 @@ if __name__ == "__main__":
     immuno_oncology_figure()
     coverage_figure()
     uncertainty_figure()
+    tgi_metrics_figure()
     print(f"Wrote figures to {OUT}")

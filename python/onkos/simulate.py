@@ -17,6 +17,7 @@ from .export.reference import effect as er_effect
 from .export.reference import integrate_observable
 from .export.registry import get_kernel, kernel_values
 from .load import Dataset
+from .metrics import extract_tgi_metrics
 from .models import Record
 from .tiers import propagate
 
@@ -77,19 +78,6 @@ def _find_survival_link(ds: Dataset, tumor_type: str | None) -> Record | None:
         if dc and dc.tumor_type == tumor_type:
             return r
     return None
-
-
-def _tumor_metrics(t: np.ndarray, y: np.ndarray, y0: float) -> dict[str, float]:
-    week8 = float(np.interp(8.0, t, y))
-    nadir = float(np.min(y))
-    nadir_t = float(t[int(np.argmin(y))])
-    return {
-        "week8_tumor_size": week8,
-        "week8_relative_change": (week8 - y0) / y0,
-        "nadir_tumor_size": nadir,
-        "time_to_nadir_weeks": nadir_t,
-        "depth_of_response": (y0 - nadir) / y0,
-    }
 
 
 def _resolve_effect(
@@ -180,7 +168,7 @@ def simulate(
         tumor = np.asarray(spec.analytic(t, vals), dtype=float)
     else:
         tumor = integrate_observable(spec, t, vals, e_series=e_arr if time_varying else None)
-    metrics = _tumor_metrics(t, tumor, y0)
+    metrics = extract_tgi_metrics(t, tumor, y0)
 
     baseline = _baseline_record(ds, tumor_type, line)
     if baseline is not None:

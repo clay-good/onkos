@@ -4,6 +4,19 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.8.0] — TGI-metric extraction (Stein/Bruno panel)
+
+- `onkos.metrics.extract_tgi_metrics`: model-agnostic extraction of the derived
+  TGI metrics from any trajectory — depth of response, nadir / time-to-growth,
+  the tumor growth-rate constant **k_g**, the shrinkage-rate constant **k_s**
+  (via `k_s = k_g − s0`), and the RECIST-style **duration of response**.
+- Recovers the biexponential kernel's generating k_g and k_s to within ~10% and
+  the Claret growth constant k_L — a built-in correctness check; inapplicable
+  metrics are returned as `nan`, never fabricated.
+- Wired into `simulate()` (all prior metric keys preserved); the uncertainty
+  ensemble now summarizes each metric over its finite samples.
+- Annotated TGI-metric figure + notebook 07.
+
 ## [0.7.0] — Parameter-uncertainty propagation
 
 - `onkos.simulate_ensemble` / `onkos uncertainty`: Monte-Carlo propagation of the

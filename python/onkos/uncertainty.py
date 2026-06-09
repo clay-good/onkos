@@ -123,14 +123,18 @@ def simulate_ensemble(
         m = median_survival(t, tr.os_curve) if has_os else np.nan
         median_os_samples[i] = np.nan if m is None else m
 
-    metrics = {}
-    for k, arr in metric_samples.items():
-        lo, md, hi = np.percentile(arr, [ci[0], 50, ci[1]])
-        metrics[k] = {"median": float(md), "lo": float(lo), "hi": float(hi)}
-    if has_os and np.isfinite(median_os_samples).any():
-        finite = median_os_samples[np.isfinite(median_os_samples)]
+    def _summary(arr: np.ndarray) -> dict:
+        # Metrics like k_g / duration-of-response are nan when they do not apply
+        # (no regrowth, no response) — summarize over the samples where they do.
+        finite = arr[np.isfinite(arr)]
+        if finite.size == 0:
+            return {"median": float("nan"), "lo": float("nan"), "hi": float("nan")}
         lo, md, hi = np.percentile(finite, [ci[0], 50, ci[1]])
-        metrics["median_os_weeks"] = {"median": float(md), "lo": float(lo), "hi": float(hi)}
+        return {"median": float(md), "lo": float(lo), "hi": float(hi)}
+
+    metrics = {k: _summary(arr) for k, arr in metric_samples.items()}
+    if has_os:
+        metrics["median_os_weeks"] = _summary(median_os_samples)
 
     return Ensemble(
         record_id=record_id,
