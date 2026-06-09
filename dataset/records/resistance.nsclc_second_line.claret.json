@@ -1,0 +1,113 @@
+{
+  "id": "resistance.nsclc_second_line.claret",
+  "kind": "model",
+  "purpose": "tgi",
+  "subsystem": "resistance",
+  "name": "Claret-form clinical TGI for second-line NSCLC",
+  "description": "Claret 2009 clinical TGI form parameterized for SECOND-line NSCLC: faster growth, weaker drug-induced kill, and faster resistance emergence than first line. dy/dt = kL*y - kD*E*exp(-lambda*t)*y. Values illustrative and unverified.",
+  "kernel": "claret_tgi",
+  "structure": {
+    "growth_law": "exponential",
+    "kill_model": "first_order_exposure_driven",
+    "resistance": "exponential_decay_of_kill",
+    "states": [
+      "tumor_size"
+    ]
+  },
+  "parameters": [
+    {
+      "symbol": "kL",
+      "label": "tumor growth rate constant",
+      "value": {
+        "central": 0.025,
+        "low": null,
+        "high": null,
+        "units": "1/week"
+      },
+      "iiv_cv_percent": 40,
+      "tier": "B",
+      "primary_citation": "claret-2009-tgi",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Faster growth in later-line disease."
+      }
+    },
+    {
+      "symbol": "kD",
+      "label": "drug-induced kill rate (per unit effect)",
+      "value": {
+        "central": 0.22,
+        "low": null,
+        "high": null,
+        "units": "1/week per effect-unit"
+      },
+      "iiv_cv_percent": 88,
+      "tier": "C",
+      "primary_citation": "claret-2009-tgi",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Weaker, poorly-identified kill rate."
+      }
+    },
+    {
+      "symbol": "lambda",
+      "label": "resistance / drug-effect decay rate",
+      "value": {
+        "central": 0.075,
+        "low": null,
+        "high": null,
+        "units": "1/week"
+      },
+      "iiv_cv_percent": 95,
+      "tier": "C",
+      "primary_citation": "claret-2009-tgi",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Faster resistance; unidentifiable from short trials."
+      }
+    }
+  ],
+  "derivation_context": {
+    "drug": "docetaxel",
+    "drug_class": "taxane",
+    "tumor_type": "NSCLC",
+    "line_of_therapy": "second",
+    "trial": "illustrative",
+    "n_patients": 250,
+    "measurement": "RECIST_sum_longest_diameters"
+  },
+  "transportability": {
+    "validated_tumor_types": [
+      "NSCLC"
+    ],
+    "validated_drug_classes": [
+      "taxane"
+    ],
+    "validated_lines": [
+      "second"
+    ],
+    "out_of_context_action": "tier_down_to_D and warn"
+  },
+  "known_failure_modes": [
+    {
+      "condition": "resistance term applied to a regimen that is not resistance-driven",
+      "behavior": "lambda unidentifiable; survival link unstable",
+      "action": "tier_down_to_D and warn",
+      "citation": "bruno-2020-review"
+    }
+  ],
+  "predictive_performance": [
+    {
+      "metric": "OS_C_index_external",
+      "value": 0.6,
+      "population": "independent NSCLC 2L cohort (illustrative)",
+      "citation": "claret-2009-tgi"
+    }
+  ],
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "claret-2009-tgi"
+}

@@ -1,0 +1,103 @@
+{
+  "id": "survival_link.nsclc_2l_os_week8",
+  "kind": "model",
+  "purpose": "survival_link",
+  "subsystem": "survival_link",
+  "name": "NSCLC second-line OS link from week-8 relative tumor-size change (Weibull PH)",
+  "description": "Parametric proportional-hazards link from the week-8 relative tumor-size change to population OS for SECOND-line NSCLC (shorter than first line). S(t)=exp(-(t/scale)^shape*exp(beta*x)), x=(y(8w)-y0)/y0. Population/trial-level only; NOT a personal prognosis. Values illustrative and unverified.",
+  "kernel": "survival_weibull_ph",
+  "structure": {
+    "growth_law": null,
+    "survival_baseline": "weibull",
+    "endpoint": "OS",
+    "states": [
+      "survival_fraction"
+    ]
+  },
+  "parameters": [
+    {
+      "symbol": "weibull_shape",
+      "label": "Weibull shape (k)",
+      "value": {
+        "central": 1.3,
+        "low": null,
+        "high": null,
+        "units": "dimensionless"
+      },
+      "iiv_cv_percent": null,
+      "tier": "B",
+      "primary_citation": "wang-2009-tgi",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Baseline-hazard shape."
+      }
+    },
+    {
+      "symbol": "weibull_scale",
+      "label": "Weibull scale (median-OS scale)",
+      "value": {
+        "central": 40.0,
+        "low": null,
+        "high": null,
+        "units": "week"
+      },
+      "iiv_cv_percent": null,
+      "tier": "B",
+      "primary_citation": "wang-2009-tgi",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Shorter second-line survival scale."
+      }
+    },
+    {
+      "symbol": "beta",
+      "label": "log-hazard coefficient on week-8 relative change",
+      "value": {
+        "central": 1.1,
+        "low": null,
+        "high": null,
+        "units": "per unit relative change"
+      },
+      "iiv_cv_percent": null,
+      "tier": "C",
+      "primary_citation": "wang-2009-tgi",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Link strength varies across trials and lines."
+      }
+    }
+  ],
+  "derivation_context": {
+    "drug": null,
+    "drug_class": null,
+    "tumor_type": "NSCLC",
+    "line_of_therapy": "second",
+    "trial": "illustrative",
+    "n_patients": 800,
+    "measurement": "RECIST_sum_longest_diameters"
+  },
+  "transportability": {
+    "validated_tumor_types": [
+      "NSCLC"
+    ],
+    "validated_drug_classes": [],
+    "validated_lines": [
+      "second"
+    ],
+    "out_of_context_action": "tier_down_to_D and warn"
+  },
+  "predictive_performance": [
+    {
+      "metric": "OS_C_index_external",
+      "value": 0.62,
+      "population": "independent NSCLC 2L cohort (illustrative)",
+      "citation": "wang-2009-tgi"
+    }
+  ],
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "wang-2009-tgi"
+}

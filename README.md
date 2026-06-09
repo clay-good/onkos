@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.15 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.16 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -177,6 +177,28 @@ parameter variability.
 cox = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx,
                      survival_link="survival_link.nsclc_os_cox")
 ```
+
+### Line of therapy — and line-aware survival matching
+
+The context library is indexed by tumor type **and line of therapy**. NSCLC now
+carries a first-line *and* a second-line context (baseline, OS + PFS links,
+eligible TGI models), and survival matching is **line-aware**: a second-line
+simulation never silently borrows a first-line survival model. Second-line
+prognosis is shorter, the first-line-only Claret model is correctly excluded from
+the 2L view, and a line with no curated link gets *no* survival curve rather than
+a wrong one.
+
+![Line of therapy](docs/images/line_of_therapy.png)
+
+```python
+first  = onkos.simulate(ds, "tgi_metrics.wang_2009.biexponential", context=dict(tumor_type="NSCLC", line="first"))
+second = onkos.simulate(ds, "tgi_metrics.wang_2009.biexponential", context=dict(tumor_type="NSCLC", line="second"))
+second.median_os < first.median_os          # True — same model, line-aware survival
+```
+
+> Fix shipped here: survival-link discovery previously matched only on tumor type,
+> so a second-line context silently reused first-line survival models. It now
+> matches on `(tumor_type, line)`.
 
 ---
 
@@ -671,6 +693,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | The Cox link is non-default and opt-in, not an auto-selected competitor | Auto-discovery assumes one link per (context, endpoint). The Cox alternative carries `structure.default: false`, so it's reachable only via explicit `survival_link=` — turning "Weibull vs Cox" into a deliberate survival-model-choice comparison instead of a silent collision. Its tabulated baseline rides along in the vt-json / JSON-LD exports. |
 | The dashboard owns no logic — it renders a tested, serializable result | The virtual-trial result is a `Comparison.to_dict()/to_json()` the package builds and tests; the Streamlit file only draws it. That keeps the headline view honest (the same numbers everywhere), lets external simulators ingest the JSON, and means CI catches UI/API drift by lint + compile, not by screenshots. |
 | Confidence tiers are audited against evidence, not just hand-set | Spec §5 says tiers are "partly numeric." `onkos audit` derives the tier each clinical record's recorded external validation + IIV supports and fails `validate` on any inflation. A hand-set tier can't quietly over-claim — the honesty thesis applied to the honesty field itself. |
+| Survival matching is line-aware; an unsupported line yields no curve, not a borrowed one | The line of therapy is part of the context, so a second-line simulation must use second-line survival — matching only on tumor type would silently transport a 1L model. When no curated link exists for a line, the honest result is no survival curve, mirroring the no-fallback rule for tumor type. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---

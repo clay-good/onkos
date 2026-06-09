@@ -77,19 +77,27 @@ def _baseline_y0(ds: Dataset, tumor_type: str | None, line: str | None) -> float
     return 100.0
 
 
-def _find_survival_links(ds: Dataset, tumor_type: str | None) -> list[Record]:
-    """The *default* survival links for this tumor type (one per endpoint).
+def _find_survival_links(
+    ds: Dataset, tumor_type: str | None, line: str | None = None
+) -> list[Record]:
+    """The *default* survival links for this tumor type and line (one per endpoint).
 
-    Non-default links (e.g. the alternative Cox form) are reachable only via the
-    explicit ``survival_link=`` argument, so they don't collide with the default
-    parametric link on the same endpoint. No fallback: an unmatched context gets
-    no survival curve rather than a model from an unrelated tumor type."""
+    Line-aware: a second-line context never silently borrows a first-line survival
+    model. Non-default links (e.g. the alternative Cox form) are reachable only via
+    the explicit ``survival_link=`` argument, so they don't collide with the default
+    parametric link on the same endpoint. No fallback: an unmatched context gets no
+    survival curve rather than a model from an unrelated tumor type / line."""
     out = []
     for r in ds:
         if r.purpose != "survival_link":
             continue
         dc = r.derivation_context
-        if dc and dc.tumor_type == tumor_type and r.structure.get("default", True):
+        if (
+            dc
+            and dc.tumor_type == tumor_type
+            and (line is None or dc.line_of_therapy == line)
+            and r.structure.get("default", True)
+        ):
             out.append(r)
     return out
 
@@ -208,7 +216,10 @@ def simulate(
     survival: dict = {}
     links: list[Record] = []
     if record.purpose in ("tgi", "metric"):
-        links = [ds[survival_link]] if survival_link else _find_survival_links(ds, tumor_type)
+        links = (
+            [ds[survival_link]] if survival_link
+            else _find_survival_links(ds, tumor_type, line)
+        )
     for link in links:
         link_spec = get_kernel(link)
         link_vals = _survival_vals(link, metrics["week8_relative_change"])

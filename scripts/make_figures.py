@@ -497,6 +497,54 @@ def survival_model_choice_figure() -> None:
     plt.close(fig)
 
 
+def line_of_therapy_figure() -> None:
+    """First vs second line: shorter survival + the line-aware model set (NSCLC)."""
+    ds = onkos.load()
+    t = np.linspace(0.0, 208.0, 417)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    for i, line in enumerate(["first", "second"]):
+        tr = onkos.simulate(ds, "tgi_metrics.wang_2009.biexponential",
+                            context={"tumor_type": "NSCLC", "line": line}, drug_effect=1.0, t=t)
+        c = PALETTE[i]
+        ax1.plot(t, tr.os_curve, color=c, lw=1.8, label=f"{line} line OS")
+        ax1.plot(t, tr.pfs_curve, color=c, lw=1.3, ls="--", label=f"{line} line PFS")
+    ax1.axhline(0.5, ls=":", color="grey", lw=1)
+    ax1.set_title("Same model, two lines — second-line survival is shorter")
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("survival fraction")
+    ax1.set_ylim(0, 1.02)
+    ax1.legend(fontsize=7)
+
+    # median OS/PFS by line, with the eligible model count annotated
+    lines = ["first", "second"]
+    os_meds, pfs_meds, counts = [], [], []
+    for line in lines:
+        cmp = onkos.compare(ds, purpose="tgi", context={"tumor_type": "NSCLC", "line": line},
+                            drug_effect=1.0, t=t)
+        curves_os = [tr.median_os for tr in cmp.included if tr.median_os]
+        curves_pfs = [tr.median_pfs for tr in cmp.included if tr.median_pfs]
+        os_meds.append(np.mean(curves_os) if curves_os else 0)
+        pfs_meds.append(np.mean(curves_pfs) if curves_pfs else 0)
+        counts.append(len(cmp.included))
+    x = np.arange(len(lines))
+    ax2.bar(x - 0.2, os_meds, 0.4, color=PALETTE[0], label="mean median OS")
+    ax2.bar(x + 0.2, pfs_meds, 0.4, color=PALETTE[1], label="mean median PFS")
+    for i, cnt in enumerate(counts):
+        ax2.text(i, max(os_meds) * 1.02, f"{cnt} models", ha="center", fontsize=8)
+    ax2.set_xticks(x, [f"{x_} line" for x_ in lines])
+    ax2.set_ylabel("weeks")
+    ax2.set_title("NSCLC median OS / PFS by line of therapy")
+    ax2.legend(fontsize=8)
+
+    fig.suptitle("Line of therapy (Phase C): line-aware survival matching — a 2L context never "
+                 "borrows a 1L model", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "line_of_therapy.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
@@ -510,4 +558,5 @@ if __name__ == "__main__":
     sensitivity_figure()
     survival_endpoints_figure()
     survival_model_choice_figure()
+    line_of_therapy_figure()
     print(f"Wrote figures to {OUT}")

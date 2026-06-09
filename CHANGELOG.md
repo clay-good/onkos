@@ -4,6 +4,18 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.16.0] — Line of therapy + line-aware survival matching
+
+- Fix: `_find_survival_links` matched only on tumor type, so a second-line context
+  silently borrowed first-line survival models. It now matches on
+  `(tumor_type, line)`; an unsupported line yields no survival curve, not a wrong
+  one (mirroring the no-fallback rule for tumor type).
+- NSCLC second-line context added: baseline (more advanced disease), OS + PFS
+  survival links (shorter than first line), and a second-line Claret TGI (faster
+  growth, weaker kill, faster resistance). The first-line-only Claret model is
+  correctly excluded from the 2L divergence view; 2L survival is shorter than 1L.
+- First-vs-second-line figure + notebook 11; zero tier inflations after the add.
+
 ## [0.15.0] — Evidence-based tier audit ("tiers are partly numeric")
 
 - `onkos.audit` / `onkos audit`: derives the best confidence tier a clinical TGI /
