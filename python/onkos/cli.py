@@ -7,7 +7,7 @@ import csv
 import sys
 from pathlib import Path
 
-from . import __version__, compare, load, simulate
+from . import __version__, compare, load, simulate, simulate_ensemble
 from .export.combine import build_omex
 from .export.nonmem import to_nonmem
 from .export.pharmml import to_pharmml
@@ -117,6 +117,25 @@ def _cmd_simulate(args) -> int:
     return 0
 
 
+def _cmd_uncertainty(args) -> int:
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    er, exposure = args.exposure_response, args.exposure
+    drug_effect = None if (er and exposure is not None) else args.drug_effect
+    ens = simulate_ensemble(
+        ds, args.record, context=ctx, drug_effect=drug_effect, exposure=exposure,
+        exposure_response=er, n=args.n, seed=args.seed,
+    )
+    lo, hi = ens.ci
+    print(f"{args.record}  tier={ens.tier}  (n={ens.n}, {lo:g}-{hi:g}% bands)\n")
+    print(f"  {'metric':<24} {'median':>10} {'lo':>10} {'hi':>10}")
+    for k, v in ens.metrics.items():
+        print(f"  {k:<24} {v['median']:>10.3f} {v['lo']:>10.3f} {v['hi']:>10.3f}")
+    for w in ens.warnings:
+        print(f"  ! {w}")
+    return 0
+
+
 def _write_csv(ds, out: Path) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", newline="") as fh:
@@ -204,6 +223,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sp.add_argument("--compare", action="store_true", help="virtual-trial divergence across models")
     sp.set_defaults(func=_cmd_simulate)
+
+    up = sub.add_parser(
+        "uncertainty", help="Monte-Carlo parameter-uncertainty bands (propagates IIV CV)"
+    )
+    up.add_argument("record", help="record id")
+    up.add_argument("--tumor-type", default="NSCLC")
+    up.add_argument("--line", default="first")
+    up.add_argument("--drug-effect", type=float, default=1.0)
+    up.add_argument("--exposure", type=float, default=None)
+    up.add_argument("--exposure-response", default=None)
+    up.add_argument("--n", type=int, default=200, help="number of Monte-Carlo samples")
+    up.add_argument("--seed", type=int, default=0)
+    up.set_defaults(func=_cmd_uncertainty)
 
     ep = sub.add_parser("export", help="generate export artifacts")
     ep.add_argument(

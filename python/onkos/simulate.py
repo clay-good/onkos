@@ -128,6 +128,7 @@ def simulate(
     exposure_response: str | None = None,
     t: np.ndarray | None = None,
     survival_link: str | None = None,
+    param_overrides: dict[str, float] | None = None,
 ) -> Trajectory:
     """Forward-simulate a TGI (or growth) record and, where a survival link is
     available, the resulting population OS curve.
@@ -137,6 +138,10 @@ def simulate(
     ``exposure_response``). A time-varying ``exposure`` (array aligned to ``t``,
     e.g. a Hypnos PK profile) yields a time-varying E(t) and the tumor ODE is
     integrated numerically; a scalar exposure uses the fast closed form.
+
+    ``param_overrides`` (keyed by kernel-internal parameter name) replaces central
+    parameter values for this run — used by :func:`onkos.uncertainty.simulate_ensemble`
+    to propagate inter-individual variability.
     """
     context = context or {}
     tumor_type = context.get("tumor_type")
@@ -161,6 +166,8 @@ def simulate(
     time_varying = e_arr.size == t.size and e_arr.size > 1
 
     vals = kernel_values(record)
+    if param_overrides:
+        vals.update(param_overrides)
     for inp in spec.inputs:
         if inp in ("V0", "y0", "w0", "T0"):
             vals[inp] = y0

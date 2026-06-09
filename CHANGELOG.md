@@ -4,6 +4,18 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.7.0] — Parameter-uncertainty propagation
+
+- `onkos.simulate_ensemble` / `onkos uncertainty`: Monte-Carlo propagation of the
+  stored inter-individual variability (`iiv_cv_percent`). Parameters with an IIV
+  CV are sampled lognormally (median-preserving) and tumor-size, TGI-metric, and
+  population-OS distributions are returned as median + percentile bands — closing
+  the gap where IIV was stored but never used in simulation.
+- `simulate(..., param_overrides=...)` for per-run parameter substitution.
+- Uncertainty figure + notebook 06; design-decision and README sections framing
+  this as the second uncertainty axis (parameter variability) alongside the
+  model-selection divergence view.
+
 ## [0.6.0] — Phase F: hardening (releasable, self-reporting)
 
 - `onkos report` — machine-generated dataset health & validation report

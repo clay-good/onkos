@@ -301,6 +301,47 @@ def coverage_figure() -> None:
     plt.close(fig)
 
 
+def uncertainty_figure() -> None:
+    """Monte-Carlo parameter-uncertainty bands from the stored IIV CVs."""
+    ds = onkos.load()
+    t = np.linspace(0.0, 104.0, 209)
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    ens = onkos.simulate_ensemble(
+        ds, "resistance.claret_2009.tgi", context=ctx, drug_effect=1.0, t=t, n=400, seed=0
+    )
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    b = ens.tumor_size
+    ax1.fill_between(t, b.lo, b.hi, color=PALETTE[0], alpha=0.25, label=f"{ens.ci[0]:g}–{ens.ci[1]:g}%")
+    ax1.plot(t, b.median, color=PALETTE[0], lw=1.6, label="median")
+    ax1.set_title("Tumor size under parameter uncertainty (IIV)")
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("tumor size (mm, SLD)")
+    ax1.legend(fontsize=8)
+
+    o = ens.os_curve
+    ax2.fill_between(t, o.lo, o.hi, color=PALETTE[2], alpha=0.25, label=f"{ens.ci[0]:g}–{ens.ci[1]:g}%")
+    ax2.plot(t, o.median, color=PALETTE[2], lw=1.6, label="median")
+    ax2.axhline(0.5, ls=":", color="grey", lw=1)
+    mos = ens.metrics["median_os_weeks"]
+    ax2.set_title(f"Population OS — median {mos['median']:.0f} wk  [{mos['lo']:.0f}, {mos['hi']:.0f}]")
+    ax2.set_xlabel("weeks")
+    ax2.set_ylabel("survival fraction")
+    ax2.set_ylim(0, 1.02)
+    ax2.legend(fontsize=8)
+
+    w8 = ens.metrics["week8_relative_change"]
+    fig.suptitle(
+        "Parameter uncertainty (Claret NSCLC) — the ~90% CV resistance/kill terms give a wide "
+        f"week-8 change band [{w8['lo'] * 100:.0f}%, {w8['hi'] * 100:.0f}%]; n={ens.n}",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "uncertainty.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
@@ -309,4 +350,5 @@ if __name__ == "__main__":
     preclinical_figure()
     immuno_oncology_figure()
     coverage_figure()
+    uncertainty_figure()
     print(f"Wrote figures to {OUT}")

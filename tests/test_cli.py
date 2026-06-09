@@ -32,6 +32,12 @@ def test_report_to_file(tmp_path):
     assert "Confidence tiers" in out.read_text()
 
 
+def test_uncertainty(capsys):
+    assert main(["uncertainty", "resistance.claret_2009.tgi", "--n", "40"]) == 0
+    out = capsys.readouterr().out
+    assert "bands" in out and "median_os_weeks" in out
+
+
 def test_simulate_compare(capsys):
     assert main(["simulate", "--compare", "--tumor-type", "NSCLC", "--line", "first"]) == 0
     out = capsys.readouterr().out

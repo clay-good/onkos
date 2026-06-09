@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.6 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.7 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -70,6 +70,24 @@ $ onkos simulate --compare --tumor-type NSCLC --line first --drug-effect 1.0
   Median OS range: (53.7, 90.8)
 ```
 
+### The second uncertainty axis: parameter variability
+
+The divergence view quantifies *model-selection* uncertainty. The other axis is
+*parameter* uncertainty: the dataset records inter-individual variability
+(`iiv_cv_percent`) on its high-uncertainty kill/resistance terms specifically so
+they cannot pose as point estimates — and `onkos.simulate_ensemble` makes that
+stored variability flow into the prediction. Parameters with an IIV CV are
+sampled lognormally (the standard pharmacometric convention; the median is
+preserved) and the tumor-size, TGI-metric, and population-OS distributions are
+returned as bands.
+
+![Parameter-uncertainty bands](docs/images/uncertainty.png)
+
+For the Claret NSCLC model, whose resistance and kill terms carry ~90% CV, this
+turns a deceptively precise "80% week-8 shrinkage" into an honest
+`[-100%, -30%]` band and a median-OS interval of roughly 58–103 weeks — the
+uncertainty was always in the data; now it is in the answer.
+
 ---
 
 ## Install & quick start
@@ -113,6 +131,12 @@ cmp = onkos.compare(ds, purpose="tgi", context=ctx, drug_effect=1.0)
 cmp.os_divergence                          # model-choice dependence of the OS prediction
 cmp.median_os_range                        # (lo, hi) median OS across models
 cmp.excluded                               # models greyed out for out-of-context transport
+
+# Parameter uncertainty — propagate the stored IIV CVs (Monte-Carlo bands)
+ens = onkos.simulate_ensemble(ds, "resistance.claret_2009.tgi", context=ctx, n=400, seed=0)
+ens.tumor_size.median, ens.tumor_size.lo, ens.tumor_size.hi   # 5–95% band arrays
+ens.os_curve.lo, ens.os_curve.hi                               # population-OS band
+ens.metrics["median_os_weeks"]             # {"median", "lo", "hi"}
 ```
 
 ### CLI (cheat sheet)
@@ -125,6 +149,7 @@ cmp.excluded                               # models greyed out for out-of-contex
 | `onkos report [--output FILE]` | dataset health & external-validation report (Markdown) |
 | `onkos simulate <id> [--tumor-type --line --drug-effect]` | one model's trajectory + metrics |
 | `onkos simulate --compare` | virtual-trial divergence across eligible models |
+| `onkos uncertainty <id> [--n --seed]` | Monte-Carlo parameter-uncertainty bands (propagates IIV CV) |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
 
 Export formats: `nonmem`, `sbml`, `pharmml`, `rxode2`, `pumas`, `vt-json`,
@@ -480,6 +505,7 @@ delay). An export bug therefore cannot ship silently.
 | Scalar exposure uses the closed form; time-varying PK integrates the ODE | Exactness and speed for the common case; correctness for a full PK profile, where the constant-E closed form would be wrong. |
 | Multi-state kernels keep `analytic` optional; an `observable` maps states → the measured quantity | The Simeoni transit model has no closed form. Numerical integration + a per-state SBML round-trip preserve export-correctness guarantees without forcing a closed form; the observable (total weight = Σ compartments) decouples the measured signal from the latent states. |
 | Hypothesis-tier (immuno-oncology) is enforced in code, not just documented | A "do not predict" note in prose is easy to ignore. The validator fails the build if an IO record is not tier D, exports carry a machine-readable `predictionStatus`, and IO is excluded from the clinical view — so the frontier can be explored but never masquerade as validated. |
+| Parameter uncertainty is propagated, not just stored | Storing `iiv_cv_percent` but simulating on central values would let a ~90%-CV term pose as a point estimate. `simulate_ensemble` samples IIV lognormally (median-preserving) so the reported variability flows into tumor/OS bands — the second uncertainty axis alongside model-selection divergence. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---
@@ -493,7 +519,7 @@ onkos/
 │   ├── records/                 # one JSON per model / context-baseline
 │   └── citations/               # Crossref/PubMed citation records
 ├── python/onkos/
-│   ├── load · filter · validate · tiers · simulate · compare · report · cli
+│   ├── load · filter · validate · tiers · simulate · compare · uncertainty · report · cli
 │   ├── py.typed                 # PEP 561 typing marker
 │   └── export/                  # registry · reference · nonmem · sbml · pharmml
 │       · rxode2 · pumas · virtual_trial_json · combine · annotate
