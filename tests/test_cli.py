@@ -81,3 +81,12 @@ def test_export_pharmml_includes_er(tmp_path):
     out = tmp_path / "pharmml"
     assert main(["export", "--format", "pharmml", "--output", str(out)]) == 0
     assert (out / "exposure_response.emax_generic.pharmml").exists()
+
+
+def test_export_pharmml_so(tmp_path):
+    out = tmp_path / "so"
+    assert main(["export", "--format", "so", "--output", str(out)]) == 0
+    f = out / "resistance.claret_2009.tgi.so.xml"
+    assert f.exists()
+    text = f.read_text()
+    assert "PopulationEstimates" in text and "clinicalUse" in text

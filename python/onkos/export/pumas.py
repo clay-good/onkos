@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from ..models import Record
 from .annotate import annotations_block
 from .registry import get_kernel, kernel_values
@@ -50,3 +52,8 @@ onkos_model = @model begin
     end
 end
 """
+
+
+def parse_pumas_params(text: str) -> dict:
+    """Re-read the @param ``tv<name> = value`` typical values (for round-trip)."""
+    return {m.group(1): float(m.group(2)) for m in re.finditer(r"tv(\w+)\s*=\s*([-\d.eE+]+)", text)}

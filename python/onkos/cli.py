@@ -11,6 +11,7 @@ from . import __version__, compare, load, sensitivity, simulate, simulate_ensemb
 from .export.combine import build_omex
 from .export.nonmem import to_nonmem
 from .export.pharmml import to_pharmml
+from .export.pharmml_so import to_pharmml_so
 from .export.pumas import to_pumas
 from .export.registry import get_kernel
 from .export.rxode2 import to_rxode2
@@ -23,6 +24,7 @@ _TEXT_EXPORTERS = {
     "nonmem": (to_nonmem, ".mod"),
     "sbml": (to_sbml, ".xml"),
     "pharmml": (to_pharmml, ".pharmml"),
+    "so": (to_pharmml_so, ".so.xml"),
     "rxode2": (to_rxode2, ".R"),
     "pumas": (to_pumas, ".jl"),
     "vt-json": (to_virtual_trial_json, ".json"),

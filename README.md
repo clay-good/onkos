@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.9 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.10 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -210,8 +210,10 @@ res.indices                                # ranked [ParamSensitivity(symbol, sr
 | `onkos sensitivity <id> [--target --n]` | rank parameters by how much their IIV drives a target metric |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
 
-Export formats: `nonmem`, `sbml`, `pharmml`, `rxode2`, `pumas`, `vt-json`,
-`omex`, `csv`, `bibtex`.
+Export formats: `nonmem`, `sbml`, `pharmml`, `so` (PharmML Standard Output),
+`rxode2`, `pumas`, `vt-json`, `omex`, `csv`, `bibtex`. The COMBINE `.omex` bundles
+SBML + PharmML + the SO + virtual-trial JSON + provenance into one citable
+archive.
 
 ### Dashboard
 
@@ -542,7 +544,11 @@ CI checks ([`tests/test_roundtrip.py`](tests/test_roundtrip.py)):
   expression and evaluated against `rhs` → ~1e-6, **per state** (so the
   multi-state Simeoni system is checked compartment-by-compartment);
 - **NONMEM re-parsed**: `$THETA` initial estimates must equal the dataset values,
-  and one `$DES` compartment is emitted per state.
+  and one `$DES` compartment is emitted per state;
+- **rxode2 / Pumas / SO re-parsed**: the parameter vector is read back from each
+  and must equal the dataset values;
+- **cross-format consistency**: NONMEM, SBML, PharmML-SO, rxode2, and Pumas must
+  all agree on the parameter values — one source of truth, five renderings.
 
 Multi-state kernels (Simeoni) have no closed form, so the analytic check is
 skipped for them and the rhs is instead pinned by the per-state SBML round-trip
@@ -566,6 +572,7 @@ delay). An export bug therefore cannot ship silently.
 | Parameter uncertainty is propagated, not just stored | Storing `iiv_cv_percent` but simulating on central values would let a ~90%-CV term pose as a point estimate. `simulate_ensemble` samples IIV lognormally (median-preserving) so the reported variability flows into tumor/OS bands — the second uncertainty axis alongside model-selection divergence. |
 | TGI metrics are extracted model-agnostically (Stein method), not read from params | Reading k_g/k_s off a record only works for the biexponential; the Claret/Simeoni structures have no such params. Extracting them from the trajectory the way Stein extracts them from RECIST data makes the metric panel uniform across kernels — and recovers the generating rates as a built-in correctness check. |
 | Sensitivity uses independent sampling so first-order indices are correlations | Sampling each IIV parameter independently makes the standardized regression coefficient equal the input-target correlation and the squared SRCs partition the variance — a first-order Sobol decomposition with no extra design. It also exposes that CV alone ≠ influence (influence is CV × effect-strength), pointing verification at the parameter that actually moves the prediction. |
+| PharmML SO carries IIV as random-effect variance, never as estimate precision (RSE) | The SO's job is to report results, but the dataset curates inter-individual variability, not the precision of the population estimate. Encoding IIV as `omega = ln(1+CV²)` is faithful; fabricating an RSE we don't have would not be — so the precision block is deliberately omitted. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---
@@ -581,7 +588,7 @@ onkos/
 ├── python/onkos/
 │   ├── load · filter · validate · tiers · simulate · metrics · compare · uncertainty · sensitivity · report · cli
 │   ├── py.typed                 # PEP 561 typing marker
-│   └── export/                  # registry · reference · nonmem · sbml · pharmml
+│   └── export/                  # registry · reference · nonmem · sbml · pharmml · pharmml_so
 │       · rxode2 · pumas · virtual_trial_json · combine · annotate
 ├── dashboard/app.py             # Streamlit: browse + divergence view
 ├── notebooks/                   # executed in CI (nbmake)

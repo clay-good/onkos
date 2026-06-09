@@ -4,6 +4,18 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.10.0] — Export-layer completion: PharmML SO + cross-format integrity
+
+- PharmML **Standard Output (SO)** exporter (`onkos export --format so`): MLE
+  population estimates, inter-individual variability as random-effect variances
+  (`omega = ln(1+CV²)`, never mislabeled as estimate precision), external-validation
+  diagnostics, and the universal Onkos annotations. Completes spec §7's
+  "PharmML (+ SO)" and the `.omex` "SBML + PharmML + SO + provenance" bundle.
+- The COMBINE `.omex` now includes the SO with its MIME type in the manifest.
+- Round-trip hardening: rxode2 and Pumas parameter vectors are now re-parsed and
+  checked, and a cross-format consistency test asserts NONMEM, SBML, PharmML-SO,
+  rxode2, and Pumas all agree on the parameter values — one source of truth.
+
 ## [0.9.0] — Variance-based parameter sensitivity
 
 - `onkos.sensitivity` / `onkos sensitivity`: ranks a record's IIV-bearing

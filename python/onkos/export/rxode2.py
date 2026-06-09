@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from ..models import Record
 from .annotate import annotations_block
 from .registry import get_kernel, kernel_values
@@ -40,3 +42,16 @@ onkos_inits <- c({inits})
 # ev <- et(seq(0, 104, by = 0.5))            # weeks
 # sim <- rxSolve(onkos_model, onkos_params, ev, inits = onkos_inits)
 """
+
+
+def parse_rxode2_params(text: str) -> dict:
+    """Re-read the parameter vector ``c(name = value, ...)`` (for round-trip)."""
+    m = re.search(r"onkos_params\s*<-\s*c\(([^)]*)\)", text)
+    if not m:
+        return {}
+    out = {}
+    for pair in m.group(1).split(","):
+        if "=" in pair:
+            k, v = pair.split("=")
+            out[k.strip()] = float(v)
+    return out

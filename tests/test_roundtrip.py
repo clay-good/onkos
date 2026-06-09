@@ -98,14 +98,76 @@ def record_n_states(record):
     return get_kernel(record).n_states
 
 
+@pytest.mark.parametrize("rid", ODE_RECORDS)
+def test_rxode2_and_pumas_param_roundtrip(rid):
+    """The R and Julia exports carry the dataset parameter values verbatim."""
+    from onkos.export.pumas import parse_pumas_params, to_pumas
+    from onkos.export.rxode2 import parse_rxode2_params, to_rxode2
+
+    ds = onkos.load()
+    record = ds[rid]
+    expected = kernel_values(record)
+    rx = parse_rxode2_params(to_rxode2(record, y0=80.0, drug_effect=1.0))
+    pm = parse_pumas_params(to_pumas(record, y0=80.0, drug_effect=1.0))
+    for k, v in expected.items():
+        assert rx[k] == v, f"{rid}: rxode2 {k}"
+        assert pm[k] == v, f"{rid}: pumas {k}"
+
+
+@pytest.mark.parametrize("rid", ODE_RECORDS)
+def test_cross_format_parameter_consistency(rid):
+    """All model formats agree on the parameter values (one source of truth)."""
+    from onkos.export.nonmem import parse_nonmem_thetas
+    from onkos.export.pharmml_so import parse_so_estimates, to_pharmml_so
+    from onkos.export.pumas import parse_pumas_params, to_pumas
+    from onkos.export.rxode2 import parse_rxode2_params, to_rxode2
+
+    ds = onkos.load()
+    record = ds[rid]
+    expected = kernel_values(record)
+    keys = list(expected)
+
+    so = {k: v for k, v in parse_so_estimates(to_pharmml_so(record)).items() if k in keys}
+    rx = {k: v for k, v in parse_rxode2_params(to_rxode2(record)).items() if k in keys}
+    pm = {k: v for k, v in parse_pumas_params(to_pumas(record)).items() if k in keys}
+    nm = parse_nonmem_thetas(to_nonmem(record))[: len(keys)]
+    assert so == expected
+    assert rx == expected
+    assert pm == expected
+    assert nm == list(expected.values())
+
+
+def test_so_carries_iiv_variance_and_validation():
+    from onkos.export.pharmml_so import to_pharmml_so
+
+    ds = onkos.load()
+    so = to_pharmml_so(ds["resistance.claret_2009.tgi"])
+    assert "randomEffectVariance" in so          # IIV as omega = ln(1+CV^2)
+    assert "externalValidation" in so            # predictive_performance recorded
+    assert "OS_C_index_external" in so
+
+
 def test_clinical_use_in_every_export():
     ds = onkos.load()
     from onkos._const import CLINICAL_USE
-    from onkos.export import to_pharmml, to_virtual_trial_json
+    from onkos.export import to_pharmml, to_pharmml_so, to_virtual_trial_json
 
     for rid in ["resistance.claret_2009.tgi", "preclinical_translation.simeoni_2004.xenograft"]:
         r = ds[rid]
         assert CLINICAL_USE in to_sbml(r)
         assert CLINICAL_USE in to_pharmml(r)
+        assert CLINICAL_USE in to_pharmml_so(r)
         assert CLINICAL_USE in to_virtual_trial_json(r)
         assert CLINICAL_USE in to_nonmem(r)
+
+
+def test_omex_bundles_pharmml_so():
+    import zipfile
+
+    from onkos.export.combine import build_omex
+
+    ds = onkos.load()
+    out = build_omex(ds["resistance.claret_2009.tgi"], "/tmp/onkos_so_test.omex")
+    names = zipfile.ZipFile(out).namelist()
+    assert any(n.endswith(".so.xml") for n in names)
+    assert any(n.endswith(".pharmml") for n in names)
