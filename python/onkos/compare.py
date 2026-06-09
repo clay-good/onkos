@@ -27,6 +27,35 @@ class Comparison:
     t: np.ndarray
     included: list[Trajectory] = field(default_factory=list)
     excluded: list[tuple[str, str]] = field(default_factory=list)
+    # Carried so the model-averaging combiner can reconstruct the exact ensemble
+    # per included model (Axis 3 = model-selection uncertainty; see onkos.combine).
+    ds: Dataset | None = None
+    exposure: object = None
+    exposure_response: str | None = None
+    survival_link: str | None = None
+
+    def model_average(
+        self, *, target: str = "median_os_weeks", endpoint: str = "OS",
+        weights: str = "equal", n: int = 200, seed: int = 0,
+    ):
+        """Model-averaged forecast + law-of-total-variance decomposition over the
+        included models. See :class:`onkos.combine.ModelAverage`."""
+        from .combine import model_average
+
+        return model_average(
+            self, target=target, endpoint=endpoint, weights=weights, n=n, seed=seed,
+        )
+
+    def uncertainty_decomposition(
+        self, *, target: str = "median_os_weeks", endpoint: str = "OS",
+        n: int = 200, seed: int = 0,
+    ) -> dict:
+        """Per-scheme model-selection-uncertainty table for this context."""
+        from .combine import uncertainty_decomposition
+
+        return uncertainty_decomposition(
+            self, target=target, endpoint=endpoint, n=n, seed=seed,
+        )
 
     def _divergence(self, endpoint: str) -> float:
         curves = [tr.survival.get(endpoint) for tr in self.included]
@@ -63,13 +92,19 @@ class Comparison:
     def median_pfs_range(self) -> tuple[float, float] | None:
         return self._median_range("PFS")
 
-    def to_dict(self, *, include_curves: bool = False) -> dict:
+    def to_dict(self, *, include_curves: bool = False, model_average=None) -> dict:
         """A JSON-serializable summary of the virtual-trial result.
 
         Per-model summaries (tier, median OS/PFS, key TGI metrics, warnings),
         the excluded models with reasons, and the OS/PFS divergence. With
         ``include_curves`` the tumor/OS/PFS arrays are included as plain lists for
-        a dashboard or external simulator to ingest (spec §7)."""
+        a dashboard or external simulator to ingest (spec §7).
+
+        A :class:`onkos.combine.ModelAverage` passed as ``model_average`` is
+        embedded as an optional ``model_average`` block carrying the averaged
+        curve, the within/between variance split, the model-selection fraction,
+        the weights + scheme, and the worst-tier — the Axis-3 completion of the
+        descriptive divergence (research spec §7)."""
         from ._const import CLINICAL_USE
 
         def model(tr: Trajectory) -> dict:
@@ -89,7 +124,7 @@ class Comparison:
                 d["survival"] = {k: v.tolist() for k, v in tr.survival.items()}
             return d
 
-        return {
+        d = {
             "onkos:clinicalUse": CLINICAL_USE,
             "NOT_FOR_CLINICAL_USE": True,
             "context": self.context,
@@ -102,11 +137,20 @@ class Comparison:
             "included": [model(tr) for tr in self.included],
             "excluded": [{"id": rid, "reason": reason} for rid, reason in self.excluded],
         }
+        if model_average is not None:
+            d["model_average"] = model_average.to_dict(include_curves=include_curves)
+            d["onkos:modelSelectionUncertainty"] = {
+                "fraction": model_average.model_selection_fraction,
+                "scheme": model_average.scheme,
+            }
+        return d
 
-    def to_json(self, *, include_curves: bool = False, indent: int = 2) -> str:
+    def to_json(self, *, include_curves: bool = False, model_average=None, indent: int = 2) -> str:
         import json
 
-        return json.dumps(self.to_dict(include_curves=include_curves), indent=indent)
+        return json.dumps(
+            self.to_dict(include_curves=include_curves, model_average=model_average), indent=indent
+        )
 
 
 def compare(
@@ -127,7 +171,10 @@ def compare(
         t = np.linspace(0.0, 104.0, 209)
     t = np.asarray(t, dtype=float)
 
-    cmp = Comparison(context=context, drug_effect=drug_effect, t=t)
+    cmp = Comparison(
+        context=context, drug_effect=drug_effect, t=t, ds=ds,
+        exposure=exposure, exposure_response=exposure_response, survival_link=survival_link,
+    )
 
     # The clinical divergence view excludes non-clinical subsystems: preclinical
     # xenograft models (validated in mice) and the hypothesis-tier immuno-oncology

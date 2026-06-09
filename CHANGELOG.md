@@ -4,6 +4,49 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.21.0] — Model-selection uncertainty: the third uncertainty axis
+
+Implements the research-track spec `docs/specs/research/model-selection-uncertainty.md`
+(steps 1–4): the virtual-trial divergence view gains its inferential completion —
+from *"the models disagree by this much"* to a variance decomposition plus an
+honestly-weighted central forecast that carries its disagreement.
+
+- `onkos.combine`: a new module that splits a composed survival forecast's total
+  predictive uncertainty into **within-model** (parameter/IIV noise, Axis 1) and
+  **between-model** (model-selection risk, Axis 3) via the law of total variance,
+  and reports the headline `model_selection_fraction = BETWEEN / (WITHIN + BETWEEN)`
+  — the fraction of forecast uncertainty that more data on any *one* model cannot
+  resolve. `Comparison.model_average(...)` returns a `ModelAverage` with the
+  averaged OS/PFS curve `S̄(t)`, its pointwise between-model band, the worst
+  included tier, and the weights.
+- Three **declared** weighting schemes (`equal`, `tier` A:B:C = 4:2:1, `evidence`
+  ∝ external C-index − 0.5), the cross-scheme `weight_sensitivity` swing with a
+  fragility warning, and — wherever weights appear — the explicit label that these
+  are *forecast-combination weights (Bates–Granger), NOT posterior model
+  probabilities* (the models are fit to different trials, so a posterior model
+  probability is not identifiable and would be invented).
+- Guardrails, enforced by a landmark suite (`tests/test_combine.py`, 16 closed-form
+  checks of the combination math itself — law of total variance to ≤1e-9, equal-
+  weight identity, identical-component zero-between, convex-hull bound, survival-
+  function validity, monotone re-weighting, zero-weight inertness, tier floor):
+  averaging **cannot raise a tier**; only in-context models are averaged; a
+  single-eligible-model context yields fraction 0 *and* a `single_eligible_model`
+  warning; the point estimate is structurally inseparable from its fraction.
+- Surfaces: `onkos compare --average [--weights …] [--decompose] [--json]`;
+  `Comparison.to_dict(model_average=…)` embeds an optional `model_average` block in
+  the virtual-trial JSON with the `onkos:modelSelectionUncertainty` predicate (added
+  to the JSON-LD context); `onkos report` ranks clinical contexts by irreducible
+  model-choice risk (curation triage — where adding a better-validated model has the
+  most value); a model-averaging figure and `notebooks/14_model_averaging.ipynb`
+  (executed in CI).
+- `onkos.uncertainty.ensemble_samples` factored out of `simulate_ensemble` as the
+  shared per-model sampling core, so the combiner reuses the Axis-1 machinery for
+  `WITHIN` rather than re-implementing it.
+- Methodological provenance (Bates–Granger forecast combination; the MCP-Mod and
+  NLME model-averaging regulatory precedent; the BMA common-data boundary Onkos
+  deliberately does not cross) is documented in the README; Crossref-verified
+  citation curation is deferred, consistent with the honest-by-default stance.
+
 ## [0.20.0] — Scientific landmark validation (a second validation axis)
 
 - `tests/test_landmarks.py`: validates every reference kernel against the

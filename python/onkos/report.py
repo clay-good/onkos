@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from collections import Counter
 
+import numpy as np
+
 from .load import Dataset
 
 # Records for which an external OS-validation metric is meaningful: clinical TGI
@@ -49,6 +51,67 @@ def stats(ds: Dataset) -> dict:
         "hypothesis_tier": [r.id for r in ds if r.subsystem == "immuno_oncology"],
         "verified": sum(1 for r in ds if r.review_status == "verified"),
     }
+
+
+# Model-selection-uncertainty bins. Reported qualitatively (not as raw Monte-Carlo
+# floats) so the CI report-in-sync diff stays byte-stable across platforms; the
+# context fractions sit comfortably away from these bin edges.
+_MSU_HORIZON_WEEKS = 156.0
+_MSU_N = 120
+_MSU_LOW, _MSU_HIGH = 0.25, 0.45
+
+
+def _msu_label(fraction: float) -> str:
+    if fraction >= _MSU_HIGH:
+        return "high"
+    if fraction >= _MSU_LOW:
+        return "moderate"
+    return "low"
+
+
+def model_selection_summary(ds: Dataset) -> list[dict]:
+    """Per-clinical-context model-selection-uncertainty summary (research spec §10,
+    step 4). For each tumor-type/line context with ≥2 eligible TGI models, the
+    irreducible model-choice fraction is binned (low/moderate/high) so contexts
+    can be ranked by where adding a better-validated model has the most value.
+
+    Deferred import of :mod:`onkos.compare` avoids an import cycle (compare →
+    combine → uncertainty → simulate, none of which import report)."""
+    from .compare import compare
+
+    contexts = sorted(
+        {
+            (r.derivation_context.tumor_type, r.derivation_context.line_of_therapy)
+            for r in ds
+            if r.kind == "context_baseline"
+            and r.derivation_context
+            and r.derivation_context.tumor_type
+            and r.derivation_context.line_of_therapy
+        }
+    )
+    t = np.linspace(0.0, _MSU_HORIZON_WEEKS, int(2 * _MSU_HORIZON_WEEKS) + 1)
+    out: list[dict] = []
+    for tumor_type, line in contexts:
+        cmp = compare(
+            ds, purpose="tgi", context={"tumor_type": tumor_type, "line": line},
+            drug_effect=1.0, t=t,
+        )
+        if len(cmp.included) < 2:  # a single model has no cross-model disagreement
+            continue
+        ma = cmp.model_average(target="median_os_weeks", endpoint="OS", weights="equal",
+                               n=_MSU_N, seed=0)
+        out.append({
+            "tumor_type": tumor_type,
+            "line": line,
+            "n_models": len(cmp.included),
+            "tier": ma.tier,
+            "risk": _msu_label(ma.model_selection_fraction),
+        })
+    # Rank high → moderate → low, then alphabetically — a deterministic order
+    # that does not depend on the raw (platform-sensitive) fraction.
+    rank = {"high": 0, "moderate": 1, "low": 2}
+    out.sort(key=lambda d: (rank[d["risk"]], d["tumor_type"], d["line"]))
+    return out
 
 
 def _tier_by_subsystem(ds: Dataset) -> dict:
@@ -129,6 +192,26 @@ def build_report(ds: Dataset) -> str:
     if inflated:
         lines.append("\nInflated records (MUST be corrected):")
         lines += [f"- `{f.record_id}`: tier {f.assigned} > ceiling {f.ceiling}" for f in inflated]
+
+    msu = model_selection_summary(ds)
+    if msu:
+        lines += [
+            "",
+            "## Model-selection uncertainty by context",
+            "",
+            "Of everything uncertain in a composed OS forecast, how much is *irreducible "
+            "model-choice risk* (between-model disagreement that more data on any one model "
+            "cannot resolve) versus estimable parameter noise? High-risk contexts are where "
+            "adding a better-validated TGI model has the most value (curation triage). "
+            "Equal-weight combination; population/trial level only. See `onkos.combine`.",
+            "",
+            "| context | line | eligible models | tier | model-selection risk |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        lines += [
+            f"| {m['tumor_type']} | {m['line']} | {m['n_models']} | {m['tier']} | {m['risk']} |"
+            for m in msu
+        ]
 
     if s["hypothesis_tier"]:
         lines += [

@@ -9,6 +9,7 @@ from __future__ import annotations
 from . import pk
 from ._const import VERSION as __version__
 from .audit import audit_tiers, evidence_ceiling
+from .combine import ModelAverage
 from .compare import Comparison, compare
 from .filter import filter_records
 from .load import DATASET_VERSION, Dataset, load
@@ -26,6 +27,7 @@ __all__ = [
     "Trajectory",
     "Comparison",
     "Ensemble",
+    "ModelAverage",
     "SensitivityResult",
     "load",
     "simulate",

@@ -16,6 +16,7 @@
     "subsystem": "onkos:subsystem",
     "kernel": "onkos:kernel",
     "confidenceTier": "onkos:confidenceTier",
+    "modelSelectionUncertainty": "onkos:modelSelectionUncertainty",
     "reviewStatus": "onkos:reviewStatus",
     "clinicalUse": "onkos:clinicalUse",
     "predictionStatus": "onkos:predictionStatus",

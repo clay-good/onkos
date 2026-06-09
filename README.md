@@ -88,6 +88,79 @@ turns a deceptively precise "80% week-8 shrinkage" into an honest
 `[-100%, -30%]` band and a median-OS interval of roughly 58–103 weeks — the
 uncertainty was always in the data; now it is in the answer.
 
+### Model averaging: parameter noise vs irreducible model-choice risk
+
+The divergence view shows *that* the eligible models disagree; `onkos.combine` is
+its inferential completion. It splits the total uncertainty of a composed survival
+forecast into the two axes above using the **law of total variance**:
+
+```text
+Var(Q)  =  Σ wₘ·Var(Q|m)        +   Σ wₘ·(E[Q|m] − Q̄)²
+        =  WITHIN (parameter)    +   BETWEEN (model-selection)
+
+model_selection_fraction  =  BETWEEN / (WITHIN + BETWEEN)   ∈ [0, 1]
+```
+
+That fraction answers the question a go/no-go committee actually has: *of
+everything I am uncertain about in this forecast, how much would shrink if I ran a
+bigger trial and nailed the parameters (within), versus how much is structural
+disagreement between equally-published models that more data on any one of them
+will not resolve (between)?* A high between-fraction is precisely the signal that
+sends programs into doomed phase-3 trials — and it has never had a number.
+
+![Model averaging and the variance decomposition](docs/images/model_average.png)
+
+The eligible models also combine into a single model-averaged OS/PFS curve `S̄(t)`
+(a convex combination of monotone survival curves is itself a valid survival
+curve) carrying its **between-model band** — the average never ships without the
+disagreement that qualifies it. Per context, the between-fraction ranks where
+adding a better-validated TGI model has the most value (model-level curation
+triage), and `onkos report` prints exactly that ranking.
+
+```text
+$ onkos compare --average --weights equal --decompose
+
+  Model-averaged median_os_weeks = 66.1  [OS, scheme=equal, tier=C]
+  Variance: within(parameter)=247.0  between(model-selection)=156.5
+  >> model_selection_fraction = 0.39   (irreducible model-choice risk)
+
+  scheme        point    within   between   frac
+  equal          66.1     247.0     156.5   0.39
+  tier           66.1     247.0     156.5   0.39
+  evidence       65.4     229.4     155.8   0.40
+  weight_sensitivity (point swing across schemes) = 0.67
+```
+
+```python
+ma = cmp.model_average(target="median_os_weeks", endpoint="OS", weights="equal")
+ma.point, ma.tier               # averaged median OS; worst included tier (cannot be raised)
+ma.within_var, ma.between_var   # the law-of-total-variance components
+ma.model_selection_fraction     # BETWEEN / TOTAL — the headline number
+ma.curve, ma.between_band       # S̄(t) and its pointwise between-model ±1σ
+ma.weights                      # {record_id: wₘ}  (combination weights, NOT posteriors)
+ma.weight_sensitivity, ma.warnings
+```
+
+**The honesty boundary.** Classical Bayesian model averaging weights models by
+`P(model | data)`, and stacking optimizes predictive weights — *both require the
+candidates to share one dataset*. Onkos models are fit to **different** trials,
+drugs, and tumor types, so a posterior model probability is **not identifiable**
+and would be a fabricated quantity. Onkos therefore frames its weights as
+**forecast-combination weights** (Bates–Granger 1969), explicitly *not* posterior
+probabilities, and prints that distinction wherever weights appear. Three declared
+schemes ship — `equal` (the agnostic default), `tier` (A:B:C = 4:2:1, a *declared*
+not fitted factor), and `evidence` (∝ external C-index − 0.5) — and the headline
+target is always reported under all of them, with the cross-scheme swing
+(`weight_sensitivity`) flagged when the central estimate is weight-fragile.
+Averaging **cannot raise a tier**, never rehabilitates an excluded out-of-context
+model, and a single-eligible-model context returns `fraction = 0` *with* a warning
+(a zero is an absence of cross-checks, not a clean bill of health). The method has
+direct regulatory-science precedent in dose-finding — MCP-Mod (Bretz, Pinheiro &
+Branson 2005) and NLME model averaging (Buatois et al. 2018); Onkos's TGI-survival
+combiner is the same idea one layer up. The combination math is proven against a
+landmark suite (`tests/test_combine.py`) the way the kernels are: the estimator
+*is* the law of total variance and a convex forecast combination, not a curve fit.
+
 ### TGI metrics — the Stein/Bruno panel
 
 Every simulated trajectory is summarized into the derived metrics oncology
@@ -290,6 +363,14 @@ cmp.median_os_range                        # (lo, hi) median OS across models
 cmp.excluded                               # models greyed out for out-of-context transport
 cmp.to_json(include_curves=True)           # serializable result for dashboards / external simulators
 
+# Model averaging — split the forecast into parameter noise vs model-choice risk
+ma = cmp.model_average(target="median_os_weeks", endpoint="OS", weights="equal")
+ma.point, ma.tier                          # averaged median OS; worst included tier
+ma.within_var, ma.between_var              # law-of-total-variance components
+ma.model_selection_fraction                # BETWEEN / TOTAL — irreducible model-choice risk
+ma.curve, ma.between_band                  # S̄(t) + pointwise between-model ±1σ
+cmp.uncertainty_decomposition()            # per-scheme (equal/tier/evidence) table
+
 # Parameter uncertainty — propagate the stored IIV CVs (Monte-Carlo bands)
 ens = onkos.simulate_ensemble(ds, "resistance.claret_2009.tgi", context=ctx, n=400, seed=0)
 ens.tumor_size.median, ens.tumor_size.lo, ens.tumor_size.hi   # 5–95% band arrays
@@ -313,6 +394,7 @@ res.indices                                # ranked [ParamSensitivity(symbol, sr
 | `onkos audit` | evidence-based tier audit — flags tier inflation (also run inside `validate`) |
 | `onkos simulate <id> [--tumor-type --line --drug-effect]` | one model's trajectory + metrics |
 | `onkos simulate --compare [--json --include-curves]` | virtual-trial divergence across eligible models (text or JSON) |
+| `onkos compare --average [--weights --decompose --json]` | model-averaged forecast + within/between variance decomposition |
 | `onkos uncertainty <id> [--n --seed]` | Monte-Carlo parameter-uncertainty bands (propagates IIV CV) |
 | `onkos sensitivity <id> [--target --n]` | rank parameters by how much their IIV drives a target metric |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
@@ -808,6 +890,8 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | The PK bridge is a thin illustrative adapter, not a PK toolkit (that's Hypnos) | Onkos's scope is exposure → tumor → survival. `onkos.pk` exposes only the standard dose↔exposure relations and a profile-ingestion adapter so the composability chain is runnable self-contained; modelling the PK itself stays in Hypnos, and the generators are clearly labelled illustrative. |
 | Kill mechanism is a separate subsystem, so it can be a divergence axis | Bundling the kill model into each TGI record would hide that two trials might shrink tumors identically yet predict different outcomes because one assumed log-kill and the other Norton-Simon. The `drug_effect` subsystem makes the mechanism an explicit, comparable choice — the same "make the silent assumption visible" move as `transportability`. |
 | The architecture is a *tested* contract, not just a diagram | `tests/test_architecture.py` asserts every declared subsystem has records, every kernel is bound (no orphans/dead kernels), the CLI export formats match both the builders and the CI sweep, and the public API surface is stable. These checks have already caught real drift (an empty `drug_effect` subsystem; a CI export loop missing `so`/`jsonld`), so the diagrams above stay honest. |
+| Model-averaging weights are *combination* weights, never model posteriors | Posterior model probabilities `P(model\|data)` require the candidates to share one dataset; Onkos models are fit to different trials, so a posterior is not identifiable and would be invented. Framing the weights as Bates–Granger forecast-combination weights (and printing that everywhere) keeps the no-false-precision discipline; the headline output is a *fraction of uncertainty no better estimation can remove*, not a manufactured central probability. |
+| The model average is structurally inseparable from its disagreement | A single combined curve *looks* like an answer, so `ModelAverage` cannot be serialized or drawn without its `model_selection_fraction` and worst tier; averaging cannot raise a tier, never rehabilitates an excluded model, and `M=1` returns fraction 0 *with* a warning. The combiner is post-processing over `compare`, validated by a landmark suite proving it *is* the law of total variance and a convex combination. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---
@@ -858,13 +942,21 @@ a real patient's tumor measurement and returns a prognosis or a therapy choice.
 | **A — TGI spine** | Growth laws + Claret TGI + NSCLC context + TGI→OS link + divergence view; NONMEM + SBML; round-trip validation. | ✅ v0.1 |
 | **B — Resistance + exposure-response** | Emax / sigmoid-Emax / power ER kernels driving the kill term; scalar **and** time-varying PK-driven simulation (Hypnos composability); ER tier + transportability propagation; PharmML + rxode2/Pumas; IIV-CV surfaced. | ✅ v0.2 |
 | **C — Survival + baselines** | `tumor_type_baselines` library + per-context Weibull-PH survival links across NSCLC, breast, CRC, HCC, melanoma; ≥2 eligible TGI models per context; cross-context divergence; orphan-record invariant enforced in CI. | ✅ v0.3 |
-| **D — Preclinical translation** | Multi-state ODE framework; Simeoni 2004 xenograft model (exp→linear growth + signal-distribution transit chain); in-vitro→in-vivo potency translation; per-state SBML/NONMEM export + round-trip. | ✅ v0.4 (this release) |
-| **E — Immuno-oncology** | Kuznetsov tumor–immune QSP, hypothesis-tier (tier D), non-predictive; tier-D enforced by the validator; DO-NOT-PREDICT annotation on every export; excluded from the clinical view. | ✅ v0.5 (this release) |
-| **F — Hardening** | External-validation backfill (coverage 15/15); `onkos report` health report with CI sync gate; wheel-build releasability proven in CI; `.omex`, `.zenodo.json`, `CHANGELOG.md`, `py.typed`, `CITATION.cff`. | ✅ v0.6 (this release) |
+| **D — Preclinical translation** | Multi-state ODE framework; Simeoni 2004 xenograft model (exp→linear growth + signal-distribution transit chain); in-vitro→in-vivo potency translation; per-state SBML/NONMEM export + round-trip. | ✅ v0.4 |
+| **E — Immuno-oncology** | Kuznetsov tumor–immune QSP, hypothesis-tier (tier D), non-predictive; tier-D enforced by the validator; DO-NOT-PREDICT annotation on every export; excluded from the clinical view. | ✅ v0.5 |
+| **F — Hardening** | External-validation backfill (coverage 25/25); `onkos report` health report with CI sync gate; wheel-build releasability proven in CI; `.omex`, `.zenodo.json`, `CHANGELOG.md`, `py.typed`, `CITATION.cff`. | ✅ v0.6 |
 
-The phased roadmap (spec §11, Phases A–F) is now fully implemented. Remaining work
-is **breadth and verification**: promoting `unverified` records to `verified` from
-source PDFs, and adding more drugs / tumor types / lines (see CONTRIBUTING.md).
+The phased roadmap (spec §11, Phases A–F) is fully implemented. Work since then
+follows a **research track** (`docs/specs/research/`) that deepens the project's
+own thesis rather than adding breadth:
+
+| Research track | Content | Status |
+| --- | --- | --- |
+| **Model-selection uncertainty** | `onkos.combine`: law-of-total-variance split of a composed forecast into parameter (within) vs model-selection (between) variance; the `model_selection_fraction`; declared `equal`/`tier`/`evidence` combination weights with cross-scheme fragility; the model-averaged `S̄(t)` curve + between-model band; report ranks contexts by irreducible model-choice risk. | ✅ v0.21 |
+
+Remaining work is **breadth and verification**: promoting `unverified` records to
+`verified` from source PDFs, adding more drugs / tumor types / lines, and the
+further steps in the research specs (see CONTRIBUTING.md and `docs/specs/`).
 
 ---
 

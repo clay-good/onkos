@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from . import __version__, compare, load, sensitivity, simulate, simulate_ensemble
+from .combine import SCHEMES, WEIGHTS_ARE_COMBINATION_NOT_POSTERIOR
 from .export.combine import build_omex
 from .export.jsonld import to_jsonld
 from .export.nonmem import to_nonmem
@@ -147,6 +148,68 @@ def _cmd_simulate(args) -> int:
     return 0
 
 
+def _cmd_compare(args) -> int:
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    er, exposure = args.exposure_response, args.exposure
+    drug_effect = None if (er and exposure is not None) else args.drug_effect
+    cmp = compare(
+        ds, purpose="tgi", context=ctx, drug_effect=drug_effect,
+        exposure=exposure, exposure_response=er,
+    )
+    if not cmp.included:
+        print("No eligible (in-context) models for this context.", file=sys.stderr)
+        return 1
+
+    ma = None
+    if args.average:
+        ma = cmp.model_average(
+            target=args.target, endpoint=args.endpoint, weights=args.weights,
+            n=args.n, seed=args.seed,
+        )
+
+    if args.json:
+        print(cmp.to_json(include_curves=args.include_curves, model_average=ma))
+        return 0
+
+    print(f"Virtual-trial comparison — {ctx}, drug_effect={args.drug_effect}\n")
+    for tr in cmp.included:
+        mos = f"{tr.median_os:.1f}" if tr.median_os else "n/r"
+        print(f"  [{tr.tier}] {tr.record_id:<48} median OS {mos:>6}")
+    for rid, reason in cmp.excluded:
+        print(f"  [-] {rid:<48} EXCLUDED ({reason})")
+    print(f"\n  OS divergence {cmp.os_divergence:.3f}  | median OS range {cmp.median_os_range}")
+
+    if ma is not None:
+        print(
+            f"\n  Model-averaged {ma.target} = {ma.point:.1f}  [{ma.endpoint}, scheme={ma.scheme}, "
+            f"tier={ma.tier}]"
+        )
+        print(
+            f"  Variance: within(parameter)={ma.within_var:.1f}  "
+            f"between(model-selection)={ma.between_var:.1f}"
+        )
+        print(
+            f"  >> model_selection_fraction = {ma.model_selection_fraction:.2f}  "
+            f"(irreducible model-choice risk)"
+        )
+        print(f"  weights: {WEIGHTS_ARE_COMBINATION_NOT_POSTERIOR}")
+        for rid, w in ma.weights.items():
+            print(f"    {w:>6.3f}  {rid}")
+        if args.decompose:
+            dec = cmp.uncertainty_decomposition(target=args.target, endpoint=args.endpoint,
+                                                n=args.n, seed=args.seed)
+            print("\n  Per-scheme decomposition:")
+            print(f"    {'scheme':<10} {'point':>8} {'within':>9} {'between':>9} {'frac':>6}")
+            for scheme, row in dec.items():
+                print(f"    {scheme:<10} {row['point']:>8.1f} {row['within_var']:>9.1f} "
+                      f"{row['between_var']:>9.1f} {row['model_selection_fraction']:>6.2f}")
+            print(f"\n  weight_sensitivity (point swing across schemes) = {ma.weight_sensitivity:.2f}")
+        for w in ma.warnings:
+            print(f"  ! {w}")
+    return 0
+
+
 def _cmd_uncertainty(args) -> int:
     ds = load()
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
@@ -274,6 +337,29 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--json", action="store_true", help="emit the comparison as JSON (with --compare)")
     sp.add_argument("--include-curves", action="store_true", help="include tumor/OS/PFS arrays in --json")
     sp.set_defaults(func=_cmd_simulate)
+
+    cp = sub.add_parser(
+        "compare",
+        help="virtual-trial divergence + model averaging (model-selection uncertainty)",
+    )
+    cp.add_argument("--tumor-type", default="NSCLC")
+    cp.add_argument("--line", default="first")
+    cp.add_argument("--drug-effect", type=float, default=1.0)
+    cp.add_argument("--exposure", type=float, default=None)
+    cp.add_argument("--exposure-response", default=None)
+    cp.add_argument("--average", action="store_true",
+                    help="model-average the eligible models + decompose the uncertainty")
+    cp.add_argument("--weights", default="equal", choices=list(SCHEMES),
+                    help="weighting scheme (combination weights, NOT model posteriors)")
+    cp.add_argument("--target", default="median_os_weeks",
+                    help="target: median_os_weeks | median_pfs_weeks | a metric key")
+    cp.add_argument("--endpoint", default="OS", choices=["OS", "PFS"])
+    cp.add_argument("--decompose", action="store_true", help="show the per-scheme decomposition")
+    cp.add_argument("--n", type=int, default=200, help="within-model ensemble depth")
+    cp.add_argument("--seed", type=int, default=0)
+    cp.add_argument("--json", action="store_true", help="emit the result as JSON")
+    cp.add_argument("--include-curves", action="store_true", help="include curve arrays in --json")
+    cp.set_defaults(func=_cmd_compare)
 
     up = sub.add_parser(
         "uncertainty", help="Monte-Carlo parameter-uncertainty bands (propagates IIV CV)"

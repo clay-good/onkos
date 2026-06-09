@@ -613,6 +613,77 @@ def composability_chain_figure() -> None:
     plt.close(fig)
 
 
+def model_average_figure() -> None:
+    """Model averaging (Axis 3): the averaged OS curve with its between-model band,
+    and the within/between variance split ranking contexts by model-choice risk."""
+    ds = onkos.load()
+    t = np.linspace(0.0, 156.0, 313)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    # Left: NSCLC 1L — per-model OS curves, the model-averaged S̄(t), and its
+    # between-model ±1σ band (the disagreement that travels with the average).
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    cmp = onkos.compare(ds, purpose="tgi", context=ctx, drug_effect=1.0, t=t)
+    ma = cmp.model_average(target="median_os_weeks", endpoint="OS", weights="equal", n=300)
+    for i, tr in enumerate(cmp.included):
+        ax1.plot(t, tr.os_curve, color=PALETTE[i % len(PALETTE)], lw=1.0, alpha=0.7,
+                 label=f"{tr.record_id.split('.')[1]} [{tr.tier}]")
+    band = ma.between_band
+    ax1.fill_between(t, np.clip(ma.curve - band, 0, 1), np.clip(ma.curve + band, 0, 1),
+                     color="black", alpha=0.12, label="between-model ±1σ")
+    ax1.plot(t, ma.curve, color="black", lw=2.2, label=f"model average [{ma.tier}]")
+    ax1.axhline(0.5, ls=":", color="grey", lw=1)
+    ax1.set_title(
+        f"Model-averaged OS (NSCLC 1L) — median {ma.point:.0f} wk, "
+        f"model-selection {ma.model_selection_fraction:.0%}",
+        fontsize=9,
+    )
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("survival fraction")
+    ax1.set_ylim(0, 1.02)
+    ax1.legend(fontsize=7)
+
+    # Right: per-context within vs between variance (stacked) — the between share
+    # IS the irreducible model-choice risk that ranks curation value.
+    contexts = [("NSCLC", "first"), ("NSCLC", "second"), ("breast", "first"),
+                ("CRC", "first"), ("HCC", "first"), ("melanoma", "first")]
+    labels, within, between, fracs = [], [], [], []
+    for tt, ln in contexts:
+        c = onkos.compare(ds, purpose="tgi", context={"tumor_type": tt, "line": ln},
+                          drug_effect=1.0, t=t)
+        if len(c.included) < 2:
+            continue
+        m = c.model_average(target="median_os_weeks", endpoint="OS", weights="equal", n=200)
+        labels.append(f"{tt}\n{ln[:2]}")
+        within.append(m.within_var)
+        between.append(m.between_var)
+        fracs.append(m.model_selection_fraction)
+    order = np.argsort(fracs)[::-1]
+    labels = [labels[i] for i in order]
+    within = np.array([within[i] for i in order])
+    between = np.array([between[i] for i in order])
+    fracs = [fracs[i] for i in order]
+    x = np.arange(len(labels))
+    ax2.bar(x, within, color="#3182ce", label="within (parameter noise)")
+    ax2.bar(x, between, bottom=within, color="#c53030", label="between (model-selection)")
+    for i, f in enumerate(fracs):
+        ax2.text(i, within[i] + between[i], f"{f:.0%}", ha="center", va="bottom", fontsize=8)
+    ax2.set_xticks(x, labels, fontsize=8)
+    ax2.set_ylabel("variance of median OS (week²)")
+    ax2.set_title("Uncertainty split by context (label = model-selection %)", fontsize=9)
+    ax2.legend(fontsize=8)
+
+    fig.suptitle(
+        "Model-selection uncertainty (Axis 3): the divergence becomes a variance "
+        "decomposition + an honestly-weighted central forecast — NOT a clinical prediction",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "model_average.png", dpi=120)
+    plt.close(fig)
+
+
 def kill_mechanism_figure() -> None:
     """Norton-Simon (kill ∝ growth) vs log-kill (Claret, kill ∝ size) mechanisms."""
     from onkos.export.registry import get_kernel, kernel_values
@@ -670,4 +741,5 @@ if __name__ == "__main__":
     line_of_therapy_figure()
     composability_chain_figure()
     kill_mechanism_figure()
+    model_average_figure()
     print(f"Wrote figures to {OUT}")
