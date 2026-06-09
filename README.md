@@ -735,6 +735,33 @@ skipped for them and the rhs is instead pinned by the per-state SBML round-trip
 plus behavioral tests (exp→linear growth, dose-dependent shrinkage, transit
 delay). An export bug therefore cannot ship silently.
 
+### Scientific landmark validation — why a kernel *is* the model it names
+
+Round-trip validation proves the *exports* agree with the kernel. It does **not**
+prove the kernel reproduces the published model it claims to implement — a kernel
+can be internally self-consistent yet be the wrong dynamics. A **second,
+independent validation axis** ([`tests/test_landmarks.py`](tests/test_landmarks.py),
+catalogued in [`docs/validation-landmarks.md`](docs/validation-landmarks.md))
+closes that gap: every kernel is checked against the characteristic,
+analytically-derivable **landmark** of its model.
+
+| Model | Landmark the kernel must reproduce |
+|---|---|
+| Gompertz | growth rate peaks at `V = Vmax/e` (the published inflection) |
+| Logistic | growth rate peaks at `V = Vmax/2` |
+| Norton-Simon | tumor is stationary at *every* size when `E = g/k` |
+| Simeoni TGI | proliferating compartment is static at `c* = λ0/k2` (tumor-static concentration) |
+| Bi-exponential | nadir at `t* = ln(ks·E/kg)/(kg+ks·E)` |
+| Weibull-PH | median at `scale·(ln2)^(1/shape)`; `S_x = S₀^exp(β·x)` |
+| Emax / sigmoid | half-maximal effect exactly at `C = EC50` (any Hill γ) |
+| IO tumor-immune | effectors relax to homeostasis `s/δ` with no tumor |
+
+This is the honest reading of spec §9's "compare against published example
+simulations": the landmark *is* the published property, derived from the model's
+own equations, so **no digitized data is fabricated**. The two axes are
+complementary — round-trip catches a mis-encoded export; landmarks catch a
+mis-implemented model.
+
 ### Linked data (JSON-LD / RDF)
 
 The curation fields are exported as **JSON-LD** so they become real RDF triples,

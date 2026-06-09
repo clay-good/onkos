@@ -4,6 +4,25 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.20.0] — Scientific landmark validation (a second validation axis)
+
+- `tests/test_landmarks.py`: validates every reference kernel against the
+  characteristic, analytically-derivable property of the *published model* it
+  implements — Gompertz inflection at `Vmax/e`, the Simeoni tumor-static
+  concentration `c* = λ0/k2`, the Norton-Simon stationary condition `E = g/k`,
+  the bi-exponential nadir time, the Weibull median and proportional-hazards
+  identity, Emax half-maximal effect at `EC50`, IO immune homeostasis `s/δ`,
+  and more (15 checks across all 15 kernels).
+- This is a second validation axis independent of the export round-trip: the
+  round-trip proves exports agree with the kernel; landmarks prove the kernel
+  *is* the model it names. A kernel can be self-consistent yet wrong — landmarks
+  catch that.
+- `docs/validation-landmarks.md`: catalogues each landmark, its closed-form
+  condition, and its source. README documents the two-axis validation strategy.
+- This is the honest reading of spec §9's "compare against published example
+  simulations": the landmark is the published property, derived from the model's
+  own equations — no digitized data is fabricated.
+
 ## [0.19.0] — Architecture as a tested contract + refreshed system design
 
 - `tests/test_architecture.py`: pins the system structure so docs and code cannot
