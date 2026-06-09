@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.16 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.17 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -199,6 +199,31 @@ second.median_os < first.median_os          # True — same model, line-aware su
 > Fix shipped here: survival-link discovery previously matched only on tumor type,
 > so a second-line context silently reused first-line survival models. It now
 > matches on `(tumor_type, line)`.
+
+### The full chain: PK → exposure → tumor dynamics → survival
+
+Onkos *consumes* exposure; it does not model PK (that is its sibling **Hypnos**).
+The small `onkos.pk` bridge turns a dose/regimen — or an external Hypnos PK
+profile — into the exposure metric the ER kernels expect, so the spec's headline
+composability claim runs **self-contained**: dose → `C_avg` → exposure-response →
+kill → tumor dynamics → OS/PFS, one open, tier-annotated chain. The PK generators
+are illustrative (the cornerstone relation `C_avg = F·Dose/(CL·τ)`); for real PK,
+fit/simulate in Hypnos and feed the profile via `pk.from_profile`.
+
+![PK → exposure → tumor → survival](docs/images/composability_chain.png)
+
+```python
+from onkos import pk
+c_avg = pk.steady_state_metrics(dose=1200, tau=24, ka=0.5, ke=0.05, v=5)["c_avg"]
+tr = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx,
+                    exposure=c_avg, exposure_response="exposure_response.emax_generic")
+# higher dose → higher C_avg → deeper response → longer OS (the go/no-go chain)
+
+# ...or ingest a Hypnos-style concentration–time profile directly:
+C = pk.from_profile(times=[0, 8, 52, 104], concentrations=[0, 300, 220, 140], t=t)
+tr = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx, exposure=C,
+                    exposure_response="exposure_response.emax_generic", t=t)
+```
 
 ---
 
@@ -694,6 +719,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | The dashboard owns no logic — it renders a tested, serializable result | The virtual-trial result is a `Comparison.to_dict()/to_json()` the package builds and tests; the Streamlit file only draws it. That keeps the headline view honest (the same numbers everywhere), lets external simulators ingest the JSON, and means CI catches UI/API drift by lint + compile, not by screenshots. |
 | Confidence tiers are audited against evidence, not just hand-set | Spec §5 says tiers are "partly numeric." `onkos audit` derives the tier each clinical record's recorded external validation + IIV supports and fails `validate` on any inflation. A hand-set tier can't quietly over-claim — the honesty thesis applied to the honesty field itself. |
 | Survival matching is line-aware; an unsupported line yields no curve, not a borrowed one | The line of therapy is part of the context, so a second-line simulation must use second-line survival — matching only on tumor type would silently transport a 1L model. When no curated link exists for a line, the honest result is no survival curve, mirroring the no-fallback rule for tumor type. |
+| The PK bridge is a thin illustrative adapter, not a PK toolkit (that's Hypnos) | Onkos's scope is exposure → tumor → survival. `onkos.pk` exposes only the standard dose↔exposure relations and a profile-ingestion adapter so the composability chain is runnable self-contained; modelling the PK itself stays in Hypnos, and the generators are clearly labelled illustrative. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---
@@ -707,7 +733,7 @@ onkos/
 │   ├── records/                 # one JSON per model / context-baseline
 │   └── citations/               # Crossref/PubMed citation records
 ├── python/onkos/
-│   ├── load · filter · validate · tiers · simulate · metrics · compare · uncertainty · sensitivity · report · cli
+│   ├── load · filter · validate · tiers · simulate · metrics · pk · compare · uncertainty · sensitivity · audit · report · cli
 │   ├── py.typed                 # PEP 561 typing marker
 │   └── export/                  # registry · reference · nonmem · sbml · pharmml · pharmml_so
 │       · rxode2 · pumas · virtual_trial_json · jsonld · combine · annotate

@@ -545,6 +545,74 @@ def line_of_therapy_figure() -> None:
     plt.close(fig)
 
 
+def composability_chain_figure() -> None:
+    """The full PK -> exposure -> tumor-dynamics -> survival chain (Hypnos compose)."""
+    from onkos import pk
+    from onkos.export.reference import effect
+    from onkos.export.registry import get_kernel, kernel_values
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    er_id = "exposure_response.emax_generic"
+    er = ds[er_id]
+    er_spec, er_vals = get_kernel(er), kernel_values(er)
+    pkargs = dict(ka=0.5, ke=0.05, v=5.0, f=0.8)
+    doses = [600, 1200, 2400]
+    t = np.linspace(0.0, 104.0, 209)
+
+    fig, axes = plt.subplots(2, 2, figsize=(11, 7.5))
+    (a_pk, a_er), (a_tum, a_os) = axes
+
+    # 1) PK concentration profile (multiple-dose) for the middle dose + C_avg
+    tp = np.linspace(0, 168, 600)  # one week, hourly-ish
+    conc = pk.concentration_profile(1200, 24, 7, **pkargs, t=tp)
+    cavg_mid = pk.steady_state_metrics(dose=1200, tau=24, **pkargs)["c_avg"]
+    a_pk.plot(tp, conc, color=PALETTE[0])
+    a_pk.axhline(cavg_mid, ls="--", color=PALETTE[1], label=f"C_avg = {cavg_mid:.0f} µg/L")
+    a_pk.set_title("1. PK: oral regimen → concentration C(t)")
+    a_pk.set_xlabel("hours")
+    a_pk.set_ylabel("C (µg/L)")
+    a_pk.legend(fontsize=8)
+
+    # 2) ER transform C -> E, with each dose's C_avg operating point
+    c_grid = np.linspace(0, 400, 200)
+    a_er.plot(c_grid, effect(er_spec, c_grid, er_vals), color=PALETTE[2])
+    for i, dose in enumerate(doses):
+        cavg = pk.steady_state_metrics(dose=dose, tau=24, **pkargs)["c_avg"]
+        e = float(effect(er_spec, cavg, er_vals))
+        a_er.plot([cavg], [e], "o", color=PALETTE[i % 5], ms=7)
+        a_er.annotate(f"{dose} mg", (cavg, e), textcoords="offset points", xytext=(4, -10), fontsize=7)
+    a_er.set_title("2. Exposure-response: C_avg → effect E")
+    a_er.set_xlabel("C_avg (µg/L)")
+    a_er.set_ylabel("drug effect E")
+
+    # 3) + 4) tumor dynamics and OS per dose
+    for i, dose in enumerate(doses):
+        cavg = pk.steady_state_metrics(dose=dose, tau=24, **pkargs)["c_avg"]
+        tr = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx,
+                            exposure=cavg, exposure_response=er_id, t=t)
+        c = PALETTE[i % 5]
+        a_tum.plot(t, tr.tumor_size, color=c, label=f"{dose} mg")
+        a_os.plot(t, tr.os_curve, color=c, label=f"{dose} mg (mOS {tr.median_os:.0f})"
+                  if tr.median_os else f"{dose} mg")
+    a_tum.set_title("3. Tumor dynamics driven by E")
+    a_tum.set_xlabel("weeks")
+    a_tum.set_ylabel("tumor size (mm, SLD)")
+    a_tum.legend(fontsize=8)
+    a_os.axhline(0.5, ls=":", color="grey", lw=1)
+    a_os.set_title("4. Population OS")
+    a_os.set_xlabel("weeks")
+    a_os.set_ylabel("survival fraction")
+    a_os.set_ylim(0, 1.02)
+    a_os.legend(fontsize=8)
+
+    fig.suptitle("Hypnos composability: dose → exposure → tumor dynamics → survival, "
+                 "one open tier-annotated chain (illustrative PK)", fontsize=11)
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
+    fig.savefig(OUT / "composability_chain.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
@@ -559,4 +627,5 @@ if __name__ == "__main__":
     survival_endpoints_figure()
     survival_model_choice_figure()
     line_of_therapy_figure()
+    composability_chain_figure()
     print(f"Wrote figures to {OUT}")

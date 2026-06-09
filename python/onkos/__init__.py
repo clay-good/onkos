@@ -6,6 +6,7 @@ recommender. For drug-development methodology, simulation, and education only.
 
 from __future__ import annotations
 
+from . import pk
 from ._const import VERSION as __version__
 from .audit import audit_tiers, evidence_ceiling
 from .compare import Comparison, compare
@@ -36,4 +37,5 @@ __all__ = [
     "build_report",
     "audit_tiers",
     "evidence_ceiling",
+    "pk",
 ]

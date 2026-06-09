@@ -4,6 +4,20 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.17.0] — PK composability bridge (dose → exposure → tumor → survival)
+
+- `onkos.pk`: a small, illustrative PK bridge that realizes the spec's headline
+  Hypnos-composability claim self-contained. `steady_state_metrics` returns the
+  standard exposure metrics (C_avg, C_max, C_min, AUC_tau) for a one-compartment
+  oral regimen (cornerstone `C_avg = F·Dose/(CL·tau)`); `concentration_profile`
+  builds the multiple-dose Bateman curve; `from_profile` ingests an external
+  (Hypnos) concentration-time profile onto the simulation grid.
+- The full dose → C_avg → exposure-response → kill → tumor → OS/PFS chain now runs
+  end to end: higher dose → more exposure → deeper response → longer OS.
+- Onkos still does NOT model PK (that is Hypnos); the generators are clearly
+  labelled illustrative, and `from_profile` is the real ingestion path.
+- Composability-chain figure + notebook 12.
+
 ## [0.16.0] — Line of therapy + line-aware survival matching
 
 - Fix: `_find_survival_links` matched only on tumor type, so a second-line context
