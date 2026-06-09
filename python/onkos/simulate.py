@@ -11,10 +11,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
-from scipy.integrate import solve_ivp
 
 from ._const import CLINICAL_USE
 from .export.reference import effect as er_effect
+from .export.reference import integrate_observable
 from .export.registry import get_kernel, kernel_values
 from .load import Dataset
 from .models import Record
@@ -66,12 +66,17 @@ def _baseline_y0(ds: Dataset, tumor_type: str | None, line: str | None) -> float
 
 
 def _find_survival_link(ds: Dataset, tumor_type: str | None) -> Record | None:
-    candidates = [r for r in ds if r.purpose == "survival_link"]
-    for r in candidates:
+    """Return the survival link whose context matches this tumor type.
+
+    No fallback: an unmatched context (including any preclinical context) gets no
+    OS curve rather than a survival model from an unrelated tumor type."""
+    for r in ds:
+        if r.purpose != "survival_link":
+            continue
         dc = r.derivation_context
         if dc and dc.tumor_type == tumor_type:
             return r
-    return candidates[0] if candidates else None
+    return None
 
 
 def _tumor_metrics(t: np.ndarray, y: np.ndarray, y0: float) -> dict[str, float]:
@@ -97,16 +102,19 @@ def _resolve_effect(
 ):
     """Determine the drug-effect magnitude E driving the kill term.
 
-    If an exposure-response record and an exposure metric are supplied, E is the
-    ER transform of the exposure (scalar or time series), and the ER record joins
-    the tier-propagation set. Otherwise E is the scalar ``drug_effect``.
+    Resolution order:
+    * ``exposure`` + ``exposure_response`` -> E is the ER transform of the
+      exposure (scalar or time series); the ER record joins tier propagation.
+    * ``exposure`` alone -> the exposure drives E directly (identity), e.g. a
+      concentration profile feeding a Simeoni-style ``k2*E*x1`` kill term.
+    * otherwise -> the scalar ``drug_effect`` (default 1.0).
     """
-    if exposure_response is not None and exposure is not None:
-        er = ds[exposure_response]
-        er_spec = get_kernel(er)
-        e = er_effect(er_spec, exposure, kernel_values(er))
-        contributing.append(er)
-        return e
+    if exposure is not None:
+        if exposure_response is not None:
+            er = ds[exposure_response]
+            contributing.append(er)
+            return er_effect(get_kernel(er), exposure, kernel_values(er))
+        return exposure
     return float(drug_effect if drug_effect is not None else 1.0)
 
 
@@ -154,15 +162,17 @@ def simulate(
 
     vals = kernel_values(record)
     for inp in spec.inputs:
-        if inp in ("V0", "y0"):
+        if inp in ("V0", "y0", "w0"):
             vals[inp] = y0
         elif inp == "E":
             vals[inp] = float(e_arr[0])
 
-    if time_varying:
-        tumor = _integrate_timevarying(spec, t, vals, y0, e_arr)
-    else:
+    # Closed form for the single-state, constant-effect case; numerical
+    # integration for multi-state systems (Simeoni) or a time-varying effect.
+    if spec.analytic is not None and spec.n_states == 1 and not time_varying:
         tumor = np.asarray(spec.analytic(t, vals), dtype=float)
+    else:
+        tumor = integrate_observable(spec, t, vals, e_series=e_arr if time_varying else None)
     metrics = _tumor_metrics(t, tumor, y0)
 
     baseline = _baseline_record(ds, tumor_type, line)
@@ -190,23 +200,6 @@ def simulate(
         os_curve=os_curve,
         metrics=metrics,
     )
-
-
-def _integrate_timevarying(spec, t: np.ndarray, vals: dict, y0: float, e_arr: np.ndarray):
-    """Integrate a TGI ODE with a time-varying drug effect E(t) (PK-driven)."""
-    if spec.rhs is None:
-        raise ValueError(f"kernel '{spec.name}' has no ODE rhs for time-varying exposure")
-
-    def rhs_t(tt, yy):
-        v = dict(vals)
-        v["E"] = float(np.interp(tt, t, e_arr))
-        return spec.rhs(tt, yy, v)
-
-    sol = solve_ivp(
-        rhs_t, (float(t[0]), float(t[-1])), [float(y0)], t_eval=t, rtol=1e-8, atol=1e-10,
-        method="LSODA",
-    )
-    return sol.y[0]
 
 
 def _baseline_record(ds: Dataset, tumor_type, line) -> Record | None:

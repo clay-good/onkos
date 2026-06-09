@@ -41,9 +41,14 @@ class KernelSpec:
     params: list[str]  # kernel-internal parameter names (infix-safe)
     record_symbols: list[str]  # corresponding record symbols (same order)
     inputs: list[str]  # simulation-supplied inputs (initial conditions, effect, covariate)
-    analytic: Callable
+    analytic: Callable | None = None  # closed form; absent for multi-state systems
     rhs: Callable | None = None
     rhs_infix: dict[str, str] = field(default_factory=dict)
+    # Infix mapping the state vector to the observed quantity (e.g. total tumor
+    # weight = sum of compartments). None -> the first state is observed.
+    observable: str | None = None
+    # Which input seeds the first state's initial condition (V0/y0/w0).
+    init_input: str | None = None
 
     def map_values(self, record_values: dict[str, float]) -> dict[str, float]:
         """Translate record symbols to kernel-internal names (e.g. lambda->lam)."""
@@ -53,9 +58,22 @@ class KernelSpec:
                 out[kname] = record_values[rsym]
         return out
 
+    @property
+    def n_states(self) -> int:
+        return len(self.states)
+
+
+def init_vector(spec: KernelSpec, vals: dict[str, float]) -> np.ndarray:
+    """Initial state vector: the seed input fills the first state, others 0."""
+    seed = spec.init_input or next((i for i in spec.inputs if i in ("V0", "y0", "w0")), None)
+    y0 = np.zeros(spec.n_states, dtype=float)
+    if seed is not None and seed in vals:
+        y0[0] = float(vals[seed])
+    return y0
+
 
 def integrate(spec: KernelSpec, t: np.ndarray, vals: dict[str, float], y0) -> np.ndarray:
-    """Integrate an ODE kernel's rhs over ``t`` (for ODE-vs-analytic checks)."""
+    """Integrate a single-state ODE rhs over ``t`` (for ODE-vs-analytic checks)."""
     y0 = np.atleast_1d(np.asarray(y0, dtype=float))
     sol = solve_ivp(
         lambda tt, yy: spec.rhs(tt, yy, vals),
@@ -67,6 +85,38 @@ def integrate(spec: KernelSpec, t: np.ndarray, vals: dict[str, float], y0) -> np
         method="LSODA",
     )
     return sol.y[0]
+
+
+def observe(spec: KernelSpec, states: np.ndarray) -> np.ndarray:
+    """Map the integrated state array (n_states x len(t)) to the observable."""
+    if spec.observable is None:
+        return states[0]
+    env = {name: states[i] for i, name in enumerate(spec.states)}
+    return np.asarray(eval_infix(spec.observable, env), dtype=float)
+
+
+def integrate_observable(
+    spec: KernelSpec, t: np.ndarray, vals: dict[str, float], e_series=None
+) -> np.ndarray:
+    """Integrate a (possibly multi-state) ODE system and return the observable.
+
+    ``e_series`` may be None (E taken from ``vals``), a scalar, or an array
+    aligned to ``t`` (a time-varying drug effect / PK profile)."""
+    y0 = init_vector(spec, vals)
+    e_arr = None if e_series is None else np.atleast_1d(np.asarray(e_series, dtype=float))
+    time_varying = e_arr is not None and e_arr.size == t.size and e_arr.size > 1
+
+    def rhs(tt, yy):
+        v = vals
+        if e_arr is not None:
+            v = dict(vals)
+            v["E"] = float(np.interp(tt, t, e_arr)) if time_varying else float(e_arr.reshape(-1)[0])
+        return spec.rhs(tt, yy, v)
+
+    sol = solve_ivp(
+        rhs, (float(t[0]), float(t[-1])), y0, t_eval=t, rtol=1e-8, atol=1e-10, method="LSODA"
+    )
+    return observe(spec, sol.y)
 
 
 # ----------------------------------------------------------------------------
@@ -152,10 +202,47 @@ def _er_power(c, v):
 
 
 def effect(spec: KernelSpec, exposure, vals: dict[str, float]):
-    """Evaluate an exposure-response kernel: exposure metric C -> effect E."""
+    """Evaluate an exposure-response (or IVIVE) transform kernel."""
     if spec.kind != "exposure_response":
-        raise ValueError(f"kernel '{spec.name}' is not an exposure-response transform")
+        raise ValueError(f"kernel '{spec.name}' is not a transform kernel")
     return spec.analytic(np.asarray(exposure, dtype=float), vals)
+
+
+# ----------------------------------------------------------------------------
+# Simeoni 2004 preclinical xenograft model (multi-state; no closed form).
+#
+# Unperturbed growth is exponential then linear:
+#     g(w) = lam0 * x1 / (1 + (lam0 * w / lam1)^psi)^(1/psi)
+# (psi large -> hard switch: rate ~ lam0*w while small, ~ lam1 once large).
+# Drug (concentration E) damages proliferating cells, which then traverse a
+# signal-distribution transit chain x2->x3->x4 before dying (delayed cell death):
+#     dx1/dt = g(w) - k2*E*x1
+#     dx2/dt = k2*E*x1 - k1*x2
+#     dx3/dt = k1*x2   - k1*x3
+#     dx4/dt = k1*x3   - k1*x4
+# Observed tumor weight w = x1 + x2 + x3 + x4.
+# ----------------------------------------------------------------------------
+def _simeoni_growth(x1, w, v):
+    return v["lam0"] * x1 / (1.0 + (v["lam0"] * w / v["lam1"]) ** v["psi"]) ** (1.0 / v["psi"])
+
+
+def _simeoni_exp_linear_rhs(t, y, v):
+    w = y[0]
+    return [_simeoni_growth(w, w, v)]
+
+
+def _simeoni_tgi_rhs(t, y, v):
+    x1, x2, x3, x4 = y
+    w = x1 + x2 + x3 + x4
+    g = _simeoni_growth(x1, w, v)
+    kill = v["k2"] * v["E"] * x1
+    return [g - kill, kill - v["k1"] * x2, v["k1"] * x2 - v["k1"] * x3, v["k1"] * x3 - v["k1"] * x4]
+
+
+# In-vitro -> in-vivo potency translation (power-law): in-vivo potency from an
+# in-vitro metric (e.g. IC50). power=1 is linear scaling.
+def _ivive_power(c, v):
+    return v["scale"] * c ** v["power"]
 
 
 KERNELS: dict[str, KernelSpec] = {
@@ -249,5 +336,44 @@ KERNELS: dict[str, KernelSpec] = {
         record_symbols=["slope", "theta"],
         inputs=["C"],
         analytic=_er_power,
+    ),
+    "simeoni_exp_linear": KernelSpec(
+        name="simeoni_exp_linear",
+        kind="ode",
+        states=["tumor_size"],
+        params=["lam0", "lam1", "psi"],
+        record_symbols=["lambda0", "lambda1", "psi"],
+        inputs=["w0"],
+        rhs=_simeoni_exp_linear_rhs,
+        rhs_infix={
+            "tumor_size": "lam0 * tumor_size / (1 + (lam0 * tumor_size / lam1)**psi)**(1/psi)"
+        },
+        init_input="w0",
+    ),
+    "simeoni_tgi": KernelSpec(
+        name="simeoni_tgi",
+        kind="ode",
+        states=["x1", "x2", "x3", "x4"],
+        params=["lam0", "lam1", "psi", "k2", "k1"],
+        record_symbols=["lambda0", "lambda1", "psi", "k2", "k1"],
+        inputs=["w0", "E"],
+        rhs=_simeoni_tgi_rhs,
+        rhs_infix={
+            "x1": "lam0 * x1 / (1 + (lam0 * (x1 + x2 + x3 + x4) / lam1)**psi)**(1/psi) - k2 * E * x1",
+            "x2": "k2 * E * x1 - k1 * x2",
+            "x3": "k1 * x2 - k1 * x3",
+            "x4": "k1 * x3 - k1 * x4",
+        },
+        observable="x1 + x2 + x3 + x4",
+        init_input="w0",
+    ),
+    "ivive_power": KernelSpec(
+        name="ivive_power",
+        kind="exposure_response",
+        states=["in_vivo_potency"],
+        params=["scale", "power"],
+        record_symbols=["scale", "power"],
+        inputs=["C"],
+        analytic=_ivive_power,
     ),
 }

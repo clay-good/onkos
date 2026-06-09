@@ -1,7 +1,8 @@
 """Round-trip validation — the discipline that keeps exports honest.
 
-* analytic vs. SciPy ODE integration  -> ~1e-4 (ODE);
-* SBML MathML re-parsed and evaluated -> ~1e-6 vs reference rhs (algebraic);
+* analytic vs. SciPy ODE integration  -> ~1e-4 (single-state closed forms);
+* SBML MathML re-parsed and evaluated -> ~1e-6 vs reference rhs (per state, incl.
+  the multi-state Simeoni system);
 * NONMEM $THETA re-parsed             -> exact vs dataset values.
 """
 
@@ -13,7 +14,8 @@ from onkos.export.reference import eval_infix, integrate
 from onkos.export.registry import get_kernel, kernel_values
 from onkos.export.sbml import infix_to_mathml, mathml_to_infix, to_sbml
 
-ODE_RECORDS = [
+# Single-state records that carry a closed-form analytic solution.
+ANALYTIC_RECORDS = [
     "growth_laws.exponential",
     "growth_laws.logistic",
     "growth_laws.gompertz",
@@ -21,19 +23,25 @@ ODE_RECORDS = [
     "tgi_metrics.wang_2009.biexponential",
 ]
 
+# Every ODE record (incl. multi-state Simeoni) is round-tripped through SBML/NONMEM.
+ODE_RECORDS = ANALYTIC_RECORDS + [
+    "growth_laws.simeoni_exp_linear",
+    "preclinical_translation.simeoni_2004.xenograft",
+]
+
 
 def _vals(record):
     spec = get_kernel(record)
     vals = kernel_values(record)
     for inp in spec.inputs:
-        if inp in ("V0", "y0"):
+        if inp in ("V0", "y0", "w0"):
             vals[inp] = 80.0
         elif inp == "E":
             vals[inp] = 1.0
     return spec, vals
 
 
-@pytest.mark.parametrize("rid", ODE_RECORDS)
+@pytest.mark.parametrize("rid", ANALYTIC_RECORDS)
 def test_analytic_matches_ode_integration(rid):
     ds = onkos.load()
     spec, vals = _vals(ds[rid])
@@ -46,26 +54,30 @@ def test_analytic_matches_ode_integration(rid):
 
 @pytest.mark.parametrize("rid", ODE_RECORDS)
 def test_sbml_mathml_roundtrip(rid):
+    """Each state's rate law survives infix -> MathML -> infix -> eval, matching
+    the hand-written reference rhs at random points (per state)."""
     ds = onkos.load()
     record = ds[rid]
     spec, vals = _vals(record)
-    state = spec.states[0]
-    infix = spec.rhs_infix[state]
-    recovered = mathml_to_infix(infix_to_mathml(infix))
+    n = spec.n_states
+    recovered = {s: mathml_to_infix(infix_to_mathml(spec.rhs_infix[s])) for s in spec.states}
 
     rng = np.random.default_rng(0)
     for _ in range(8):
-        y = float(rng.uniform(1.0, 150.0))
+        yvec = rng.uniform(1.0, 50.0, size=n)
         tt = float(rng.uniform(0.0, 52.0))
-        env = {**vals, state: y, "t": tt}
-        lhs = float(eval_infix(recovered, env))
-        rhs = float(spec.rhs(tt, [y], vals)[0])
-        assert abs(lhs - rhs) < 1e-6, f"{rid}: MathML {lhs} != ref {rhs}"
+        env = {**vals, **{s: float(yvec[i]) for i, s in enumerate(spec.states)}, "t": tt}
+        ref = spec.rhs(tt, list(yvec), vals)
+        for i, s in enumerate(spec.states):
+            lhs = float(eval_infix(recovered[s], env))
+            assert abs(lhs - float(ref[i])) < 1e-6, f"{rid}/{s}: MathML {lhs} != ref {ref[i]}"
 
-    # the serialized SBML carries the parameter values
+    # the serialized SBML carries the parameter values and one species per state
     xml = to_sbml(record, y0=80.0, drug_effect=1.0)
     for v in kernel_values(record).values():
         assert str(v) in xml
+    for s in spec.states:
+        assert f'species id="{s}"' in xml
 
 
 @pytest.mark.parametrize("rid", ODE_RECORDS)
@@ -77,6 +89,12 @@ def test_nonmem_theta_roundtrip(rid):
     expected = list(kernel_values(record).values())
     # E and y0 inputs (when present) appended after kernel params
     assert thetas[: len(expected)] == expected
+    # one compartment per state
+    assert nm.count("COMP=(") == record_n_states(record)
+
+
+def record_n_states(record):
+    return get_kernel(record).n_states
 
 
 def test_clinical_use_in_every_export():
@@ -84,8 +102,9 @@ def test_clinical_use_in_every_export():
     from onkos._const import CLINICAL_USE
     from onkos.export import to_pharmml, to_virtual_trial_json
 
-    r = ds["resistance.claret_2009.tgi"]
-    assert CLINICAL_USE in to_sbml(r)
-    assert CLINICAL_USE in to_pharmml(r)
-    assert CLINICAL_USE in to_virtual_trial_json(r)
-    assert CLINICAL_USE in to_nonmem(r)
+    for rid in ["resistance.claret_2009.tgi", "preclinical_translation.simeoni_2004.xenograft"]:
+        r = ds[rid]
+        assert CLINICAL_USE in to_sbml(r)
+        assert CLINICAL_USE in to_pharmml(r)
+        assert CLINICAL_USE in to_virtual_trial_json(r)
+        assert CLINICAL_USE in to_nonmem(r)

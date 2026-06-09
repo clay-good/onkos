@@ -13,17 +13,21 @@ def to_pumas(record: Record, *, y0: float = 100.0, drug_effect: float = 1.0, tie
         raise ValueError("Pumas export supports ODE kernels only")
 
     vals = kernel_values(record)
-    infix = spec.rhs_infix[spec.states[0]]
-    if "E" in infix:
+    all_infix = " ".join(spec.rhs_infix.values())
+    if "E" in all_infix:
         vals["E"] = float(drug_effect)
-    if "y0" in infix:
+    if "y0" in all_infix:
         vals["y0"] = float(y0)
 
-    state = spec.states[0]
     # Julia uses exp/log natively; rename infix function `ln` -> `log`.
-    ode = infix.replace("ln(", "log(")
     tv = "\n".join(f"        tv{k} = {v}" for k, v in vals.items())
     pre = "\n".join(f"        {k} = tv{k}" for k in vals)
+    init = "\n".join(
+        f"        {s} = {y0 if i == 0 else 0.0}" for i, s in enumerate(spec.states)
+    )
+    dyn = "\n".join(
+        f"        {s}' = {spec.rhs_infix[s].replace('ln(', 'log(')}" for s in spec.states
+    )
     ann = "\n".join(f"# {ln}" for ln in annotations_block(record, tier=tier).splitlines())
 
     return f"""# Onkos Pumas model — GENERATED, do not hand-edit.
@@ -39,10 +43,10 @@ onkos_model = @model begin
 {pre}
     end
     @init begin
-        {state} = {y0}
+{init}
     end
     @dynamics begin
-        {state}' = {ode}
+{dyn}
     end
 end
 """

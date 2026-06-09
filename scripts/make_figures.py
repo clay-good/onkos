@@ -169,9 +169,59 @@ def context_library_figure() -> None:
     plt.close(fig)
 
 
+def preclinical_figure() -> None:
+    """Simeoni preclinical model: exp->linear growth, transit-chain delayed death."""
+    ds = onkos.load()
+    rid = "preclinical_translation.simeoni_2004.xenograft"
+    spec = get_kernel(rid_record := ds[rid])
+    t = np.linspace(0.0, 45.0, 451)  # days
+    ctx = {"tumor_type": "ovarian_xenograft"}
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    # Left: unperturbed vs treated total tumor weight (semilog).
+    untreated = onkos.simulate(ds, rid, context=ctx, drug_effect=0.0, t=t)
+    treated = onkos.simulate(ds, rid, context=ctx, drug_effect=120.0, t=t)
+    ax1.semilogy(t, untreated.tumor_size, color=PALETTE[2], label="untreated (exp→linear growth)")
+    ax1.semilogy(t, treated.tumor_size, color=PALETTE[0], label="treated (E=120 ng/mL)")
+    ax1.set_title("Simeoni xenograft TGI — total tumor weight")
+    ax1.set_xlabel("days")
+    ax1.set_ylabel("tumor weight w (g, log)")
+    ax1.legend(fontsize=8)
+
+    # Right: the transit chain x1..x4 under treatment (delayed cell death).
+    vals = kernel_values(rid_record)
+    vals["w0"] = 0.25
+    vals["E"] = 120.0
+    from onkos.export.reference import init_vector
+    from scipy.integrate import solve_ivp
+    sol = solve_ivp(
+        lambda tt, yy: spec.rhs(tt, yy, vals), (t[0], t[-1]),
+        init_vector(spec, vals), t_eval=t, rtol=1e-8, atol=1e-10, method="LSODA",
+    )
+    labels = ["x1 proliferating", "x2 transit", "x3 transit", "x4 transit"]
+    for i in range(4):
+        ax2.plot(t, sol.y[i], color=PALETTE[i % len(PALETTE)], label=labels[i])
+    ax2.plot(t, sol.y.sum(axis=0), color="black", lw=1.2, ls="--", label="w = Σx (observed)")
+    ax2.set_title("Signal-distribution transit chain (delayed cell death)")
+    ax2.set_xlabel("days")
+    ax2.set_ylabel("compartment weight (g)")
+    ax2.legend(fontsize=7)
+
+    fig.suptitle(
+        "Preclinical translation (Phase D): Simeoni 2004 — damaged cells traverse "
+        "x1→x2→x3→x4 before dying, so kill is delayed",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "preclinical.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
     exposure_response_figure()
     context_library_figure()
+    preclinical_figure()
     print(f"Wrote figures to {OUT}")

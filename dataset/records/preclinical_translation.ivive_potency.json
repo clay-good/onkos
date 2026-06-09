@@ -1,0 +1,47 @@
+{
+  "id": "preclinical_translation.ivive_potency",
+  "kind": "model",
+  "purpose": "translation",
+  "subsystem": "preclinical_translation",
+  "name": "In-vitro to in-vivo potency translation (power law)",
+  "description": "Translates an in-vitro potency metric (e.g. unbound IC50, ng/mL) into an in-vivo drug-potency parameter for a TGI model: potency = scale * IC50^power (power=1 is linear scaling). A deliberately simple, transparent bridge for the discovery-to-clinic step; the assumption that in-vitro potency predicts in-vivo activity is itself the thing to validate (Rocchetti 2007). Values illustrative and unverified.",
+  "kernel": "ivive_power",
+  "structure": { "states": ["in_vivo_potency"] },
+  "parameters": [
+    {
+      "symbol": "scale",
+      "label": "translation scale factor",
+      "value": { "central": 0.6, "low": null, "high": null, "units": "mL/(ng*day) per (ng/mL)^power" },
+      "iiv_cv_percent": null,
+      "tier": "C",
+      "primary_citation": "rocchetti-2007-ivive",
+      "extraction": { "review_status": "unverified", "source_locator": "translation form; value illustrative", "tier_rationale": "Scale folds in protein binding, distribution, and assay-to-animal differences." }
+    },
+    {
+      "symbol": "power",
+      "label": "translation exponent",
+      "value": { "central": 1.0, "low": null, "high": null, "units": "dimensionless" },
+      "iiv_cv_percent": null,
+      "tier": "C",
+      "primary_citation": "rocchetti-2007-ivive",
+      "extraction": { "review_status": "unverified", "source_locator": "translation form; value illustrative", "tier_rationale": "power=1 (linear) is the default; departures need cross-compound data." }
+    }
+  ],
+  "derivation_context": {
+    "drug": null,
+    "drug_class": null,
+    "tumor_type": null,
+    "line_of_therapy": null,
+    "trial": "illustrative",
+    "n_patients": null,
+    "measurement": "in_vitro_IC50_to_in_vivo_potency"
+  },
+  "transportability": {
+    "validated_tumor_types": [],
+    "validated_drug_classes": [],
+    "out_of_context_action": "warn"
+  },
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "rocchetti-2007-ivive"
+}

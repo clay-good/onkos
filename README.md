@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.3 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.4 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -221,6 +221,9 @@ from a PK exposure through an exposure-response kernel (below).
 | `er_emax` | exposure-response | `E = Emax·C/(EC50+C)` | `exposure_response.emax_generic`, `…dacomitinib_egfr.emax` |
 | `er_sigmoid_emax` | exposure-response | `E = Emax·C^γ/(EC50^γ+C^γ)` | `exposure_response.sigmoid_emax_generic` |
 | `er_power` | exposure-response | `E = slope·C^θ` | `exposure_response.power_generic` |
+| `simeoni_exp_linear` | ODE | `dw/dt = λ0·w / (1+(λ0·w/λ1)^ψ)^(1/ψ)` (exp→linear) | `growth_laws.simeoni_exp_linear` |
+| `simeoni_tgi` | ODE (4-state) | transit-chain TGI; observe `w = x1+x2+x3+x4` | `preclinical_translation.simeoni_2004.xenograft` |
+| `ivive_power` | exposure-response | `potency = scale·IC50^power` | `preclinical_translation.ivive_potency` |
 
 ---
 
@@ -303,6 +306,50 @@ for tt in ["NSCLC", "breast", "CRC", "HCC", "melanoma"]:
 
 ---
 
+## Preclinical translation (Phase D)
+
+The discovery-to-clinic bridge. Onkos implements the canonical **Simeoni 2004**
+xenograft PK/PD model — the project's first *multi-state* ODE system. Unperturbed
+growth is exponential then linear; drug at concentration `E` damages
+proliferating cells (`x1`) at rate `k2·E`, and damaged cells traverse a
+**signal-distribution transit chain** `x2→x3→x4` (rate `k1`) before dying, which
+produces the characteristic *delayed* cell death. The observed tumor weight is
+`w = x1+x2+x3+x4`.
+
+![Preclinical Simeoni model](docs/images/preclinical.png)
+
+```
+dx1/dt = λ0·x1 / (1+(λ0·w/λ1)^ψ)^(1/ψ) − k2·E·x1      (proliferating)
+dx2/dt = k2·E·x1 − k1·x2                               (damaged, transit)
+dx3/dt = k1·x2  − k1·x3
+dx4/dt = k1·x3  − k1·x4                  w = x1+x2+x3+x4 (observed weight)
+```
+
+Multi-state systems have no closed form, so the kernel framework integrates them
+numerically and validates exports state-by-state: the SBML round-trip re-parses
+**each** rate rule's MathML and checks it against the reference `rhs`, and the
+NONMEM stream emits one `$DES` compartment per state. A concentration profile can
+drive the kill term directly (`exposure=...`), so a Hypnos PK curve composes here
+too.
+
+```python
+# Dose-dependent xenograft TGI (concentration drives the kill term directly)
+tr = onkos.simulate(ds, "preclinical_translation.simeoni_2004.xenograft",
+                    context=dict(tumor_type="ovarian_xenograft"), drug_effect=120.0)
+tr.tumor_size                      # total tumor weight w(t)
+tr.os_curve                        # None — preclinical models carry no survival link
+```
+
+**In-vitro → in-vivo translation.** `preclinical_translation.ivive_potency` maps
+an in-vitro potency (e.g. IC50) to an in-vivo potency parameter
+(`potency = scale·IC50^power`). The assumption that in-vitro potency predicts
+in-vivo activity is itself what must be validated (Rocchetti 2007), so the record
+is tiered and annotated accordingly. Preclinical records are **excluded from the
+clinical divergence view** and applying xenograft parameters to a human tumor
+floors the result to **D** — the translation gap, made explicit.
+
+---
+
 ## Architecture
 
 The **dataset is the single source of truth**; everything else is a
@@ -339,12 +386,18 @@ Each ODE kernel declares three *independent* expressions of the same dynamics: a
 closed-form `analytic` solution, a hand-written `rhs`, and an `rhs_infix` string.
 CI checks ([`tests/test_roundtrip.py`](tests/test_roundtrip.py)):
 
-- **analytic vs. SciPy ODE integration** → agreement to ~1e-4 (validates the rhs);
+- **analytic vs. SciPy ODE integration** → agreement to ~1e-4 (single-state
+  closed forms; validates the rhs);
 - **SBML re-parsed**: the generated MathML rate law is converted back to an
-  expression and evaluated against `rhs` → ~1e-6 (validates the serialization);
-- **NONMEM re-parsed**: `$THETA` initial estimates must equal the dataset values.
+  expression and evaluated against `rhs` → ~1e-6, **per state** (so the
+  multi-state Simeoni system is checked compartment-by-compartment);
+- **NONMEM re-parsed**: `$THETA` initial estimates must equal the dataset values,
+  and one `$DES` compartment is emitted per state.
 
-An export bug therefore cannot ship silently.
+Multi-state kernels (Simeoni) have no closed form, so the analytic check is
+skipped for them and the rhs is instead pinned by the per-state SBML round-trip
+plus behavioral tests (exp→linear growth, dose-dependent shrinkage, transit
+delay). An export bug therefore cannot ship silently.
 
 ### Design decisions
 
@@ -358,6 +411,7 @@ An export bug therefore cannot ship silently.
 | Population-level forward simulation only | The line between research tool and clinical tool is exactly individual prediction. Onkos stays on the safe side by construction. |
 | Exposure-response is a separate, tiered kernel (not baked into the TGI model) | Potency/uncertainty are drug-specific and reusable; decoupling them lets one ER record drive many TGI models and keeps the PK→effect seam explicit and tier-propagating. |
 | Scalar exposure uses the closed form; time-varying PK integrates the ODE | Exactness and speed for the common case; correctness for a full PK profile, where the constant-E closed form would be wrong. |
+| Multi-state kernels keep `analytic` optional; an `observable` maps states → the measured quantity | The Simeoni transit model has no closed form. Numerical integration + a per-state SBML round-trip preserve export-correctness guarantees without forcing a closed form; the observable (total weight = Σ compartments) decouples the measured signal from the latent states. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---
@@ -404,8 +458,8 @@ a real patient's tumor measurement and returns a prognosis or a therapy choice.
 | --- | --- | --- |
 | **A — TGI spine** | Growth laws + Claret TGI + NSCLC context + TGI→OS link + divergence view; NONMEM + SBML; round-trip validation. | ✅ v0.1 |
 | **B — Resistance + exposure-response** | Emax / sigmoid-Emax / power ER kernels driving the kill term; scalar **and** time-varying PK-driven simulation (Hypnos composability); ER tier + transportability propagation; PharmML + rxode2/Pumas; IIV-CV surfaced. | ✅ v0.2 |
-| **C — Survival + baselines** | `tumor_type_baselines` library + per-context Weibull-PH survival links across NSCLC, breast, CRC, HCC, melanoma; ≥2 eligible TGI models per context; cross-context divergence; orphan-record invariant enforced in CI. | ✅ v0.3 (this release) |
-| **D — Preclinical translation** | Simeoni model; xenograft params; in-vitro → in-vivo. | next |
+| **C — Survival + baselines** | `tumor_type_baselines` library + per-context Weibull-PH survival links across NSCLC, breast, CRC, HCC, melanoma; ≥2 eligible TGI models per context; cross-context divergence; orphan-record invariant enforced in CI. | ✅ v0.3 |
+| **D — Preclinical translation** | Multi-state ODE framework; Simeoni 2004 xenograft model (exp→linear growth + signal-distribution transit chain); in-vitro→in-vivo potency translation; per-state SBML/NONMEM export + round-trip. | ✅ v0.4 (this release) |
 | **E — Immuno-oncology** | Tumor–immune QSP, hypothesis-tier, non-predictive. | planned |
 | **F — Hardening** | External-validation backfill; `.omex`; Zenodo DOI. | `.omex` + CITATION.cff done |
 

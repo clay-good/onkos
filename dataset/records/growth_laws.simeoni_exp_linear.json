@@ -1,0 +1,52 @@
+{
+  "id": "growth_laws.simeoni_exp_linear",
+  "kind": "model",
+  "purpose": "growth",
+  "subsystem": "growth_laws",
+  "name": "Simeoni exponential-to-linear unperturbed tumor growth",
+  "description": "Unperturbed tumor-growth law of the Simeoni 2004 model: dw/dt = lambda0*w / (1 + (lambda0*w/lambda1)^psi)^(1/psi). Growth is first-order (rate ~lambda0*w) while the tumor is small and switches to linear (rate ~lambda1) once large; psi (fixed, large) sets the switch sharpness. Values are illustrative xenograft-scale (1/day, grams) and unverified.",
+  "kernel": "simeoni_exp_linear",
+  "structure": {
+    "growth_law": "exponential_to_linear",
+    "kill_model": null,
+    "resistance": null,
+    "states": ["tumor_size"]
+  },
+  "parameters": [
+    {
+      "symbol": "lambda0",
+      "label": "first-order (exponential-phase) growth rate",
+      "value": { "central": 0.20, "low": null, "high": null, "units": "1/day" },
+      "iiv_cv_percent": null,
+      "tier": "B",
+      "primary_citation": "simeoni-2004-xenograft",
+      "extraction": { "review_status": "unverified", "source_locator": "model form (Simeoni 2004)", "tier_rationale": "Established structural form; rate is cell-line specific (illustrative)." }
+    },
+    {
+      "symbol": "lambda1",
+      "label": "zero-order (linear-phase) growth rate",
+      "value": { "central": 0.70, "low": null, "high": null, "units": "g/day" },
+      "iiv_cv_percent": null,
+      "tier": "B",
+      "primary_citation": "simeoni-2004-xenograft",
+      "extraction": { "review_status": "unverified", "source_locator": "model form (Simeoni 2004)", "tier_rationale": "Established structural form; rate is cell-line specific (illustrative)." }
+    },
+    {
+      "symbol": "psi",
+      "label": "switch sharpness (fixed)",
+      "value": { "central": 20.0, "low": null, "high": null, "units": "dimensionless" },
+      "iiv_cv_percent": null,
+      "tier": "B",
+      "primary_citation": "simeoni-2004-xenograft",
+      "extraction": { "review_status": "unverified", "source_locator": "fixed at 20 in Simeoni 2004", "tier_rationale": "Conventionally fixed; not estimated." }
+    }
+  ],
+  "transportability": {
+    "validated_tumor_types": [],
+    "validated_drug_classes": [],
+    "out_of_context_action": "warn"
+  },
+  "tier": "B",
+  "review_status": "unverified",
+  "primary_citation": "simeoni-2004-xenograft"
+}

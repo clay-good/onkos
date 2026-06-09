@@ -7,27 +7,23 @@ from .annotate import annotations_block
 from .registry import get_kernel, kernel_values
 
 
-def _to_r_ode(infix: str, state: str) -> str:
-    expr = infix.replace(state, state)  # rxode2 uses the state name directly
-    return f"d/dt({state}) = {expr}"
-
-
 def to_rxode2(record: Record, *, y0: float = 100.0, drug_effect: float = 1.0, tier=None) -> str:
     spec = get_kernel(record)
     if spec.kind != "ode":
         raise ValueError("rxode2 export supports ODE kernels only")
 
     vals = kernel_values(record)
-    infix = spec.rhs_infix[spec.states[0]]
-    if "E" in infix:
+    all_infix = " ".join(spec.rhs_infix.values())
+    if "E" in all_infix:
         vals["E"] = float(drug_effect)
-    if "y0" in infix:
+    if "y0" in all_infix:
         vals["y0"] = float(y0)
 
     params = ", ".join(f"{k} = {v}" for k, v in vals.items())
-    ode = _to_r_ode(infix, spec.states[0])
+    odes = "\n  ".join(f"d/dt({s}) = {spec.rhs_infix[s]}" for s in spec.states)
+    inits = ", ".join(f"{s} = {y0 if i == 0 else 0.0}" for i, s in enumerate(spec.states))
+    obs = f"\n  tumor_size = {spec.observable}" if spec.observable else ""
     ann = "\n".join(f"# {ln}" for ln in annotations_block(record, tier=tier).splitlines())
-    state = spec.states[0]
 
     return f"""# Onkos rxode2/nlmixr2 model — GENERATED, do not hand-edit.
 # {record.id}: {record.name}
@@ -37,10 +33,10 @@ library(rxode2)
 onkos_params <- c({params})
 
 onkos_model <- rxode2({{
-  {ode}
+  {odes}{obs}
 }})
 
-onkos_inits <- c({state} = {y0})
+onkos_inits <- c({inits})
 # ev <- et(seq(0, 104, by = 0.5))            # weeks
 # sim <- rxSolve(onkos_model, onkos_params, ev, inits = onkos_inits)
 """

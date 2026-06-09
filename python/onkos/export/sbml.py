@@ -99,18 +99,26 @@ def _sbml_parameters(record: Record, y0: float, drug_effect: float):
 
 
 def to_sbml(record: Record, *, y0: float = 100.0, drug_effect: float = 1.0, tier=None) -> str:
-    """Generate an SBML L3v2 document for an ODE kernel record."""
+    """Generate an SBML L3v2 document for a (possibly multi-state) ODE record."""
     spec = get_kernel(record)
     if spec.kind != "ode":
         raise ValueError(f"SBML export supports ODE kernels only; '{record.kernel}' is {spec.kind}")
 
     params = _sbml_parameters(record, y0, drug_effect)
-    state = spec.states[0]
-
     p_xml = "\n".join(
         f'      <parameter id="{k}" value="{v}" constant="true"/>' for k, v in params.items()
     )
-    rate_mathml = infix_to_mathml(spec.rhs_infix[state])
+    # The seed input fills the first state's initial amount; other states start at 0.
+    species_xml = "\n".join(
+        f'      <species id="{s}" compartment="body" initialAmount="{y0 if i == 0 else 0.0}" '
+        'hasOnlySubstanceUnits="true" boundaryCondition="false" constant="false"/>'
+        for i, s in enumerate(spec.states)
+    )
+    rules_xml = "\n".join(
+        f'      <rateRule variable="{s}">\n        {infix_to_mathml(spec.rhs_infix[s])}\n'
+        "      </rateRule>"
+        for s in spec.states
+    )
 
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <sbml xmlns="http://www.sbml.org/sbml/level3/version2/core" level="3" version="2">
@@ -122,16 +130,13 @@ def to_sbml(record: Record, *, y0: float = 100.0, drug_effect: float = 1.0, tier
       <compartment id="body" spatialDimensions="3" size="1" constant="true"/>
     </listOfCompartments>
     <listOfSpecies>
-      <species id="{state}" compartment="body" initialAmount="{y0}" \
-hasOnlySubstanceUnits="true" boundaryCondition="false" constant="false"/>
+{species_xml}
     </listOfSpecies>
     <listOfParameters>
 {p_xml}
     </listOfParameters>
     <listOfRules>
-      <rateRule variable="{state}">
-        {rate_mathml}
-      </rateRule>
+{rules_xml}
     </listOfRules>
   </model>
 </sbml>

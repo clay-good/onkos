@@ -15,13 +15,15 @@ from .annotate import annotations_block
 from .registry import get_kernel, kernel_values
 
 
-def _des_line(infix: str, state: str, names: list[str]) -> str:
-    expr = infix.replace(state, "A(1)")
-    # uppercase known identifiers (longest first to avoid partial overlaps)
+def _to_nm_expr(infix: str, states: list[str], names: list[str]) -> str:
+    """Render an infix expression in NONMEM syntax: state s_i -> A(i+1),
+    parameters uppercased, exp/ln -> EXP/LOG."""
+    expr = infix
+    for i, s in enumerate(states):
+        expr = re.sub(rf"\b{re.escape(s)}\b", f"A({i + 1})", expr)
     for n in sorted(names, key=len, reverse=True):
         expr = re.sub(rf"\b{re.escape(n)}\b", n.upper(), expr)
-    expr = expr.replace("exp(", "EXP(").replace("ln(", "LOG(")
-    return f"  DADT(1) = {expr}"
+    return expr.replace("exp(", "EXP(").replace("ln(", "LOG(")
 
 
 def to_nonmem(record: Record, *, y0: float = 100.0, drug_effect: float = 1.0, tier=None) -> str:
@@ -30,18 +32,23 @@ def to_nonmem(record: Record, *, y0: float = 100.0, drug_effect: float = 1.0, ti
         raise ValueError(f"NONMEM export supports ODE kernels only; '{record.kernel}' is {spec.kind}")
 
     vals: dict[str, float] = kernel_values(record)
-    infix = spec.rhs_infix[spec.states[0]]
-    if "E" in infix:
+    all_infix = " ".join(spec.rhs_infix.values())
+    if "E" in all_infix:
         vals["E"] = float(drug_effect)
-    if "y0" in infix:
+    if "y0" in all_infix:
         vals["y0"] = float(y0)
 
     names = list(vals)
     pk_lines = "\n".join(f"  {n.upper()} = THETA({i + 1})" for i, n in enumerate(names))
-    theta_lines = "\n".join(
-        f"  (0, {vals[n]})  ; {n.upper()}" for n in names
+    theta_lines = "\n".join(f"  (0, {vals[n]})  ; {n.upper()}" for n in names)
+    comp_lines = "\n".join(f"  COMP=({s.upper()})" for s in spec.states)
+    des_lines = "\n".join(
+        f"  DADT({i + 1}) = {_to_nm_expr(spec.rhs_infix[s], spec.states, names)}"
+        for i, s in enumerate(spec.states)
     )
-    des = _des_line(infix, spec.states[0], names)
+    ipred = (
+        _to_nm_expr(spec.observable, spec.states, names) if spec.observable else "A(1)"
+    )
     ann = "\n".join(f"; {ln}" for ln in annotations_block(record, tier=tier).splitlines())
 
     return f""";; Onkos NONMEM control stream — GENERATED, do not hand-edit.
@@ -52,14 +59,14 @@ $INPUT ID TIME DV MDV
 $DATA data.csv IGNORE=@
 $SUBROUTINES ADVAN13 TOL=9
 $MODEL
-  COMP=(TUMOR)
+{comp_lines}
 $PK
 {pk_lines}
   A_0(1) = {y0}
 $DES
-{des}
+{des_lines}
 $ERROR
-  IPRED = A(1)
+  IPRED = {ipred}
   Y = IPRED*(1 + EPS(1))
 $THETA
 {theta_lines}
