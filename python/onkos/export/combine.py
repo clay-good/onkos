@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .._const import CLINICAL_USE
 from ..models import Record
+from .jsonld import to_jsonld
 from .pharmml import to_pharmml
 from .pharmml_so import to_pharmml_so
 from .registry import get_kernel
@@ -27,6 +28,7 @@ _FORMATS = {
     ".pharmml": "http://purl.org/NET/mediatypes/application/pharmml+xml",
     ".so.xml": "http://purl.org/NET/mediatypes/application/pharmml-so+xml",
     ".json": "http://purl.org/NET/mediatypes/application/json",
+    ".jsonld": "http://purl.org/NET/mediatypes/application/ld+json",
 }
 
 
@@ -38,6 +40,7 @@ def build_omex(record: Record, out_path: str, *, tier: str | None = None) -> Pat
     spec = get_kernel(record)
     pid = record.id.replace(".", "_")
     files = {f"{pid}.json": to_virtual_trial_json(record, tier=tier)}
+    files[f"{pid}.jsonld"] = to_jsonld(record, tier=tier)  # linked-data provenance
     files[f"{pid}.pharmml"] = to_pharmml(record, tier=tier)
     files[f"{pid}.so.xml"] = to_pharmml_so(record, tier=tier)  # PharmML Standard Output
     if spec.kind == "ode":

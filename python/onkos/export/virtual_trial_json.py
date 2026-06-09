@@ -17,6 +17,12 @@ def virtual_trial_dict(record: Record, *, tier=None, dataset_version: str = _V) 
     dc = record.derivation_context
     tp = record.transportability
     return {
+        # Minimal @context so the onkos:-prefixed keys below are valid JSON-LD.
+        "@context": {
+            "onkos": "https://onkos.dev/ns#",
+            "dcterms": "http://purl.org/dc/terms/",
+        },
+        "@id": f"https://onkos.dev/record/{record.id}",
         "onkos:clinicalUse": CLINICAL_USE,
         "NOT_FOR_CLINICAL_USE": True,
         "DO_NOT_USE_FOR_PREDICTION": is_hypothesis_tier(record),

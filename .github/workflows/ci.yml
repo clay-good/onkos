@@ -54,7 +54,7 @@ jobs:
       - run: pip install -e ".[dev]"
       - name: Regenerate all exports (must not error)
         run: |
-          for fmt in nonmem sbml pharmml rxode2 pumas vt-json omex csv bibtex; do
+          for fmt in nonmem sbml pharmml so rxode2 pumas vt-json jsonld omex csv bibtex; do
             onkos export --format "$fmt" --output "exports/$fmt"
           done
       - name: Regenerate README figures

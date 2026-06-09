@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.10 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.11 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -211,9 +211,9 @@ res.indices                                # ranked [ParamSensitivity(symbol, sr
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
 
 Export formats: `nonmem`, `sbml`, `pharmml`, `so` (PharmML Standard Output),
-`rxode2`, `pumas`, `vt-json`, `omex`, `csv`, `bibtex`. The COMBINE `.omex` bundles
-SBML + PharmML + the SO + virtual-trial JSON + provenance into one citable
-archive.
+`rxode2`, `pumas`, `vt-json`, `jsonld` (linked data), `omex`, `csv`, `bibtex`. The
+COMBINE `.omex` bundles SBML + PharmML + the SO + virtual-trial JSON + JSON-LD +
+provenance into one citable archive.
 
 ### Dashboard
 
@@ -555,6 +555,25 @@ skipped for them and the rhs is instead pinned by the per-state SBML round-trip
 plus behavioral tests (exp→linear growth, dose-dependent shrinkage, transit
 delay). An export bug therefore cannot ship silently.
 
+### Linked data (JSON-LD / RDF)
+
+The curation fields are exported as **JSON-LD** so they become real RDF triples,
+not JSON that merely uses `onkos:` keys. The single `@context`
+(`dataset/schema/context.jsonld`) maps the friendly terms to the `onkos:`,
+`bqbiol:`, and `dcterms:` vocabularies; `bqbiol:isDescribedBy` is typed as `@id`
+so each record's DOI/PMID become resolvable `identifiers.org` resources. `onkos
+export --format jsonld` writes per-record documents, and `dataset_jsonld(ds)`
+emits the whole dataset as one `@graph`. CI validates this by **expanding the
+output with rdflib** and asserting the expected triples (clinical-use prohibition,
+confidence tier, DOI links) actually appear — the linked-data claim is tested, not
+asserted.
+
+```python
+from rdflib import Graph
+g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]), format="json-ld")
+# -> (record, bqbiol:isDescribedBy, <https://identifiers.org/doi/10.1200/JCO.2008.21.0807>)
+```
+
 ### Design decisions
 
 | Decision | Rationale |
@@ -573,6 +592,7 @@ delay). An export bug therefore cannot ship silently.
 | TGI metrics are extracted model-agnostically (Stein method), not read from params | Reading k_g/k_s off a record only works for the biexponential; the Claret/Simeoni structures have no such params. Extracting them from the trajectory the way Stein extracts them from RECIST data makes the metric panel uniform across kernels — and recovers the generating rates as a built-in correctness check. |
 | Sensitivity uses independent sampling so first-order indices are correlations | Sampling each IIV parameter independently makes the standardized regression coefficient equal the input-target correlation and the squared SRCs partition the variance — a first-order Sobol decomposition with no extra design. It also exposes that CV alone ≠ influence (influence is CV × effect-strength), pointing verification at the parameter that actually moves the prediction. |
 | PharmML SO carries IIV as random-effect variance, never as estimate precision (RSE) | The SO's job is to report results, but the dataset curates inter-individual variability, not the precision of the population estimate. Encoding IIV as `omega = ln(1+CV²)` is faithful; fabricating an RSE we don't have would not be — so the precision block is deliberately omitted. |
+| Linked data is validated by RDF expansion, not just emitted | A JSON file with `onkos:` keys is not automatically valid JSON-LD. Shipping a single `@context`, typing `isDescribedBy` as `@id`, and having CI expand the output with rdflib to check the triples means the machine-readability claim is enforced rather than assumed. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---
@@ -589,7 +609,7 @@ onkos/
 │   ├── load · filter · validate · tiers · simulate · metrics · compare · uncertainty · sensitivity · report · cli
 │   ├── py.typed                 # PEP 561 typing marker
 │   └── export/                  # registry · reference · nonmem · sbml · pharmml · pharmml_so
-│       · rxode2 · pumas · virtual_trial_json · combine · annotate
+│       · rxode2 · pumas · virtual_trial_json · jsonld · combine · annotate
 ├── dashboard/app.py             # Streamlit: browse + divergence view
 ├── notebooks/                   # executed in CI (nbmake)
 ├── scripts/                     # sync_dataset_into_package · make_figures

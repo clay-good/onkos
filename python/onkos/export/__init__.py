@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .annotate import annotations_block, clinical_use_rdf
+from .jsonld import dataset_jsonld, to_jsonld
 from .nonmem import to_nonmem
 from .pharmml import to_pharmml
 from .pharmml_so import to_pharmml_so
@@ -19,6 +20,8 @@ __all__ = [
     "to_rxode2",
     "to_pumas",
     "to_virtual_trial_json",
+    "to_jsonld",
+    "dataset_jsonld",
     "annotations_block",
     "clinical_use_rdf",
 ]

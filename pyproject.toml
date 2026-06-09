@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "onkos"
-version = "0.10.0"
+version = "0.11.0"
 description = "Curated, citation-backed, tier-annotated dataset of tumor-growth-inhibition (TGI) and TGI→survival models for oncology drug development."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -26,7 +26,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dashboard = ["streamlit>=1.30", "matplotlib>=3.6", "pandas>=1.5"]
-dev = ["pytest>=7.0", "nbmake>=1.4", "matplotlib>=3.6", "ruff>=0.4"]
+dev = ["pytest>=7.0", "nbmake>=1.4", "matplotlib>=3.6", "ruff>=0.4", "rdflib>=6.0"]
 
 [project.scripts]
 onkos = "onkos.cli:main"

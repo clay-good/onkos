@@ -5,12 +5,40 @@
     "bqmodel": "http://biomodels.net/model-qualifiers/",
     "dcterms": "http://purl.org/dc/terms/",
     "id": "@id",
+
+    "Model": "onkos:Model",
+    "ContextBaseline": "onkos:ContextBaseline",
+
+    "recordId": "onkos:recordId",
+    "name": "dcterms:title",
+    "kind": "onkos:kind",
+    "purpose": "onkos:purpose",
+    "subsystem": "onkos:subsystem",
+    "kernel": "onkos:kernel",
     "confidenceTier": "onkos:confidenceTier",
+    "reviewStatus": "onkos:reviewStatus",
     "clinicalUse": "onkos:clinicalUse",
+    "predictionStatus": "onkos:predictionStatus",
     "datasetVersion": "onkos:datasetVersion",
+
     "derivationContext": "onkos:derivationContext",
+    "drug": "onkos:drug",
+    "drugClass": "onkos:drugClass",
+    "tumorType": "onkos:tumorType",
+    "lineOfTherapy": "onkos:lineOfTherapy",
+
     "transportability": "onkos:transportability",
-    "isDescribedBy": "bqbiol:isDescribedBy",
+    "validatedTumorTypes": "onkos:validatedTumorTypes",
+    "validatedDrugClasses": "onkos:validatedDrugClasses",
+    "outOfContextAction": "onkos:outOfContextAction",
+
+    "hasParameter": "onkos:hasParameter",
+    "symbol": "onkos:symbol",
+    "value": "onkos:value",
+    "units": "onkos:units",
+    "iivCvPercent": "onkos:iivCvPercent",
+
+    "isDescribedBy": { "@id": "bqbiol:isDescribedBy", "@type": "@id" },
     "doi": "dcterms:identifier"
   }
 }

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import __version__, compare, load, sensitivity, simulate, simulate_ensemble
 from .export.combine import build_omex
+from .export.jsonld import to_jsonld
 from .export.nonmem import to_nonmem
 from .export.pharmml import to_pharmml
 from .export.pharmml_so import to_pharmml_so
@@ -28,6 +29,7 @@ _TEXT_EXPORTERS = {
     "rxode2": (to_rxode2, ".R"),
     "pumas": (to_pumas, ".jl"),
     "vt-json": (to_virtual_trial_json, ".json"),
+    "jsonld": (to_jsonld, ".jsonld"),
 }
 
 

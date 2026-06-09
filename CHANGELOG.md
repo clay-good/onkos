@@ -4,6 +4,18 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.11.0] — Linked data (JSON-LD / RDF)
+
+- JSON-LD export (`onkos export --format jsonld`, `to_jsonld`, `dataset_jsonld`):
+  records render as RDF — confidence tier, clinical-use prohibition, derivation
+  context, transportability, and `bqbiol:isDescribedBy` DOI/PMID links become
+  resolvable triples. The single `@context` shipped in
+  `dataset/schema/context.jsonld` (previously unused) is now the source of truth.
+- The virtual-trial JSON gains an `@context` + `@id`, making it valid JSON-LD.
+- The COMBINE `.omex` now includes the JSON-LD document.
+- Validated for real: tests expand the output with rdflib and assert the expected
+  triples appear (added `rdflib` to the dev/test extra).
+
 ## [0.10.0] — Export-layer completion: PharmML SO + cross-format integrity
 
 - PharmML **Standard Output (SO)** exporter (`onkos export --format so`): MLE

@@ -90,3 +90,14 @@ def test_export_pharmml_so(tmp_path):
     assert f.exists()
     text = f.read_text()
     assert "PopulationEstimates" in text and "clinicalUse" in text
+
+
+def test_export_jsonld(tmp_path):
+    out = tmp_path / "jsonld"
+    assert main(["export", "--format", "jsonld", "--output", str(out)]) == 0
+    f = out / "resistance.claret_2009.tgi.jsonld"
+    assert f.exists()
+    import json
+
+    doc = json.loads(f.read_text())
+    assert "@context" in doc and doc["@id"].endswith("resistance.claret_2009.tgi")
