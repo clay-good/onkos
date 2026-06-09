@@ -50,6 +50,25 @@ def _cmd_validate(_args) -> int:
     return 0
 
 
+def _cmd_audit(_args) -> int:
+    from .audit import audit_tiers
+
+    findings = audit_tiers(load())
+    inflated = [f for f in findings if f.status == "inflated"]
+    conservative = [f for f in findings if f.status == "conservative"]
+    print(f"Evidence-based tier audit — {len(findings)} clinical TGI/survival records\n")
+    print(f"  {'record':<44} {'tier':>4} {'ceiling':>8} {'status':>13}")
+    for f in findings:
+        mark = "!" if f.status == "inflated" else " "
+        print(f"{mark} {f.record_id:<44} {f.assigned:>4} {f.ceiling:>8} {f.status:>13}")
+    print(f"\n  inflated (tier exceeds evidence): {len(inflated)}")
+    print(f"  conservative (could upgrade if evidence trusted): {len(conservative)}")
+    if inflated:
+        print("\n  FAIL: tier inflation detected.", file=sys.stderr)
+        return 1
+    return 0
+
+
 def _cmd_report(args) -> int:
     md = build_report(load())
     if args.output:
@@ -232,6 +251,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("version", help="print version").set_defaults(func=_cmd_version)
     sub.add_parser("validate", help="JSON-Schema-validate the dataset").set_defaults(func=_cmd_validate)
     sub.add_parser("info", help="counts by subsystem / tier / review status").set_defaults(func=_cmd_info)
+    sub.add_parser("audit", help="evidence-based tier audit (flags tier inflation)").set_defaults(func=_cmd_audit)
 
     rp = sub.add_parser("report", help="dataset health & validation report (Markdown)")
     rp.add_argument("--output", default=None, help="write report to a file instead of stdout")

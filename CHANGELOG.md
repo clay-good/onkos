@@ -4,6 +4,20 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.15.0] — Evidence-based tier audit ("tiers are partly numeric")
+
+- `onkos.audit` / `onkos audit`: derives the best confidence tier a clinical TGI /
+  survival record's recorded evidence supports (external C-index → A/B; a
+  poorly-identified kill/resistance term with IIV CV ≥ 70% → tier-C ceiling) and
+  flags any record whose assigned tier *exceeds* its evidence (tier inflation).
+- The inflation check runs inside `onkos validate`, so an over-claimed tier fails
+  CI and cannot regress. The shipped dataset has zero inflations.
+- The health report gains an "Evidence-based tier audit" section (inflations +
+  conservative/upgrade-candidate counts).
+- Operationalizes spec §5 ("tier assignment is partly numeric") and §9
+  (predictive_performance feeds tier) — the honesty thesis applied to the tier
+  field itself.
+
 ## [0.14.0] — Serializable virtual-trial result + rebuilt dashboard
 
 - `Comparison.to_dict()` / `.to_json(include_curves=...)`: the virtual-trial

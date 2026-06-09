@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.14 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.15 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -245,6 +245,7 @@ res.indices                                # ranked [ParamSensitivity(symbol, sr
 | `onkos validate` | JSON-Schema + referential-integrity check of the dataset |
 | `onkos info` | counts by subsystem / tier / review status |
 | `onkos report [--output FILE]` | dataset health & external-validation report (Markdown) |
+| `onkos audit` | evidence-based tier audit — flags tier inflation (also run inside `validate`) |
 | `onkos simulate <id> [--tumor-type --line --drug-effect]` | one model's trajectory + metrics |
 | `onkos simulate --compare [--json --include-curves]` | virtual-trial divergence across eligible models (text or JSON) |
 | `onkos uncertainty <id> [--n --seed]` | Monte-Carlo parameter-uncertainty bands (propagates IIV CV) |
@@ -335,6 +336,29 @@ Two rules are enforced in code (`onkos/tiers.py`, tested in `tests/`):
    type. This is what greys models out in the divergence view.
 
 ![Tier distribution](docs/images/tiers.png)
+
+### Tiers are partly numeric — and audited
+
+The spec (§5, §9) says a clinical model's tier is partly a *numeric* judgment:
+A/B require an external check (a recorded external C-index), and a poorly-identified
+kill/resistance term (IIV CV ≥ 70%) is a tier-C characteristic. `onkos audit`
+derives the **best tier the recorded evidence supports** ("ceiling") for each
+clinical TGI / survival record and flags any whose assigned tier is *better* than
+that — **tier inflation**, the dangerous direction. The check runs inside `onkos
+validate`, so an over-claimed tier fails CI and cannot regress.
+
+```text
+$ onkos audit
+  record                                tier  ceiling        status
+  resistance.claret_2009.tgi               C        C           ok    # ~96% CV resistance term -> C
+  survival_link.nsclc_os_week8             C        B  conservative    # external check, well-identified -> B available
+  inflated (tier exceeds evidence): 0
+```
+
+The shipped dataset has **zero inflations** and is deliberately conservative
+(records with an external metric but high-CV terms sit at C); the audit surfaces
+the upgrade candidates without forcing them — the curator reconciles tier with
+evidence, exactly as §5 intends.
 
 ---
 
@@ -646,6 +670,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | OS and PFS share one mechanism (a tagged survival link), not two code paths | Both endpoints are Weibull-PH links on the same week-8 TGI metric, distinguished only by a `structure.endpoint` tag and their scale. `simulate` returns a curve per endpoint found for the context, so adding PFS needed data, not new kernels — and every analysis (divergence, uncertainty, sensitivity) works on either endpoint for free. |
 | The Cox link is non-default and opt-in, not an auto-selected competitor | Auto-discovery assumes one link per (context, endpoint). The Cox alternative carries `structure.default: false`, so it's reachable only via explicit `survival_link=` — turning "Weibull vs Cox" into a deliberate survival-model-choice comparison instead of a silent collision. Its tabulated baseline rides along in the vt-json / JSON-LD exports. |
 | The dashboard owns no logic — it renders a tested, serializable result | The virtual-trial result is a `Comparison.to_dict()/to_json()` the package builds and tests; the Streamlit file only draws it. That keeps the headline view honest (the same numbers everywhere), lets external simulators ingest the JSON, and means CI catches UI/API drift by lint + compile, not by screenshots. |
+| Confidence tiers are audited against evidence, not just hand-set | Spec §5 says tiers are "partly numeric." `onkos audit` derives the tier each clinical record's recorded external validation + IIV supports and fails `validate` on any inflation. A hand-set tier can't quietly over-claim — the honesty thesis applied to the honesty field itself. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---

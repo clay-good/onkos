@@ -111,6 +111,25 @@ def build_report(ds: Dataset) -> str:
     else:
         lines.append("All eligible clinical models carry an external-validation metric.")
 
+    # Evidence-based tier audit (spec §5: tiers are partly numeric).
+    from .audit import audit_tiers
+
+    findings = audit_tiers(ds)
+    inflated = [f for f in findings if f.status == "inflated"]
+    conservative = [f for f in findings if f.status == "conservative"]
+    lines += [
+        "",
+        "## Evidence-based tier audit",
+        "",
+        f"- **Tier inflation** (assigned tier exceeds recorded evidence): {len(inflated)}"
+        + (" ✅" if not inflated else ""),
+        f"- **Conservative** (external validation recorded; could upgrade if trusted): "
+        f"{len(conservative)} / {len(findings)} clinical TGI / survival records",
+    ]
+    if inflated:
+        lines.append("\nInflated records (MUST be corrected):")
+        lines += [f"- `{f.record_id}`: tier {f.assigned} > ceiling {f.ceiling}" for f in inflated]
+
     if s["hypothesis_tier"]:
         lines += [
             "",

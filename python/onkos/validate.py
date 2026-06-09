@@ -70,6 +70,19 @@ def validate_dataset(path: str | None = None) -> list[str]:
                         f"{fp.name}: immuno_oncology parameter '{p.get('symbol')}' must be tier D"
                     )
 
+    # Evidence-based tier audit (spec §5, §9): a clinical TGI / survival record may
+    # not claim a better tier than its recorded external validation supports.
+    if not errors:
+        from .audit import inflated_records
+        from .load import load
+
+        for f in inflated_records(load(str(base))):
+            errors.append(
+                f"{f.record_id}: tier '{f.assigned}' exceeds the evidence ceiling '{f.ceiling}' "
+                f"(external_validation={f.has_external}, max_iiv_cv={f.max_iiv:.0f}, "
+                f"validated_tumor_types={f.breadth})"
+            )
+
     return errors
 
 
