@@ -4,6 +4,18 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.12.0] — Progression-free survival (PFS) endpoint
+
+- Second survival endpoint: a PFS link per tumor context (parametric Weibull-PH on
+  the week-8 TGI metric), distinguished by a `structure.endpoint` tag (OS|PFS).
+  `simulate` returns a curve per endpoint (`Trajectory.survival`, `median_pfs`,
+  `pfs_curve`); PFS is shorter than OS by construction.
+- `compare` reports `pfs_divergence` / `median_pfs_range`; `sensitivity` accepts
+  `target="median_pfs_weeks"`; the CLI shows OS and PFS side by side.
+- 5 PFS survival-link records (NSCLC, breast, CRC, HCC, melanoma); the existing OS
+  links are tagged `endpoint: "OS"`; schema gains the `endpoint` enum.
+- OS-vs-PFS figure + notebook 09. Completes the spec's "OS/PFS link models".
+
 ## [0.11.0] — Linked data (JSON-LD / RDF)
 
 - JSON-LD export (`onkos export --format jsonld`, `to_jsonld`, `dataset_jsonld`):

@@ -9,35 +9,65 @@
   "structure": {
     "growth_law": null,
     "survival_baseline": "weibull",
-    "states": ["survival_fraction"]
+    "states": [
+      "survival_fraction"
+    ],
+    "endpoint": "OS"
   },
   "parameters": [
     {
       "symbol": "weibull_shape",
       "label": "Weibull shape (k)",
-      "value": { "central": 1.3, "low": null, "high": null, "units": "dimensionless" },
+      "value": {
+        "central": 1.3,
+        "low": null,
+        "high": null,
+        "units": "dimensionless"
+      },
       "iiv_cv_percent": null,
       "tier": "B",
       "primary_citation": "wang-2009-tgi",
-      "extraction": { "review_status": "unverified", "source_locator": "model form; value illustrative", "tier_rationale": "Baseline-hazard shape from registrational pooling." }
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Baseline-hazard shape from registrational pooling."
+      }
     },
     {
       "symbol": "weibull_scale",
       "label": "Weibull scale (median-OS scale)",
-      "value": { "central": 60.0, "low": null, "high": null, "units": "week" },
+      "value": {
+        "central": 60.0,
+        "low": null,
+        "high": null,
+        "units": "week"
+      },
       "iiv_cv_percent": null,
       "tier": "B",
       "primary_citation": "wang-2009-tgi",
-      "extraction": { "review_status": "unverified", "source_locator": "model form; value illustrative", "tier_rationale": "Sets baseline median OS scale for NSCLC first line." }
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Sets baseline median OS scale for NSCLC first line."
+      }
     },
     {
       "symbol": "beta",
       "label": "log-hazard coefficient on week-8 relative change",
-      "value": { "central": 1.1, "low": null, "high": null, "units": "per unit relative change" },
+      "value": {
+        "central": 1.1,
+        "low": null,
+        "high": null,
+        "units": "per unit relative change"
+      },
       "iiv_cv_percent": null,
       "tier": "C",
       "primary_citation": "wang-2009-tgi",
-      "extraction": { "review_status": "unverified", "source_locator": "model form; value illustrative", "tier_rationale": "Link strength varies across trials and tumor types." }
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative",
+        "tier_rationale": "Link strength varies across trials and tumor types."
+      }
     }
   ],
   "derivation_context": {
@@ -50,13 +80,22 @@
     "measurement": "RECIST_sum_longest_diameters"
   },
   "transportability": {
-    "validated_tumor_types": ["NSCLC"],
+    "validated_tumor_types": [
+      "NSCLC"
+    ],
     "validated_drug_classes": [],
-    "validated_lines": ["first"],
+    "validated_lines": [
+      "first"
+    ],
     "out_of_context_action": "tier_down_to_D and warn"
   },
   "predictive_performance": [
-    { "metric": "OS_C_index_external", "value": 0.64, "population": "independent NSCLC cohort (illustrative)", "citation": "wang-2009-tgi" }
+    {
+      "metric": "OS_C_index_external",
+      "value": 0.64,
+      "population": "independent NSCLC cohort (illustrative)",
+      "citation": "wang-2009-tgi"
+    }
   ],
   "tier": "C",
   "review_status": "unverified",

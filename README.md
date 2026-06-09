@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.11 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.12 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -60,14 +60,14 @@ That spread *is* the model-selection risk.
 ```text
 $ onkos simulate --compare --tumor-type NSCLC --line first --drug-effect 1.0
 
-  [C] resistance.claret_2009.tgi              median OS 90.8
-  [C] tgi_metrics.wang_2009.biexponential     median OS 53.7
+  [C] resistance.claret_2009.tgi              median OS   90.8  PFS   35.1
+  [C] tgi_metrics.wang_2009.biexponential     median OS   53.7  PFS   20.9
   [-] resistance.crc_first_line.claret        EXCLUDED
         (tumor_type 'NSCLC' is outside validated ['CRC'] -> tier_down_to_D and warn)
-  [-] ... 6 more excluded for out-of-context transport (breast, HCC, melanoma)
+  [-] ... 7 more excluded for out-of-context transport (breast, HCC, melanoma)
 
-  OS divergence (max pointwise): 0.247
-  Median OS range: (53.7, 90.8)
+  OS  divergence 0.247  | median OS range  (53.7, 90.8)
+  PFS divergence 0.300  | median PFS range (20.9, 35.1)
 ```
 
 ### The second uncertainty axis: parameter variability
@@ -140,6 +140,23 @@ res.dominant.symbol            # "kD" — verify this parameter first
 [(p.symbol, round(p.contribution, 2), p.src) for p in res.indices]
 ```
 
+### Two survival endpoints: OS and PFS
+
+The spec (§2, §6) calls for both **overall survival (OS)** and **progression-free
+survival (PFS)**. Each tumor context carries an OS link and a PFS link (parametric
+Weibull-PH on the week-8 TGI metric), so a simulation returns a curve per
+endpoint and PFS is shorter than OS by construction. Every analysis — the
+divergence view, uncertainty bands, and sensitivity (`target="median_pfs_weeks"`)
+— works on either endpoint.
+
+![OS vs PFS](docs/images/survival_endpoints.png)
+
+```python
+tr = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx, drug_effect=1.0)
+tr.survival                    # {"OS": curve, "PFS": curve}
+tr.median_os, tr.median_pfs    # e.g. 90.8, 35.1 weeks  (PFS < OS)
+```
+
 ---
 
 ## Install & quick start
@@ -175,6 +192,8 @@ ctx = dict(tumor_type="NSCLC", line="first")
 traj = onkos.simulate(ds, "resistance.claret_2009.tgi",
                       context=ctx, drug_effect=1.0, t=np.linspace(0, 104, 209))
 traj.tumor_size, traj.os_curve             # tumor-size + population OS trajectory
+traj.survival                              # {"OS": curve, "PFS": curve}
+traj.median_os, traj.median_pfs            # PFS < OS by construction
 traj.tier, traj.warnings                   # propagated tier + transport warnings
 traj.metrics["week8_relative_change"]      # the TGI metric feeding the survival link
 
@@ -593,6 +612,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | Sensitivity uses independent sampling so first-order indices are correlations | Sampling each IIV parameter independently makes the standardized regression coefficient equal the input-target correlation and the squared SRCs partition the variance — a first-order Sobol decomposition with no extra design. It also exposes that CV alone ≠ influence (influence is CV × effect-strength), pointing verification at the parameter that actually moves the prediction. |
 | PharmML SO carries IIV as random-effect variance, never as estimate precision (RSE) | The SO's job is to report results, but the dataset curates inter-individual variability, not the precision of the population estimate. Encoding IIV as `omega = ln(1+CV²)` is faithful; fabricating an RSE we don't have would not be — so the precision block is deliberately omitted. |
 | Linked data is validated by RDF expansion, not just emitted | A JSON file with `onkos:` keys is not automatically valid JSON-LD. Shipping a single `@context`, typing `isDescribedBy` as `@id`, and having CI expand the output with rdflib to check the triples means the machine-readability claim is enforced rather than assumed. |
+| OS and PFS share one mechanism (a tagged survival link), not two code paths | Both endpoints are Weibull-PH links on the same week-8 TGI metric, distinguished only by a `structure.endpoint` tag and their scale. `simulate` returns a curve per endpoint found for the context, so adding PFS needed data, not new kernels — and every analysis (divergence, uncertainty, sensitivity) works on either endpoint for free. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---

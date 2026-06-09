@@ -97,11 +97,13 @@ def _cmd_simulate(args) -> int:
         )
         print(f"Virtual-trial comparison — {ctx}, {effect_desc}\n")
         for tr in cmp.included:
-            print(f"  [{tr.tier}] {tr.record_id:<48} median OS {tr.median_os}")
+            mos = f"{tr.median_os:.1f}" if tr.median_os else "n/r"
+            mpfs = f"{tr.median_pfs:.1f}" if tr.median_pfs else "n/r"
+            print(f"  [{tr.tier}] {tr.record_id:<48} median OS {mos:>6}  PFS {mpfs:>6}")
         for rid, reason in cmp.excluded:
             print(f"  [-] {rid:<48} EXCLUDED ({reason})")
-        print(f"\n  OS divergence (max pointwise): {cmp.os_divergence:.3f}")
-        print(f"  Median OS range: {cmp.median_os_range}")
+        print(f"\n  OS  divergence {cmp.os_divergence:.3f}  | median OS range  {cmp.median_os_range}")
+        print(f"  PFS divergence {cmp.pfs_divergence:.3f}  | median PFS range {cmp.median_pfs_range}")
         return 0
 
     if not args.record:
@@ -116,6 +118,8 @@ def _cmd_simulate(args) -> int:
         print(f"  {k:<24} {v:.4f}")
     if tr.median_os is not None:
         print(f"  median_os_weeks          {tr.median_os:.2f}")
+    if tr.median_pfs is not None:
+        print(f"  median_pfs_weeks         {tr.median_pfs:.2f}")
     for w in tr.warnings:
         print(f"  ! {w}")
     return 0

@@ -31,6 +31,7 @@
         "kill_model": { "type": ["string", "null"] },
         "resistance": { "type": ["string", "null"] },
         "survival_baseline": { "type": ["string", "null"] },
+        "endpoint": { "type": "string", "enum": ["OS", "PFS"] },
         "states": { "type": "array", "items": { "type": "string" } }
       }
     },

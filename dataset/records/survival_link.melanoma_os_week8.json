@@ -11,7 +11,8 @@
     "survival_baseline": "weibull",
     "states": [
       "survival_fraction"
-    ]
+    ],
+    "endpoint": "OS"
   },
   "parameters": [
     {

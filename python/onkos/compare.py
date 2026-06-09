@@ -28,26 +28,40 @@ class Comparison:
     included: list[Trajectory] = field(default_factory=list)
     excluded: list[tuple[str, str]] = field(default_factory=list)
 
-    @property
-    def os_divergence(self) -> float:
-        """Max pointwise spread across the population OS curves (0..1)."""
-        curves = [tr.os_curve for tr in self.included if tr.os_curve is not None]
+    def _divergence(self, endpoint: str) -> float:
+        curves = [tr.survival.get(endpoint) for tr in self.included]
+        curves = [c for c in curves if c is not None]
         if len(curves) < 2:
             return 0.0
         stacked = np.vstack(curves)
         return float(np.max(stacked.max(axis=0) - stacked.min(axis=0)))
 
-    @property
-    def median_os_range(self) -> tuple[float, float] | None:
+    def _median_range(self, endpoint: str) -> tuple[float, float] | None:
         meds = [
-            median_survival(tr.t, tr.os_curve)
+            median_survival(tr.t, tr.survival.get(endpoint))
             for tr in self.included
-            if tr.os_curve is not None
+            if tr.survival.get(endpoint) is not None
         ]
         meds = [m for m in meds if m is not None]
-        if not meds:
-            return None
-        return (min(meds), max(meds))
+        return (min(meds), max(meds)) if meds else None
+
+    @property
+    def os_divergence(self) -> float:
+        """Max pointwise spread across the population OS curves (0..1)."""
+        return self._divergence("OS")
+
+    @property
+    def pfs_divergence(self) -> float:
+        """Max pointwise spread across the population PFS curves (0..1)."""
+        return self._divergence("PFS")
+
+    @property
+    def median_os_range(self) -> tuple[float, float] | None:
+        return self._median_range("OS")
+
+    @property
+    def median_pfs_range(self) -> tuple[float, float] | None:
+        return self._median_range("PFS")
 
 
 def compare(

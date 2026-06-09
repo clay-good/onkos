@@ -53,6 +53,9 @@ def _target_value(traj, target: str) -> float:
     if target in ("median_os_weeks", "median_os"):
         m = traj.median_os
         return float("nan") if m is None else float(m)
+    if target in ("median_pfs_weeks", "median_pfs"):
+        m = traj.median_pfs
+        return float("nan") if m is None else float(m)
     return float(traj.metrics.get(target, float("nan")))
 
 

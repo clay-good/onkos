@@ -34,10 +34,21 @@ class Trajectory:
     os_curve: np.ndarray | None = None
     metrics: dict[str, float] = field(default_factory=dict)
     clinical_use: str = CLINICAL_USE
+    # endpoint -> population survival curve, e.g. {"OS": ..., "PFS": ...}
+    survival: dict = field(default_factory=dict)
+
+    @property
+    def pfs_curve(self) -> np.ndarray | None:
+        return self.survival.get("PFS")
 
     @property
     def median_os(self) -> float | None:
         return median_survival(self.t, self.os_curve) if self.os_curve is not None else None
+
+    @property
+    def median_pfs(self) -> float | None:
+        c = self.pfs_curve
+        return median_survival(self.t, c) if c is not None else None
 
 
 def median_survival(t: np.ndarray, s: np.ndarray) -> float | None:
@@ -66,18 +77,23 @@ def _baseline_y0(ds: Dataset, tumor_type: str | None, line: str | None) -> float
     return 100.0
 
 
-def _find_survival_link(ds: Dataset, tumor_type: str | None) -> Record | None:
-    """Return the survival link whose context matches this tumor type.
+def _find_survival_links(ds: Dataset, tumor_type: str | None) -> list[Record]:
+    """All survival links whose context matches this tumor type (one per endpoint).
 
     No fallback: an unmatched context (including any preclinical context) gets no
-    OS curve rather than a survival model from an unrelated tumor type."""
+    survival curve rather than a model from an unrelated tumor type."""
+    out = []
     for r in ds:
         if r.purpose != "survival_link":
             continue
         dc = r.derivation_context
         if dc and dc.tumor_type == tumor_type:
-            return r
-    return None
+            out.append(r)
+    return out
+
+
+def _endpoint(link: Record) -> str:
+    return link.structure.get("endpoint", "OS")
 
 
 def _resolve_effect(
@@ -174,16 +190,18 @@ def simulate(
     if baseline is not None:
         contributing.append(baseline)
 
-    os_curve = None
-    link = None
+    # Survival links: one curve per endpoint (OS, PFS) available for the context.
+    survival: dict = {}
+    links: list[Record] = []
     if record.purpose in ("tgi", "metric"):
-        link = ds[survival_link] if survival_link else _find_survival_link(ds, tumor_type)
-    if link is not None:
+        links = [ds[survival_link]] if survival_link else _find_survival_links(ds, tumor_type)
+    for link in links:
         link_spec = get_kernel(link)
         link_vals = kernel_values(link)
         link_vals["x"] = metrics["week8_relative_change"]
-        os_curve = np.asarray(link_spec.analytic(t, link_vals), dtype=float)
+        survival[_endpoint(link)] = np.asarray(link_spec.analytic(t, link_vals), dtype=float)
         contributing.append(link)
+    os_curve = survival.get("OS")
 
     prop = propagate(contributing, tumor_type=tumor_type, line=line)
     return Trajectory(
@@ -193,6 +211,7 @@ def simulate(
         tier=prop.tier,
         warnings=prop.warnings,
         os_curve=os_curve,
+        survival=survival,
         metrics=metrics,
     )
 

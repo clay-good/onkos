@@ -47,7 +47,7 @@ def test_sensitivity(capsys):
 def test_simulate_compare(capsys):
     assert main(["simulate", "--compare", "--tumor-type", "NSCLC", "--line", "first"]) == 0
     out = capsys.readouterr().out
-    assert "OS divergence" in out
+    assert "OS  divergence" in out and "PFS divergence" in out
     assert "EXCLUDED" in out
 
 

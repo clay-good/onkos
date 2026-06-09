@@ -414,6 +414,58 @@ def sensitivity_figure() -> None:
     plt.close(fig)
 
 
+def survival_endpoints_figure() -> None:
+    """OS and PFS population curves from the same TGI metric (PFS < OS)."""
+    ds = onkos.load()
+    t = np.linspace(0.0, 156.0, 313)
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    for i, rid in enumerate(["resistance.claret_2009.tgi", "tgi_metrics.wang_2009.biexponential"]):
+        tr = onkos.simulate(ds, rid, context=ctx, drug_effect=1.0, t=t)
+        c = PALETTE[i]
+        label = rid.split(".")[1]
+        ax1.plot(t, tr.os_curve, color=c, lw=1.7, label=f"{label} OS")
+        ax1.plot(t, tr.pfs_curve, color=c, lw=1.4, ls="--", label=f"{label} PFS")
+    ax1.axhline(0.5, ls=":", color="grey", lw=1)
+    ax1.set_title("OS (solid) vs PFS (dashed) — NSCLC, 1L")
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("survival fraction")
+    ax1.set_ylim(0, 1.02)
+    ax1.legend(fontsize=7)
+
+    # median OS vs PFS by tumor context
+    contexts = ["NSCLC", "breast", "CRC", "HCC", "melanoma"]
+    rid_for = {  # an in-context TGI model per tumor type
+        "NSCLC": "resistance.claret_2009.tgi",
+        "breast": "tgi_metrics.bruno_2020.breast_biexponential",
+        "CRC": "resistance.crc_first_line.claret",
+        "HCC": "resistance.hcc_first_line.claret",
+        "melanoma": "resistance.melanoma_first_line.claret",
+    }
+    tlong = np.linspace(0.0, 312.0, 625)
+    os_meds, pfs_meds = [], []
+    for tt in contexts:
+        tr = onkos.simulate(ds, rid_for[tt], context={"tumor_type": tt, "line": "first"},
+                            drug_effect=1.0, t=tlong)
+        os_meds.append(tr.median_os or np.nan)
+        pfs_meds.append(tr.median_pfs or np.nan)
+    x = np.arange(len(contexts))
+    ax2.bar(x - 0.2, os_meds, 0.4, color=PALETTE[0], label="median OS")
+    ax2.bar(x + 0.2, pfs_meds, 0.4, color=PALETTE[1], label="median PFS")
+    ax2.set_xticks(x, contexts, fontsize=8)
+    ax2.set_ylabel("weeks")
+    ax2.set_title("Median OS vs PFS by tumor context")
+    ax2.legend(fontsize=8)
+
+    fig.suptitle("Survival endpoints (spec §2, §6): parametric OS and PFS links from the week-8 "
+                 "TGI metric", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "survival_endpoints.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
@@ -425,4 +477,5 @@ if __name__ == "__main__":
     uncertainty_figure()
     tgi_metrics_figure()
     sensitivity_figure()
+    survival_endpoints_figure()
     print(f"Wrote figures to {OUT}")

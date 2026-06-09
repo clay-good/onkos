@@ -1,25 +1,25 @@
 {
-  "id": "survival_link.crc_os_week8",
+  "id": "survival_link.melanoma_pfs_week8",
   "kind": "model",
   "purpose": "survival_link",
   "subsystem": "survival_link",
-  "name": "CRC OS link from week-8 relative tumor-size change (Weibull PH)",
-  "description": "Parametric proportional-hazards link from a TGI metric to population overall survival for first-line metastatic colorectal cancer. Baseline hazard is Weibull; the model-predicted week-8 relative change in tumor size enters as a covariate: S(t) = exp(-(t/scale)^shape * exp(beta * x)), x = (y(8w) - y0)/y0. Population/trial-level only; NOT a personal prognosis. Values illustrative and unverified.",
+  "name": "melanoma PFS link from week-8 relative tumor-size change (Weibull PH)",
+  "description": "Parametric proportional-hazards link from the week-8 relative tumor-size change to population progression-free survival (PFS) for first-line melanoma. S(t) = exp(-(t/scale)^shape * exp(beta * x)), x = (y(8w)-y0)/y0. PFS is shorter than OS by construction. Population/trial-level only; NOT a personal prognosis. Values illustrative and unverified.",
   "kernel": "survival_weibull_ph",
   "structure": {
     "growth_law": null,
     "survival_baseline": "weibull",
+    "endpoint": "PFS",
     "states": [
       "survival_fraction"
-    ],
-    "endpoint": "OS"
+    ]
   },
   "parameters": [
     {
       "symbol": "weibull_shape",
       "label": "Weibull shape (k)",
       "value": {
-        "central": 1.3,
+        "central": 1.2,
         "low": null,
         "high": null,
         "units": "dimensionless"
@@ -35,9 +35,9 @@
     },
     {
       "symbol": "weibull_scale",
-      "label": "Weibull scale (median-OS scale)",
+      "label": "Weibull scale (median-PFS scale)",
       "value": {
-        "central": 95.0,
+        "central": 30.0,
         "low": null,
         "high": null,
         "units": "week"
@@ -48,14 +48,14 @@
       "extraction": {
         "review_status": "unverified",
         "source_locator": "model form; value illustrative",
-        "tier_rationale": "Sets baseline median OS scale for first-line CRC."
+        "tier_rationale": "Sets baseline median PFS for first-line melanoma."
       }
     },
     {
       "symbol": "beta",
       "label": "log-hazard coefficient on week-8 relative change",
       "value": {
-        "central": 1.1,
+        "central": 1.0,
         "low": null,
         "high": null,
         "units": "per unit relative change"
@@ -73,15 +73,15 @@
   "derivation_context": {
     "drug": null,
     "drug_class": null,
-    "tumor_type": "CRC",
+    "tumor_type": "melanoma",
     "line_of_therapy": "first",
     "trial": "illustrative",
-    "n_patients": 470,
+    "n_patients": 420,
     "measurement": "RECIST_sum_longest_diameters"
   },
   "transportability": {
     "validated_tumor_types": [
-      "CRC"
+      "melanoma"
     ],
     "validated_drug_classes": [],
     "validated_lines": [
@@ -91,9 +91,9 @@
   },
   "predictive_performance": [
     {
-      "metric": "OS_C_index_external",
-      "value": 0.63,
-      "population": "independent CRC cohort (illustrative)",
+      "metric": "PFS_C_index_external",
+      "value": 0.62,
+      "population": "independent melanoma cohort (illustrative)",
       "citation": "wang-2009-tgi"
     }
   ],
