@@ -78,22 +78,36 @@ def _baseline_y0(ds: Dataset, tumor_type: str | None, line: str | None) -> float
 
 
 def _find_survival_links(ds: Dataset, tumor_type: str | None) -> list[Record]:
-    """All survival links whose context matches this tumor type (one per endpoint).
+    """The *default* survival links for this tumor type (one per endpoint).
 
-    No fallback: an unmatched context (including any preclinical context) gets no
-    survival curve rather than a model from an unrelated tumor type."""
+    Non-default links (e.g. the alternative Cox form) are reachable only via the
+    explicit ``survival_link=`` argument, so they don't collide with the default
+    parametric link on the same endpoint. No fallback: an unmatched context gets
+    no survival curve rather than a model from an unrelated tumor type."""
     out = []
     for r in ds:
         if r.purpose != "survival_link":
             continue
         dc = r.derivation_context
-        if dc and dc.tumor_type == tumor_type:
+        if dc and dc.tumor_type == tumor_type and r.structure.get("default", True):
             out.append(r)
     return out
 
 
 def _endpoint(link: Record) -> str:
     return link.structure.get("endpoint", "OS")
+
+
+def _survival_vals(link: Record, x: float) -> dict:
+    """Kernel values for a survival link, including the Cox baseline table."""
+    spec = get_kernel(link)
+    vals = kernel_values(link)
+    vals["x"] = x
+    if spec.uses_baseline:
+        bs = link.structure.get("baseline_survival", {})
+        vals["baseline_times"] = np.asarray(bs.get("times", []), dtype=float)
+        vals["baseline_survival"] = np.asarray(bs.get("survival", []), dtype=float)
+    return vals
 
 
 def _resolve_effect(
@@ -197,8 +211,7 @@ def simulate(
         links = [ds[survival_link]] if survival_link else _find_survival_links(ds, tumor_type)
     for link in links:
         link_spec = get_kernel(link)
-        link_vals = kernel_values(link)
-        link_vals["x"] = metrics["week8_relative_change"]
+        link_vals = _survival_vals(link, metrics["week8_relative_change"])
         survival[_endpoint(link)] = np.asarray(link_spec.analytic(t, link_vals), dtype=float)
         contributing.append(link)
     os_curve = survival.get("OS")

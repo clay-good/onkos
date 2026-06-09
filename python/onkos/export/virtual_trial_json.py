@@ -36,6 +36,8 @@ def virtual_trial_dict(record: Record, *, tier=None, dataset_version: str = _V) 
         "kernel": record.kernel,
         "tier": tier or record.tier,
         "review_status": record.review_status,
+        "endpoint": record.structure.get("endpoint"),
+        "baseline_survival": record.structure.get("baseline_survival"),
         "states": spec.states,
         "parameters": [
             {

@@ -32,6 +32,8 @@
     "validatedDrugClasses": "onkos:validatedDrugClasses",
     "outOfContextAction": "onkos:outOfContextAction",
 
+    "endpoint": "onkos:endpoint",
+    "baselineSurvival": "onkos:baselineSurvival",
     "hasParameter": "onkos:hasParameter",
     "symbol": "onkos:symbol",
     "value": "onkos:value",

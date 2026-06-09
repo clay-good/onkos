@@ -32,6 +32,16 @@
         "resistance": { "type": ["string", "null"] },
         "survival_baseline": { "type": ["string", "null"] },
         "endpoint": { "type": "string", "enum": ["OS", "PFS"] },
+        "default": { "type": "boolean" },
+        "baseline_survival": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["times", "survival"],
+          "properties": {
+            "times": { "type": "array", "items": { "type": "number" } },
+            "survival": { "type": "array", "items": { "type": "number" } }
+          }
+        },
         "states": { "type": "array", "items": { "type": "string" } }
       }
     },

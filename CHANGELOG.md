@@ -4,6 +4,20 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.13.0] — Cox survival link + survival-model-choice divergence
+
+- `survival_cox_ph` kernel: Cox proportional hazards with a NONPARAMETRIC
+  tabulated baseline survival `S0(t)` (`S(t|x) = S0(t)^exp(beta*x)`), the feature
+  that distinguishes Cox from the parametric Weibull form. Completes the spec's
+  "Cox and parametric OS/PFS link models".
+- The Cox link (`survival_link.nsclc_os_cox`) is marked `structure.default: false`
+  so it never auto-collides with the Weibull OS link; selecting it via
+  `survival_link=` enables a "Weibull vs Cox" survival-model-choice comparison —
+  a third uncertainty axis (median OS ~91 vs ~107 wk on the same TGI metric).
+- Kernel framework: `uses_baseline` flag + `structure.baseline_survival` table
+  (schema), injected by `simulate`. The baseline rides along in vt-json / JSON-LD.
+- Survival-model-choice figure + notebook 10.
+
 ## [0.12.0] — Progression-free survival (PFS) endpoint
 
 - Second survival endpoint: a PFS link per tumor context (parametric Weibull-PH on

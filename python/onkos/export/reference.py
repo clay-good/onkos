@@ -52,6 +52,9 @@ class KernelSpec:
     # For multi-state systems whose non-first states start nonzero: the value
     # name (input or parameter) seeding each state, by position.
     init_inputs: list[str] = field(default_factory=list)
+    # Survival kernels with a nonparametric (tabulated) baseline hazard (Cox):
+    # simulate injects the record's ``structure.baseline_survival`` table.
+    uses_baseline: bool = False
 
     def map_values(self, record_values: dict[str, float]) -> dict[str, float]:
         """Translate record symbols to kernel-internal names (e.g. lambda->lam)."""
@@ -191,6 +194,18 @@ def _biexp_rhs(t, y, v):
 def _weibull_ph_analytic(t, v):
     shape, scale, beta, x = v["weibull_shape"], v["weibull_scale"], v["beta"], v["x"]
     return np.exp(-((t / scale) ** shape) * np.exp(beta * x))
+
+
+# Cox proportional hazards with a NONPARAMETRIC (tabulated) baseline survival
+# S0(t): S(t | x) = S0(t) ** exp(beta * x). The baseline is interpolated from the
+# record's structure.baseline_survival table; this is what distinguishes a Cox
+# model from the parametric Weibull form (the baseline comes from data, not a
+# closed-form distribution).
+def _cox_ph_analytic(t, v):
+    bt, b_s0 = v["baseline_times"], v["baseline_survival"]
+    s0 = np.interp(t, bt, b_s0, left=1.0, right=float(b_s0[-1]))
+    s0 = np.clip(s0, 1e-12, 1.0)
+    return s0 ** np.exp(v["beta"] * v["x"])
 
 
 # ----------------------------------------------------------------------------
@@ -342,6 +357,16 @@ KERNELS: dict[str, KernelSpec] = {
         record_symbols=["weibull_shape", "weibull_scale", "beta"],
         inputs=["x"],
         analytic=_weibull_ph_analytic,
+    ),
+    "survival_cox_ph": KernelSpec(
+        name="survival_cox_ph",
+        kind="survival",
+        states=["survival_fraction"],
+        params=["beta"],
+        record_symbols=["beta"],
+        inputs=["x"],
+        analytic=_cox_ph_analytic,
+        uses_baseline=True,
     ),
     "er_emax": KernelSpec(
         name="er_emax",

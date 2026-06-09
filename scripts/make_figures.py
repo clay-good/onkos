@@ -466,6 +466,37 @@ def survival_endpoints_figure() -> None:
     plt.close(fig)
 
 
+def survival_model_choice_figure() -> None:
+    """Weibull (parametric) vs Cox (nonparametric baseline) OS from the same metric."""
+    ds = onkos.load()
+    t = np.linspace(0.0, 208.0, 417)
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    w = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx, drug_effect=1.0, t=t)
+    c = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx, drug_effect=1.0, t=t,
+                       survival_link="survival_link.nsclc_os_cox")
+    cox = ds["survival_link.nsclc_os_cox"].structure["baseline_survival"]
+
+    fig, ax = plt.subplots(figsize=(8.2, 4.4))
+    ax.plot(t, w.os_curve, color=PALETTE[0], lw=1.8, label="parametric Weibull-PH OS")
+    ax.plot(t, c.os_curve, color=PALETTE[1], lw=1.8, label="Cox-PH OS (tabulated baseline)")
+    ax.plot(cox["times"], cox["survival"], "o", color=PALETTE[2], ms=4, alpha=0.7,
+            label="Cox baseline S₀(t) (x=0)")
+    ax.fill_between(t, np.minimum(w.os_curve, c.os_curve), np.maximum(w.os_curve, c.os_curve),
+                    color="grey", alpha=0.15)
+    ax.axhline(0.5, ls=":", color="grey", lw=1)
+    spread = float(np.max(np.abs(w.os_curve - c.os_curve)))
+    ax.set_title(f"Survival-model choice (NSCLC OS, same week-8 metric) — "
+                 f"max spread {spread:.2f}; median {w.median_os:.0f} vs {c.median_os:.0f} wk",
+                 fontsize=10)
+    ax.set_xlabel("weeks")
+    ax.set_ylabel("survival fraction")
+    ax.set_ylim(0, 1.02)
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    fig.savefig(OUT / "survival_model_choice.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
@@ -478,4 +509,5 @@ if __name__ == "__main__":
     tgi_metrics_figure()
     sensitivity_figure()
     survival_endpoints_figure()
+    survival_model_choice_figure()
     print(f"Wrote figures to {OUT}")

@@ -74,6 +74,10 @@ def record_node(record: Record, *, tier=None, dataset_version: str = _V) -> dict
         node["isDescribedBy"] = uris
     if record.primary_citation and record.primary_citation.doi:
         node["doi"] = record.primary_citation.doi
+    if record.structure.get("endpoint"):
+        node["endpoint"] = record.structure["endpoint"]
+    if record.structure.get("baseline_survival"):
+        node["baselineSurvival"] = record.structure["baseline_survival"]
     node["hasParameter"] = [
         {
             "@id": f"{_RECORD_IRI}{record.id}#{p.symbol}",

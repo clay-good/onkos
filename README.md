@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.12 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.13 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -155,6 +155,27 @@ divergence view, uncertainty bands, and sensitivity (`target="median_pfs_weeks"`
 tr = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx, drug_effect=1.0)
 tr.survival                    # {"OS": curve, "PFS": curve}
 tr.median_os, tr.median_pfs    # e.g. 90.8, 35.1 weeks  (PFS < OS)
+```
+
+### A third axis: survival-model choice (parametric vs Cox)
+
+The spec (§2, §6) asks for **Cox** as well as parametric links. The Cox
+proportional-hazards form uses a *nonparametric* tabulated baseline survival
+`S0(t)` (from data, not a closed-form distribution): `S(t | x) = S0(t)^exp(β·x)`.
+It is marked **non-default**, so it never auto-collides with the Weibull link on
+the same endpoint — you opt in with `survival_link=` to ask a different question:
+*how much does the choice of survival model itself move the answer?*
+
+![Survival-model choice: Weibull vs Cox](docs/images/survival_model_choice.png)
+
+For NSCLC OS, the same week-8 TGI metric fed through the parametric Weibull link
+versus the Cox link shifts median OS from ~91 to ~107 weeks — a third uncertainty
+axis (survival-model structure) alongside model-selection divergence and
+parameter variability.
+
+```python
+cox = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx,
+                     survival_link="survival_link.nsclc_os_cox")
 ```
 
 ---
@@ -322,7 +343,8 @@ from a PK exposure through an exposure-response kernel (below).
 | `growth_gompertz` | ODE | `dV/dt = kg·V·ln(Vmax/V)` | `growth_laws.gompertz` |
 | `claret_tgi` | ODE | `dy/dt = kL·y − kD·E·e^(−λt)·y` (resistance = exp-decay of kill) | `resistance.claret_2009.tgi` |
 | `biexp_tgi` | ODE | `y = y0·(e^(−ks·E·t) + e^(kg·t) − 1)` (shrink + regrowth) | `tgi_metrics.wang_2009.*`, `tgi_metrics.bruno_2020.*` |
-| `survival_weibull_ph` | survival | `S(t) = exp(−(t/scale)^shape · e^(β·x))`, `x` = week-8 change | `survival_link.nsclc_os_week8` |
+| `survival_weibull_ph` | survival | `S(t) = exp(−(t/scale)^shape · e^(β·x))`, `x` = week-8 change | `survival_link.*_os_week8`, `…_pfs_week8` |
+| `survival_cox_ph` | survival | `S(t) = S0(t)^e^(β·x)`, `S0` = tabulated baseline | `survival_link.nsclc_os_cox` |
 | `er_emax` | exposure-response | `E = Emax·C/(EC50+C)` | `exposure_response.emax_generic`, `…dacomitinib_egfr.emax` |
 | `er_sigmoid_emax` | exposure-response | `E = Emax·C^γ/(EC50^γ+C^γ)` | `exposure_response.sigmoid_emax_generic` |
 | `er_power` | exposure-response | `E = slope·C^θ` | `exposure_response.power_generic` |
@@ -613,6 +635,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | PharmML SO carries IIV as random-effect variance, never as estimate precision (RSE) | The SO's job is to report results, but the dataset curates inter-individual variability, not the precision of the population estimate. Encoding IIV as `omega = ln(1+CV²)` is faithful; fabricating an RSE we don't have would not be — so the precision block is deliberately omitted. |
 | Linked data is validated by RDF expansion, not just emitted | A JSON file with `onkos:` keys is not automatically valid JSON-LD. Shipping a single `@context`, typing `isDescribedBy` as `@id`, and having CI expand the output with rdflib to check the triples means the machine-readability claim is enforced rather than assumed. |
 | OS and PFS share one mechanism (a tagged survival link), not two code paths | Both endpoints are Weibull-PH links on the same week-8 TGI metric, distinguished only by a `structure.endpoint` tag and their scale. `simulate` returns a curve per endpoint found for the context, so adding PFS needed data, not new kernels — and every analysis (divergence, uncertainty, sensitivity) works on either endpoint for free. |
+| The Cox link is non-default and opt-in, not an auto-selected competitor | Auto-discovery assumes one link per (context, endpoint). The Cox alternative carries `structure.default: false`, so it's reachable only via explicit `survival_link=` — turning "Weibull vs Cox" into a deliberate survival-model-choice comparison instead of a silent collision. Its tabulated baseline rides along in the vt-json / JSON-LD exports. |
 | Composable with Hypnos | A shared export/annotation convention lets a Hypnos PK record drive an Onkos TGI model end to end via an exposure-response record. |
 
 ---
