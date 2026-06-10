@@ -115,7 +115,9 @@ def test_durability_tracks_survival_where_breadth_does_not():
     top_orr = max(rows, key=lambda r: r["orr"])
     longest_os = max(rows, key=lambda r: r["median_os_weeks"])
     shortest_os = min(rows, key=lambda r: r["median_os_weeks"])
-    # The most-responsive model is the worst survivor (ORR inverts OS) ...
-    assert top_orr["record_id"] == shortest_os["record_id"]
+    # The most-responsive model is among the worst survivors (ORR inverts OS). With both
+    # broad-but-brief resistance models (pre-existing and acquired) present they tie for the
+    # shortest k_g-OS, so compare the OS value, not the record id.
+    assert np.isclose(top_orr["median_os_weeks"], shortest_os["median_os_weeks"], rtol=0.02)
     # ... but the best survivor is more durable than it (DoR aligns with OS).
     assert longest_os["median_dor_weeks"] > top_orr["median_dor_weeks"]

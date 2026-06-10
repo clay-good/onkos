@@ -54,6 +54,11 @@ __all__ = [
 
 RECIST_CATEGORIES = ("CR", "PR", "SD", "PD")
 _CR_SHRINK = 0.95  # (near-)complete disappearance on a continuous SLD trajectory
+# Near-tie tolerances for the ORR -> OS discordance count: differences below these are
+# Monte-Carlo noise, not a ranking contradiction (a sub-week OS reversal between two
+# near-identical responders is not a surrogate failure).
+_ORR_TIE = 0.02  # ORR within 2 percentage points is a tie
+_OS_TIE_REL = 0.02  # median OS within 2% of the larger value is a tie
 
 
 def response_episode(t, v) -> tuple:
@@ -295,7 +300,11 @@ def response_vs_survival(
             "median_os_weeks": rr.median_os_weeks,
         })
 
-    # Count discordant pairs among models with both an ORR and a finite median OS.
+    # Count discordant pairs among models with both an ORR and a finite median OS. A pair
+    # whose ORR or OS differ only within measurement noise is a *tie*, not a discordance:
+    # a sub-week OS "reversal" between two near-identical responders is Monte-Carlo noise,
+    # not a surrogate failure. Real surrogate failures (the tail-driven k_g inversions) have
+    # OS gaps of tens of weeks and ORR gaps of tenths — far above these tolerances.
     scored = [r for r in rows if r["median_os_weeks"] is not None]
     discordant = 0
     total = 0
@@ -304,8 +313,9 @@ def response_vs_survival(
             a, b = scored[i], scored[j]
             d_orr = a["orr"] - b["orr"]
             d_os = a["median_os_weeks"] - b["median_os_weeks"]
-            if d_orr == 0 or d_os == 0:
-                continue  # a tie is neither concordant nor discordant
+            os_tol = _OS_TIE_REL * max(a["median_os_weeks"], b["median_os_weeks"])
+            if abs(d_orr) <= _ORR_TIE or abs(d_os) <= os_tol:
+                continue  # a (near-)tie is neither concordant nor discordant
             total += 1
             if (d_orr > 0) != (d_os > 0):  # higher ORR but shorter OS (or vice versa)
                 discordant += 1

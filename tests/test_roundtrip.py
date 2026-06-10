@@ -31,6 +31,7 @@ ODE_RECORDS = ANALYTIC_RECORDS + [
     "preclinical_translation.simeoni_2004.xenograft",
     "immuno_oncology.kuznetsov_1994.tumor_immune",
     "resistance.nsclc_first_line.two_population",
+    "resistance.nsclc_first_line.acquired",
 ]
 
 
