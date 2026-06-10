@@ -1510,6 +1510,62 @@ def burden_auc_figure() -> None:
     plt.close(fig)
 
 
+def loewe_additivity_figure() -> None:
+    """Dose-level additivity references as a model-selection axis. Left: the combined effect
+    under HSA / Bliss (effect-additive) / Loewe (dose-additive) as both doses scale up — they
+    agree at low dose but diverge as the saturating curves are climbed (Bliss overstates,
+    HSA understates, Loewe is the self-consistent middle). Right: the resulting OS curves at
+    the reference doses — the reference choice moves the survival prediction."""
+    from onkos.interaction import combine_doses, compare_additivity_references, er_curve
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    er_a, er_b = "exposure_response.emax_generic", "exposure_response.dacomitinib_egfr.emax"
+    da0, db0 = 150.0, 90.0
+    colors = {"hsa": "#718096", "bliss": "#c05621", "loewe": "#2f855a"}
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.5))
+
+    # Left: combined effect vs dose-scaling factor.
+    scales = np.linspace(0.0, 3.0, 61)
+    for ref in ("hsa", "bliss", "loewe"):
+        e = [combine_doses(ds, da0 * s, db0 * s, er_a=er_a, er_b=er_b, reference=ref) for s in scales]
+        ax1.plot(scales, e, color=colors[ref], lw=1.9, label=ref)
+    ca, cb = er_curve(ds, er_a), er_curve(ds, er_b)
+    ax1.axhline(min(ca.emax, cb.emax), ls=":", color="grey", lw=1)
+    ax1.text(0.05, min(ca.emax, cb.emax) + 0.03, "shared effect ceiling", fontsize=7, color="grey")
+    ax1.axvline(1.0, ls="--", color="black", lw=0.8)
+    ax1.text(1.03, 0.1, "reference doses", fontsize=7, rotation=90, va="bottom")
+    ax1.set_title("the three additivity nulls diverge as doses climb the saturating curves", fontsize=9)
+    ax1.set_xlabel("dose-scaling factor (both drugs)")
+    ax1.set_ylabel("combined effect E_AB")
+    ax1.legend(fontsize=8, loc="lower right", title="reference")
+
+    # Right: OS under each reference at the reference doses.
+    t = np.linspace(0.0, 156.0, 313)
+    cmp = compare_additivity_references(ds, "resistance.claret_2009.tgi", context=ctx,
+                                        dose_a=da0, dose_b=db0, er_a=er_a, er_b=er_b, t=t)
+    for ref, tr in cmp.trajectories.items():
+        mos = f"{tr.median_os:.0f}" if tr.median_os else "n/r"
+        ax2.plot(t, tr.os_curve, color=colors[ref], lw=1.9,
+                 label=f"{ref}  (E {cmp.combined_effects[ref]:.2f}, mOS {mos})")
+    ax2.axhline(0.5, ls=":", color="grey", lw=1)
+    ax2.set_title("the reference choice moves the OS prediction", fontsize=9)
+    ax2.set_xlabel("weeks")
+    ax2.set_ylabel("survival fraction")
+    ax2.set_ylim(0, 1.02)
+    ax2.legend(fontsize=7.5, loc="upper right")
+
+    fig.suptitle(
+        "Dose-level Loewe additivity: the 'no-interaction' reference is itself a model-selection axis — "
+        "Loewe alone passes the sham-combination test, and the choice propagates to OS",
+        fontsize=9.0,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "loewe_additivity.png", dpi=120)
+    plt.close(fig)
+
+
 def joint_survival_figure() -> None:
     """Joint (current-value) vs two-stage survival. Left: the hazard ratio is TIME-VARYING —
     suppressed while the tumor is small, then rising steeply as a resistant clone regrows — a
@@ -1599,4 +1655,5 @@ if __name__ == "__main__":
     acquired_resistance_figure()
     burden_auc_figure()
     joint_survival_figure()
+    loewe_additivity_figure()
     print(f"Wrote figures to {OUT}")

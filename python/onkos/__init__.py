@@ -16,10 +16,16 @@ from .design import OptimalDesign, optimal_schedule
 from .filter import filter_records
 from .identify import Identifiability, identifiability
 from .interaction import (
+    AdditivityComparison,
+    ERCurve,
     InteractionComparison,
+    combine_doses,
     combine_effects,
+    compare_additivity_references,
     compare_interactions,
+    loewe_effect,
     simulate_combination,
+    simulate_dose_combination,
 )
 from .joint import (
     JointComparison,
@@ -82,6 +88,12 @@ __all__ = [
     "combine_effects",
     "simulate_combination",
     "compare_interactions",
+    "ERCurve",
+    "loewe_effect",
+    "combine_doses",
+    "simulate_dose_combination",
+    "compare_additivity_references",
+    "AdditivityComparison",
     "compare",
     "filter_records",
     "validate_dataset",

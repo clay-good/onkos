@@ -899,6 +899,41 @@ cmp.os_divergence           # how much OS depends on the interaction assumption 
 cmp.median_os_range, cmp.warnings   # incl. the synergy-is-an-assumption note
 ```
 
+#### Dose-level Loewe additivity — even the "no-interaction" reference is a choice
+
+The combination above works at the **effect level** (combine two effect magnitudes). But the effect a
+dose produces is a point on a dose-response curve, and the classical gold-standard null — **Loewe
+dose-additivity** — combines two *doses* through the curves, via the isobole `d_A/D_A(E)+d_B/D_B(E)=1`.
+It is the only "no-interaction" reference that satisfies the **sham-combination identity**: a drug
+combined with itself is *exactly* additive (`Loewe(d_A,d_B)=f(d_A+d_B)`), which Bliss/effect-additivity
+fails for any saturating curve (`f(d_A)+f(d_B) > f(d_A+d_B)`). So *which reference you call "no
+interaction"* is itself a model-selection axis.
+
+![Dose-level additivity references diverge and move OS](docs/images/loewe_additivity.png)
+
+For the same dose pair (Claret NSCLC, `d_A=150`, `d_B=90`) the three references give combined effects
+HSA 0.90 / Loewe 1.07 / Bliss 1.60 and median OS 88 / 92 / 101 wk. The ordering is structural for
+saturating curves (`HSA ≤ Loewe ≤ Bliss`): Bliss *overstates* — its combined effect even exceeds either
+drug's maximum (1.60 above the shared ceiling 1.4, the classic effect-additivity artifact) — HSA
+*understates*, and Loewe is the self-consistent middle. The disagreement is negligible at low dose and
+grows into saturation, exactly where combination dose-finding lives.
+
+```python
+from onkos.interaction import loewe_effect, er_curve, compare_additivity_references
+ca = er_curve(ds, "exposure_response.emax_generic")
+loewe_effect(150, 90, curve_a=ca, curve_b=er_curve(ds, "exposure_response.dacomitinib_egfr.emax"))
+cmp = onkos.compare_additivity_references(ds, "resistance.claret_2009.tgi", context=ctx,
+                                          dose_a=150, dose_b=90,
+                                          er_a="exposure_response.emax_generic",
+                                          er_b="exposure_response.dacomitinib_egfr.emax")
+cmp.median_os, cmp.os_divergence   # the additivity reference as a survival spread
+```
+
+Landmark-tested (`tests/test_loewe.py`): the sham identity (exact), Bliss failing it, the analytic
+ER-inverse round-trips, the effect-ceiling clamp, and the `bliss > loewe > hsa` OS ordering. Pure
+post-processing over the curated ER curves; the reference is a declared choice, never an estimated
+synergy; population/regimen level, no dose or therapy ranking.
+
 ---
 
 ## Install & quick start
@@ -1024,6 +1059,8 @@ onkos.combine_effects(0.6, 0.6, model="greco", psi=0.5)   # the pure interaction
 | `onkos identify <id> [--schedule --sigma-prop]` | predicted RSE vs stored CV — can a realistic trial design estimate the parameters? |
 | `onkos design <id> [--n-samples --horizon --json]` | D-optimal sampling schedule — the best trial a fixed budget allows, vs uniform; the structural-flat verdict |
 | `onkos interactions <id> [--effect-a --effect-b --psi]` | drug-combination divergence — the interaction model as a model-selection axis |
+| `onkos loewe <id> [--dose-a --dose-b --er-a --er-b]` | dose-level additivity references (HSA / Bliss / Loewe) as a model-selection axis |
+| `onkos joint [--tumor-type --line --alpha]` | joint (current-value) vs two-stage survival — the non-proportional-hazard axis |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
 
 Export formats: `nonmem`, `sbml`, `pharmml`, `so` (PharmML Standard Output),
@@ -1605,6 +1642,7 @@ own thesis rather than adding breadth:
 | **Acquired resistance** | `acquired_resistance` kernel + record: the resistance *origin* (drug-induced switching at rate `α`, resistance generated from `R0=0`) as a model-selection axis one layer below the v0.24 mechanism axis. Matched on `kg`/`kd`/`kgr` to the pre-existing two-population model, the origins agree at week-8 and on the week-8 OS surrogate (92 vs 94 wk) but diverge in the tail (nadir 8.0 vs 2.8 mm, RECIST TTP 26 vs 32 wk) — a silent assumption the surrogate misses, the mechanistic PFS catches. `α=0` recovers the pre-existing model (strict generalization); round-trip validated; landmark-tested; tier C, no therapy ranking. | ✅ v0.32 |
 | **Integrated tumor burden** (third bridge metric) | `log_burden_auc` (the time-averaged log relative tumor size — the AUC of the log-size curve) added to the Stein/Bruno panel + a non-default `survival_link.nsclc_os_burden_auc`. The one metric that integrates *both* depth and tail re-ranks the NSCLC models a **third, distinct** way (vs week-8 and `k_g`), so "which bridge metric" stays a live axis even for a "comprehensive" metric — and it **repairs `k_g`'s depth-blindness** (the pure-tail metric ranks a never-shrinking tumor 2nd; the integrated burden ranks it last). NSCLC/first now has four eligible OS links for the budget. Pure post-processing + one record; default view byte-identical; landmark-tested; population level, no therapy ranking. | ✅ v0.33 |
 | **Joint longitudinal–survival** | `onkos.joint`: the current-value link makes the instantaneous hazard track the current tumor size (`λ(t)=λ₀(t)·exp(α·log(v/y0))`) — the rigorous, two-stage-free survival model. A strict generalization of proportional hazards (a constant HR recovers the two-stage Weibull-PH curve exactly). The hazard ratio is **time-varying** (rises 10×–255× as a resistant clone regrows; falls for a complete responder) — a non-proportional hazard the two-stage links can't encode — and it **inverts** the week-8 resistance-model ranking (two-pop > Claret under week-8; Claret > two-pop under the joint link). So survival-link *structure* (two-stage PH vs joint) is a model-selection axis. Pure post-processing, no record/kernel/export change; `α` declared not fitted; landmark-tested; population level, no therapy ranking. | ✅ v0.34 |
+| **Dose-level Loewe additivity** | `onkos.interaction` extension: combines two *doses* through the dose-response curves via the isobole `d_A/D_A(E)+d_B/D_B(E)=1`, beside the v0.23 effect-level nulls. The "no-interaction" **reference** is itself a model-selection axis — Loewe is the only one satisfying the sham-combination identity (a drug with itself is exactly additive), Bliss overstates (can exceed either drug's max effect), HSA understates. The same dose pair gives combined effect 0.90/1.07/1.60 and median OS 88/92/101 wk across HSA/Loewe/Bliss; the gap grows with dose. Pure post-processing over the curated ER curves (analytic inverses), no new record/kernel/export; reference declared not fitted; landmark-tested (sham identity exact); population level, no dose/therapy ranking. | ✅ v0.35 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

@@ -535,6 +535,39 @@ def _cmd_interactions(args) -> int:
     return 0
 
 
+def _cmd_loewe(args) -> int:
+    from .interaction import compare_additivity_references
+
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    cmp = compare_additivity_references(
+        ds, args.record, context=ctx, dose_a=args.dose_a, dose_b=args.dose_b,
+        er_a=args.er_a, er_b=args.er_b,
+    )
+    if args.json:
+        print(cmp.to_json())
+        return 0
+    print(
+        f"{args.record}  tier={cmp.tier}  (doses d_A={args.dose_a:g} via {args.er_a}, "
+        f"d_B={args.dose_b:g} via {args.er_b}, {ctx})\n"
+    )
+    print(f"  {'reference':<8} {'combined E':>11} {'median OS':>11}")
+    for ref, tr in cmp.trajectories.items():
+        mos = f"{tr.median_os:.1f}" if tr.median_os else "n/r"
+        print(f"  {ref:<8} {cmp.combined_effects[ref]:>11.3f} {mos:>11}")
+    rng = cmp.median_os_range
+    span = f"{rng[0]:.0f}-{rng[1]:.0f}" if rng else "n/r"
+    print(
+        f"\n  OS divergence across additivity references = {cmp.os_divergence:.3f}  "
+        f"| median OS range {span} wk"
+    )
+    print(
+        "  >> the additivity REFERENCE is a model-selection axis; Loewe alone passes the "
+        "sham-combination test (a drug with itself is exactly additive)"
+    )
+    return 0
+
+
 def _write_csv(ds, out: Path) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", newline="") as fh:
@@ -777,6 +810,21 @@ def build_parser() -> argparse.ArgumentParser:
                     help="synergy/antagonism bracket magnitude (DECLARED assumption, not fitted)")
     xp.add_argument("--json", action="store_true", help="emit the result as JSON")
     xp.set_defaults(func=_cmd_interactions)
+
+    lp = sub.add_parser(
+        "loewe",
+        help="dose-level additivity references (HSA / Bliss / Loewe) as a model-selection axis",
+    )
+    lp.add_argument("record", help="record id (a TGI model driven by a drug effect)")
+    lp.add_argument("--tumor-type", default="NSCLC")
+    lp.add_argument("--line", default="first")
+    lp.add_argument("--er-a", default="exposure_response.emax_generic", help="ER record for drug A")
+    lp.add_argument("--er-b", default="exposure_response.dacomitinib_egfr.emax",
+                    help="ER record for drug B")
+    lp.add_argument("--dose-a", type=float, default=150.0, help="dose of drug A (exposure units)")
+    lp.add_argument("--dose-b", type=float, default=90.0, help="dose of drug B (exposure units)")
+    lp.add_argument("--json", action="store_true", help="emit the result as JSON")
+    lp.set_defaults(func=_cmd_loewe)
 
     ep = sub.add_parser("export", help="generate export artifacts")
     ep.add_argument(

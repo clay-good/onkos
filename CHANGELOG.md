@@ -4,6 +4,39 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.35.0] — Dose-level Loewe additivity: the additivity reference as a model-selection axis
+
+Implements the research-track spec `docs/specs/research/loewe-additivity.md`. v0.23 made the
+*interaction model* a model-selection axis at the **effect level** (combine two effect magnitudes under
+HSA / Bliss-additive / Greco). This adds the classical gold-standard null it deferred — **dose-level
+Loewe additivity** — which combines two *doses* through the dose-response curves and is the only
+"no-interaction" reference that is self-consistent. So *which reference you call "no interaction"* is
+itself a model-selection axis.
+
+- **`onkos.interaction` extension** (pure post-processing — no new record, kernel, schema, or export;
+  every default artifact byte-identical). `ERCurve` + `er_curve` expose each curated ER kernel as a
+  forward map and its **analytic inverse** (Emax, sigmoid-Emax, power). `loewe_effect` solves the
+  dose-additive isobole `d_A/D_A(E) + d_B/D_B(E) = 1` by bisection (no new dependency). `combine_doses`
+  combines two doses under `hsa` / `bliss` / `loewe`; `compare_additivity_references` runs all three
+  through the existing TGI→survival chain and reports the OS divergence.
+- **The sham-combination identity** is the correctness anchor: a drug combined with itself is *exactly*
+  Loewe-additive (`Loewe(d_A,d_B) = f(d_A+d_B)`), which **Bliss fails** for any saturating curve
+  (`f(d_A)+f(d_B) > f(d_A+d_B)`). This is why Loewe is the principled reference and the choice is not
+  cosmetic.
+- **The finding — three references, one dose pair, three survival curves.** For Claret NSCLC (`d_A=150`,
+  `d_B=90`): combined effect HSA 0.90 / Loewe 1.07 / Bliss 1.60, median OS 88 / 92 / 101 wk. The ordering
+  is structural for saturating curves (`HSA ≤ Loewe ≤ Bliss`): Bliss *overstates* (its combined effect
+  1.60 even exceeds the shared effect ceiling 1.4 — the classic effect-additivity artifact), HSA
+  *understates*, Loewe is the self-consistent middle. The disagreement **grows with dose** (negligible at
+  low dose, large in saturation) — a dose-dependent model-selection risk where combination dose-finding
+  lives.
+- **11 landmarks** (`tests/test_loewe.py`): the sham identity (exact), Bliss failing it, single-agent
+  limits, ER-inverse round-trips, effect-ceiling clamp, dose monotonicity, a record-free core, the
+  reference ordering, the OS divergence, and the inherited tier/transport guardrails.
+- **CLI `onkos loewe`**; a dose-scaling + OS figure (`docs/images/loewe_additivity.png`); a CI-executed
+  notebook (`notebooks/28_loewe_additivity.ipynb`); README section; public-API surface + contract test
+  extended. No new dataset records. 373 tests, 56 records.
+
 ## [0.34.0] — Joint longitudinal–survival modeling: the current-value link
 
 Implements the research-track spec `docs/specs/research/joint-survival.md`. Every survival link Onkos
