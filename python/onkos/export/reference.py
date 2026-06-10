@@ -180,6 +180,23 @@ def _von_bertalanffy_rhs(t, y, v):
 
 
 # ----------------------------------------------------------------------------
+# Power-law (sub-exponential) growth: dV/dt = a*V^p, p < 1. Benzekry et al.
+# (2014) found this the best-fitting unperturbed law across many tumor datasets:
+# the specific growth rate a*V^(p-1) falls with size, so growth is sub-exponential
+# (slower than ANY exponential) but unbounded — there is no carrying capacity.
+# Separable: V^(1-p) is linear in t, giving the closed form below (p != 1; the
+# p -> 1 limit is the dedicated exponential kernel).
+# ----------------------------------------------------------------------------
+def _power_law_analytic(t, v):
+    V0, a, p = v["V0"], v["a"], v["p"]
+    return (V0 ** (1.0 - p) + a * (1.0 - p) * t) ** (1.0 / (1.0 - p))
+
+
+def _power_law_rhs(t, y, v):
+    return [v["a"] * y[0] ** v["p"]]
+
+
+# ----------------------------------------------------------------------------
 # Claret 2009 clinical TGI: dy/dt = kL*y - kD*E*exp(-lam*t)*y
 # ----------------------------------------------------------------------------
 def _claret_analytic(t, v):
@@ -405,6 +422,17 @@ KERNELS: dict[str, KernelSpec] = {
         analytic=_von_bertalanffy_analytic,
         rhs=_von_bertalanffy_rhs,
         rhs_infix={"tumor_size": "a * tumor_size ** (2 / 3) - b * tumor_size"},
+    ),
+    "growth_power_law": KernelSpec(
+        name="growth_power_law",
+        kind="ode",
+        states=["tumor_size"],
+        params=["a", "p"],
+        record_symbols=["a", "p"],
+        inputs=["V0"],
+        analytic=_power_law_analytic,
+        rhs=_power_law_rhs,
+        rhs_infix={"tumor_size": "a * tumor_size ** p"},
     ),
     "claret_tgi": KernelSpec(
         name="claret_tgi",

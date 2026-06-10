@@ -4,6 +4,33 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.41.0] — Power-law (sub-exponential) growth: the exponential default overestimates
+
+Implements the research-track spec `docs/specs/research/power-law-growth.md`. v0.40 completed the
+*bounded* growth laws (von Bertalanffy); this adds the empirically best-supported one — the *unbounded*
+sub-exponential **power-law** — and the sharp finding it exposes.
+
+- **New kernel `growth_power_law`** — `dV/dt = a·V^p` (p < 1). The specific growth rate `a·V^(p−1)` falls
+  with size (sub-exponential, slower than any exponential) but the tumor is unbounded (no carrying
+  capacity, unlike logistic/Gompertz/von Bertalanffy). Separable closed form
+  `V(t) = (V0^(1−p) + a(1−p)t)^(1/(1−p))`; the p→1 limit is the exponential kernel. Round-trip validated
+  like every ODE kernel (the second kernel with a fractional-power `rhs_infix`).
+- **New record `growth_laws.power_law`** (`a = 0.16`, `p = 0.75` — Benzekry-typical), tier B,
+  `unverified`; added to `ANALYTIC_RECORDS` in the round-trip suite.
+- **The finding — assuming exponential overestimates.** Matched to an exponential at the same baseline
+  *and* instantaneous growth rate, the power-law stays strictly below it and the gap explodes on
+  extrapolation: **~93× by two years** (`V_exp ≈ 115,800` vs `V_power ≈ 1,240`). The growth-law
+  assumption is invisible at the studied timepoint and dominates the extrapolated burden — the growth-
+  layer analog of the v0.36 exposure-response dose-extrapolation axis. Benzekry et al. (2014) found
+  power-law the best-fitting unperturbed law across many tumor datasets.
+- **Scientific-landmark validation** (`tests/test_landmarks.py`): the specific growth rate falls
+  monotonically (sub-exponential); the trajectory stays strictly below the rate-matched exponential and
+  is overestimated >20× (≈90× here) by two years; the closed form matches integration. 2 new landmarks.
+- **Surfaces.** A growth-law extrapolation figure (`docs/images/growth_law_extrapolation.png` —
+  exponential vs power-law matched early, diverging on a log axis + the overestimation factor) and a
+  CI-executed notebook (`notebooks/34_power_law_growth.ipynb`); README growth-law update. No new module or
+  CLI command. 427 tests, 58 records.
+
 ## [0.40.0] — Von Bertalanffy growth: completing the spec §2 growth-law family
 
 Implements the research-track spec `docs/specs/research/von-bertalanffy-growth.md`. Spec §2's declared

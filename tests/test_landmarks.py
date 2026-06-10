@@ -102,6 +102,44 @@ def test_von_bertalanffy_is_sub_exponential():
     assert all(rates[i] > rates[i + 1] for i in range(len(rates) - 1))
 
 
+def test_power_law_is_sub_exponential_and_below_rate_matched_exponential():
+    """Power-law growth dV/dt = a*V^p (p<1) has a specific growth rate a*V^(p-1) that falls
+    with size (sub-exponential), and — matched to the SAME instantaneous rate at the
+    baseline — it stays strictly below the exponential it is tangent to, for all t > 0.
+    This is the Benzekry point: assuming exponential overestimates future burden."""
+    s = KERNELS["growth_power_law"]
+    a, p, V0 = 0.16, 0.75, 10.0
+    v = {"a": a, "p": p, "V0": V0}
+
+    def specific_rate(V):
+        return s.rhs(0.0, [V], v)[0] / V
+
+    sizes = [10.0, 50.0, 150.0, 300.0]
+    rates = [specific_rate(V) for V in sizes]
+    assert all(rates[i] > rates[i + 1] for i in range(len(rates) - 1))  # sub-exponential
+
+    # rate-matched exponential at the baseline: kg = a*V0^(p-1)
+    kg = a * V0 ** (p - 1.0)
+    t = np.linspace(0.0, 104.0, 209)
+    power = s.analytic(t, v)
+    expo = V0 * np.exp(kg * t)
+    assert np.all(power[1:] < expo[1:])  # power-law strictly below the tangent exponential
+    assert expo[-1] > 20.0 * power[-1]  # and dramatically so on extrapolation (~90x here)
+
+
+def test_power_law_closed_form_matches_integration():
+    """The separable closed form V(t)=(V0^(1-p)+a(1-p)t)^(1/(1-p)) matches numerical
+    integration of the rhs (also covered by the round-trip suite; pinned here directly)."""
+    from scipy.integrate import solve_ivp
+
+    s = KERNELS["growth_power_law"]
+    v = {"a": 0.16, "p": 0.75, "V0": 10.0}
+    t = np.linspace(0.0, 104.0, 209)
+    ode = solve_ivp(lambda tt, y: s.rhs(tt, y, v), (0.0, 104.0), [10.0],
+                    t_eval=t, rtol=1e-10, atol=1e-12).y[0]
+    assert np.allclose(s.analytic(t, v), ode, rtol=1e-6)
+
+
 # --- drug-effect / TGI -----------------------------------------------------
 
 

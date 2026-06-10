@@ -1,0 +1,43 @@
+{
+  "id": "growth_laws.power_law",
+  "kind": "model",
+  "purpose": "growth",
+  "subsystem": "growth_laws",
+  "name": "Power-law (sub-exponential) unperturbed tumor growth",
+  "description": "Unperturbed tumor growth law dV/dt = a*V^p with p < 1. The specific growth rate a*V^(p-1) falls with size, so growth is SUB-EXPONENTIAL (slower than any exponential) but UNBOUNDED (no carrying capacity, unlike logistic/Gompertz/von Bertalanffy). Benzekry et al. (2014) found this the best-fitting unperturbed growth law across many experimental tumor datasets. Separable closed form V(t) = (V0^(1-p) + a*(1-p)*t)^(1/(1-p)); the p->1 limit recovers exponential growth (the dedicated growth_exponential kernel). Key consequence: assuming EXPONENTIAL growth (p=1) overestimates extrapolated tumor burden, since real growth decelerates. Illustrative values (a=0.16, p=0.75); review_status unverified.",
+  "kernel": "growth_power_law",
+  "structure": {
+    "growth_law": "power_law",
+    "kill_model": null,
+    "resistance": null,
+    "states": ["tumor_size"]
+  },
+  "parameters": [
+    {
+      "symbol": "a",
+      "label": "power-law growth coefficient",
+      "value": { "central": 0.16, "low": null, "high": null, "units": "mm^(1-p) per week" },
+      "iiv_cv_percent": null,
+      "tier": "B",
+      "primary_citation": "bruno-2020-review",
+      "extraction": { "review_status": "unverified", "source_locator": "general form", "tier_rationale": "Established structural form; illustrative value (specific growth rate ~0.05/wk near 100 mm)." }
+    },
+    {
+      "symbol": "p",
+      "label": "sub-exponential growth exponent (p < 1)",
+      "value": { "central": 0.75, "low": null, "high": null, "units": "dimensionless" },
+      "iiv_cv_percent": null,
+      "tier": "B",
+      "primary_citation": "bruno-2020-review",
+      "extraction": { "review_status": "unverified", "source_locator": "general form", "tier_rationale": "Benzekry-typical sub-exponential exponent (~0.7-0.8); p=1 recovers exponential." }
+    }
+  ],
+  "transportability": {
+    "validated_tumor_types": [],
+    "validated_drug_classes": [],
+    "out_of_context_action": "warn"
+  },
+  "tier": "B",
+  "review_status": "unverified",
+  "primary_citation": "bruno-2020-review"
+}

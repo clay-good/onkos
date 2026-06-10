@@ -1602,7 +1602,7 @@ computational ground truth). Kernels come in three kinds:
 
 | Kind | What it computes | Kernels |
 | --- | --- | --- |
-| **ODE** | tumor-size dynamics `dV/dt` (closed form where one exists, else integrated) | `growth_exponential/logistic/gompertz/von_bertalanffy`, `claret_tgi`, `norton_simon`, `biexp_tgi`, `two_population_resistance` (2-clone), `acquired_resistance` (2-clone), `simeoni_exp_linear`, `simeoni_tgi` (4-state), `io_tumor_immune` (2-state) |
+| **ODE** | tumor-size dynamics `dV/dt` (closed form where one exists, else integrated) | `growth_exponential/logistic/gompertz/von_bertalanffy/power_law`, `claret_tgi`, `norton_simon`, `biexp_tgi`, `two_population_resistance` (2-clone), `acquired_resistance` (2-clone), `simeoni_exp_linear`, `simeoni_tgi` (4-state), `io_tumor_immune` (2-state) |
 | **survival** | population survival `S(t \| x)` from a TGI metric | `survival_weibull_ph` (parametric), `survival_cox_ph` (nonparametric baseline) |
 | **transform** | algebraic map (exposure → effect, or in-vitro → in-vivo) | `er_emax`, `er_sigmoid_emax`, `er_power`, `ivive_power` |
 
@@ -1616,12 +1616,22 @@ flowchart LR
 ```
 
 The unperturbed growth-law family (spec §2) is complete: exponential, logistic, Gompertz,
-Simeoni (exp→linear), and **von Bertalanffy** (`dV/dt = a·V^(2/3) − b·V` — surface-limited
-proliferation minus volume loss, sub-exponential to a carrying capacity `V∞ = (a/b)³`). The
-laws are distinguished by their *specific growth rate* `(1/V)dV/dt` signature — the
-analytically-derivable landmark each kernel must reproduce.
+Simeoni (exp→linear), **von Bertalanffy** (`dV/dt = a·V^(2/3) − b·V` — surface-limited
+proliferation minus volume loss, sub-exponential to a carrying capacity `V∞ = (a/b)³`), and
+the **power-law** (`dV/dt = a·V^p`, `p<1` — sub-exponential but *unbounded*, the law Benzekry
+2014 found best-fitting across many tumor datasets). The laws are distinguished by their
+*specific growth rate* `(1/V)dV/dt` signature — the analytically-derivable landmark each kernel
+must reproduce.
 
 ![The growth-law family, completed with von Bertalanffy](docs/images/growth_laws.png)
+
+The growth-law assumption is itself a silent model-selection choice — and the field's
+convenient default, exponential growth, is the one that **overestimates**. Matched to a
+power-law at the same baseline and early rate, the exponential extrapolation explodes: ~93×
+the burden by two years. The growth-layer analog of the exposure-response dose-extrapolation
+axis — invisible at the studied timepoint, dominant on extrapolation.
+
+![Assuming exponential growth overestimates extrapolated burden](docs/images/growth_law_extrapolation.png)
 
 ### Round-trip validation — why exports cannot lie
 
@@ -1812,6 +1822,7 @@ own thesis rather than adding breadth:
 | **Model discriminability** | `onkos.discriminability`: the rigorous close of the model-selection arc — given two models' OS curves, the required trial events to distinguish them (Schoenfeld logrank, `d=4(z_α+z_β)²/(ln HR)²`). Under week-8 OS the resistance mechanism/origin pairs need **10⁴–10⁵ events** (Claret vs two-pop ~11.8k, vs acquired ~103k) — practically unidentifiable, so the silent model-selection risk can only be assumed, not resolved by data; early-shrinkage-distinct pairs need ~60–90. The model-level twin of `identify`/`design`. Pure post-processing over the OS curves, no new record/kernel/export; landmark-tested; design/trial level, no trial designed, no recommendation. | ✅ v0.38 |
 | **Model-selection atlas** (synthesis) | `onkos.atlas`: a declarative registry (`AXES`) of every model-selection axis + a one-call per-context survey reporting each axis's native headline — the synthesis layer over eighteen versions. NSCLC OS-swing leaderboard: survival structure ~108 wk > metric ~97 > TGI model ~41 > ER shape ~22; plus the detectability axes (8/10 early-misranked, 4/10 indistinguishable). Deliberately a survey, not a decomposition (`comparable=False`, points to the budget). Pure orchestration, no new record/kernel/export; landmark-tested. Ships with a housekeeping doc-drift fix (architecture diagram + repo layout refreshed). | ✅ v0.39 |
 | **Von Bertalanffy growth** | `growth_von_bertalanffy` kernel + record completes the spec §2 growth-law family. Surface-area-limited `dV/dt = a·V^(2/3) − b·V` (closed form via `u=V^(1/3)`), sub-exponential to `V∞=(a/b)³`. First kernel with a fractional-power `rhs_infix`, exercising the MathML `power` round-trip. Scientific-landmark-validated (carrying capacity, surface-limited inflection below `V∞/2`, monotone-falling specific rate). A different *kind* of work — a first-class reference kernel, not an analysis axis. | ✅ v0.40 |
+| **Power-law growth** | `growth_power_law` kernel + record: the *unbounded* sub-exponential law `dV/dt = a·V^p` (`p<1`), Benzekry's empirically best-fitting unperturbed model. Closed form `V(t)=(V0^(1−p)+a(1−p)t)^(1/(1−p))`. The finding: matched early, assuming **exponential overestimates** extrapolated burden — ~93× by two years — the growth-layer analog of the ER dose-extrapolation axis. Scientific-landmark-validated (sub-exponential, strictly below the rate-matched exponential). Reference kernel + record; no new module/CLI. | ✅ v0.41 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

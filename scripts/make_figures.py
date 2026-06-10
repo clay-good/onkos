@@ -1700,6 +1700,55 @@ def growth_laws_figure() -> None:
     plt.close(fig)
 
 
+def growth_law_extrapolation_figure() -> None:
+    """The growth-law assumption as a silent extrapolation choice. Sub-exponential power-law
+    growth (Benzekry) and exponential growth matched to the SAME early trajectory diverge
+    enormously on extrapolation — assuming exponential overestimates future tumor burden.
+    The growth-law analog of the exposure-response dose-extrapolation axis (v0.36)."""
+    from onkos.export.registry import get_kernel, kernel_values
+
+    ds = onkos.load()
+    spec = get_kernel(ds["growth_laws.power_law"])
+    v = kernel_values(ds["growth_laws.power_law"])
+    V0 = 10.0
+    v["V0"] = V0
+    a, p = v["a"], v["p"]
+    kg = a * V0 ** (p - 1.0)  # exponential matched to the power-law's instantaneous rate at V0
+    t = np.linspace(0.0, 104.0, 209)
+    power = spec.analytic(t, v)
+    expo = V0 * np.exp(kg * t)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    ax1.plot(t, expo, color="#c53030", lw=1.9, label=f"exponential (assumed)  V(104)={expo[-1]:,.0f}")
+    ax1.plot(t, power, color="#b7791f", lw=2.1, label=f"power-law (sub-exp, p={p})  V(104)={power[-1]:,.0f}")
+    ax1.axvline(0, ls=":", color="grey", lw=1)
+    ax1.text(2, expo[-1] * 0.5, "matched at baseline\n(same V0 & early rate)", fontsize=7, color="#555")
+    ax1.set_yscale("log")
+    ax1.set_title("matched early, the growth-law choice explodes on extrapolation (log y)", fontsize=8.8)
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("tumor size (mm, log)")
+    ax1.legend(fontsize=7.5, loc="upper left")
+
+    ratio = expo / power
+    ax2.plot(t, ratio, color="#2b6cb0", lw=2.0)
+    ax2.set_title("exponential overestimates power-law burden by this factor", fontsize=8.8)
+    ax2.set_xlabel("weeks")
+    ax2.set_ylabel("V_exponential / V_power-law")
+    ax2.annotate(f"{ratio[-1]:.0f}x at 2 yr", (t[-1], ratio[-1]), xytext=(-90, -10),
+                 textcoords="offset points", fontsize=8, color="#2b6cb0",
+                 arrowprops=dict(arrowstyle="->", lw=0.8))
+
+    fig.suptitle(
+        "Power-law (sub-exponential) growth, the empirically best-supported unperturbed law: the silent "
+        "exponential-vs-sub-exponential growth assumption overestimates extrapolated burden",
+        fontsize=8.8,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    fig.savefig(OUT / "growth_law_extrapolation.png", dpi=120)
+    plt.close(fig)
+
+
 def early_surrogate_timing_figure() -> None:
     """Readout TIMING is a model-selection axis. Left: the relative tumor-burden trajectories
     (the early-surrogate readout over time) — the deep-but-doomed resistance models are deepest
@@ -1970,4 +2019,5 @@ if __name__ == "__main__":
     model_discriminability_figure()
     model_selection_atlas_figure()
     growth_laws_figure()
+    growth_law_extrapolation_figure()
     print(f"Wrote figures to {OUT}")
