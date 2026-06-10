@@ -22,6 +22,12 @@ from .interaction import (
 )
 from .load import DATASET_VERSION, Dataset, load
 from .report import build_report
+from .response import (
+    ResponseRates,
+    ResponseSurvival,
+    objective_response_rate,
+    response_vs_survival,
+)
 from .sensitivity import SensitivityResult, sensitivity
 from .simulate import CLINICAL_USE, Trajectory, simulate
 from .uncertainty import Ensemble, simulate_ensemble
@@ -41,6 +47,10 @@ __all__ = [
     "InteractionComparison",
     "Budget",
     "model_selection_budget",
+    "ResponseRates",
+    "ResponseSurvival",
+    "objective_response_rate",
+    "response_vs_survival",
     "load",
     "simulate",
     "simulate_ensemble",

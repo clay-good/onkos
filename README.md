@@ -419,6 +419,48 @@ survival, never a nan curve. Onkos ships *both* metrics and shows they disagree;
 not declare a winner — making the field's surrogate-endpoint debate computable rather
 than rhetorical.
 
+### RECIST response & ORR — the phase-2 endpoint and its contested OS surrogacy
+
+The objective response rate (**ORR**) is the dominant phase-2 go/no-go endpoint, and a
+famously contested OS surrogate: drugs with a high response rate routinely fail to extend
+survival. `onkos.response` adds the response endpoint — RECIST 1.1 best overall response
+(`CR > PR > PD > SD`) classified from the tumor-size trajectory, lifted to **population
+rates** over the IIV ensemble (ORR = P(CR or PR), DCR = P(CR, PR, or SD)) — and, because a
+model's ORR *and* OS are read off the **same simulated trial**, makes the ORR → OS
+relationship a measured quantity.
+
+![RECIST best-response distribution and the ORR→OS surrogate](docs/images/response_orr.png)
+
+The result is the sharpest surrogate statement in the project: **whether ORR faithfully
+ranks survival is conditional on the survival mechanism.** ORR and the week-8 survival
+surrogate are *both* shrinkage-based, so under the week-8 OS link ORR ranks OS perfectly
+(0 / 6 discordant model pairs). But under the tail-sensitive `k_g` link (v0.25), a deep
+early responder that regrows fast has a *high* ORR and a *short* OS — so ORR **inverts**
+(4 / 6 discordant): the highest responder (ORR ≈ 1.0) has the shortest OS, while the
+eradicating drug (lower ORR, no regrowth) has the longest. That is the computational core
+of every ORR-surrogate failure — high response, no survival benefit — and Onkos makes the
+unobservable assumption behind it (that survival tracks early shrinkage) explicit.
+
+```python
+rr = onkos.objective_response_rate(ds, "resistance.claret_2009.tgi", context=ctx)
+rr.orr, rr.dcr, rr.distribution        # population RECIST rates (CR/PR/SD/PD sums to 1)
+rr.median_os_weeks                     # OS off the SAME trial — for the surrogate question
+
+rs = onkos.response_vs_survival(ds, context=ctx)                                  # week-8 link
+rs.discordant_fraction, rs.orr_predicts_os      # 0.0, True  — ORR ranks OS faithfully
+rs_kg = onkos.response_vs_survival(ds, context=ctx,
+                                   survival_link="survival_link.nsclc_os_growth_rate")
+rs_kg.discordant_fraction               # 0.67 — ORR mis-ranks tail-driven survival
+```
+
+Population/trial level only — no individual response probability, no therapy ranking. The
+rates carry the chain's propagated tier (out-of-context → D), and the discordance is a
+statement about *models*, not a treatment choice; Onkos reports it under each survival
+assumption rather than certifying ORR valid or invalid. Landmark-tested
+(`tests/test_response.py`): the RECIST classification boundaries, the rate simplex, ORR
+monotone in drug effect, and the conditional-surrogacy result (concordant under week-8,
+discordant under `k_g`).
+
 ### Line of therapy — and line-aware survival matching
 
 The context library is indexed by tumor type **and line of therapy**. NSCLC now
@@ -634,6 +676,12 @@ b = onkos.model_selection_budget(ds, context=ctx, endpoint="OS")
 b.fractions                                # parameter / tgi_model / survival_link / interaction
 b.structural_fraction, b.dominant          # irreducible share; the axis to standardize first
 
+# RECIST response & ORR — the phase-2 endpoint, and its contested OS surrogacy
+rr = onkos.objective_response_rate(ds, "resistance.claret_2009.tgi", context=ctx)
+rr.orr, rr.dcr, rr.distribution            # population ORR/DCR; CR/PR/SD/PD distribution
+rs = onkos.response_vs_survival(ds, context=ctx)   # ORR->OS discordance across models
+rs.discordant_fraction, rs.orr_predicts_os         # is ORR a faithful OS surrogate here?
+
 # Parameter uncertainty — propagate the stored IIV CVs (Monte-Carlo bands)
 ens = onkos.simulate_ensemble(ds, "resistance.claret_2009.tgi", context=ctx, n=400, seed=0)
 ens.tumor_size.median, ens.tumor_size.lo, ens.tumor_size.hi   # 5–95% band arrays
@@ -674,6 +722,7 @@ onkos.combine_effects(0.6, 0.6, model="greco", psi=0.5)   # the pure interaction
 | `onkos simulate --compare [--json --include-curves]` | virtual-trial divergence across eligible models (text or JSON) |
 | `onkos compare --average [--weights --decompose --json]` | model-averaged forecast + within/between variance decomposition |
 | `onkos budget [--tumor-type --line --endpoint --json]` | model-selection budget — variance split across the structural choices |
+| `onkos response <id> [--survival-link --surrogate --json]` | RECIST best response / ORR, and the ORR → OS surrogate discordance |
 | `onkos uncertainty <id> [--n --seed]` | Monte-Carlo parameter-uncertainty bands (propagates IIV CV) |
 | `onkos sensitivity <id> [--target --n]` | rank parameters by how much their IIV drives a target metric |
 | `onkos identify <id> [--schedule --sigma-prop]` | predicted RSE vs stored CV — can a realistic trial design estimate the parameters? |
@@ -1165,6 +1214,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | Linked data is validated by RDF expansion, not just emitted | A JSON file with `onkos:` keys is not automatically valid JSON-LD. Shipping a single `@context`, typing `isDescribedBy` as `@id`, and having CI expand the output with rdflib to check the triples means the machine-readability claim is enforced rather than assumed. |
 | OS and PFS share one mechanism (a tagged survival link), not two code paths | Both endpoints are Weibull-PH links on the same week-8 TGI metric, distinguished only by a `structure.endpoint` tag and their scale. `simulate` returns a curve per endpoint found for the context, so adding PFS needed data, not new kernels — and every analysis (divergence, uncertainty, sensitivity) works on either endpoint for free. |
 | The Cox link is non-default and opt-in, not an auto-selected competitor | Auto-discovery assumes one link per (context, endpoint). The Cox alternative carries `structure.default: false`, so it's reachable only via explicit `survival_link=` — turning "Weibull vs Cox" into a deliberate survival-model-choice comparison instead of a silent collision. Its tabulated baseline rides along in the vt-json / JSON-LD exports. |
+| ORR is a population rate read off the same trial as OS, so its surrogacy is measured not assumed | The response endpoint reads the tumor trajectory directly (RECIST best response over the IIV ensemble); pairing each model's ORR with the OS from the *same* simulated trial turns the contested ORR → OS surrogate into a discordant-pair count. The honest punchline — ORR is faithful under a shrinkage-based survival model and inverts under a tail-driven one — falls out only because both endpoints share one trial, and it explains *why* high-ORR drugs fail confirmatory OS trials without Onkos ever ranking a treatment. |
 | The structural uncertainties are accounted on one ledger, not just scored in isolation | Each model-selection axis (TGI model, survival metric/structure) was first surfaced alone; `onkos.budget` is the capstone that decomposes total forecast variance across all of them at once via a balanced two-way ANOVA, so their *relative* weights — and their interaction — are visible. It names the dominant axis (where standardization has the most leverage) instead of leaving "it depends on your assumptions" as a slogan, and it strictly generalizes the v0.21 within/between split (collapse one factor to recover it). The headline distinction — parameter (reducible by data) vs structural (not) — is the honest opposite of false precision. |
 | The metric that bridges tumor dynamics to survival is a declared field, not a hidden constant | Every survival link consumed the week-8 change by default; making it `structure.link_metric` (default unchanged) exposes the most consequential surrogate choice in early oncology. Shipping a tail-sensitive `k_g` link beside it shows the choice can *invert* which model looks better — so Onkos surfaces the surrogate-endpoint debate rather than silently picking a side. An undefined metric (e.g. `k_g` with no regrowth) maps to the no-effect covariate (baseline hazard), never a fabricated or nan curve. |
 | The dashboard owns no logic — it renders a tested, serializable result | The virtual-trial result is a `Comparison.to_dict()/to_json()` the package builds and tests; the Streamlit file only draws it. That keeps the headline view honest (the same numbers everywhere), lets external simulators ingest the JSON, and means CI catches UI/API drift by lint + compile, not by screenshots. |
@@ -1190,7 +1240,7 @@ onkos/
 │   ├── records/                 # one JSON per model / context-baseline
 │   └── citations/               # Crossref/PubMed citation records
 ├── python/onkos/
-│   ├── load · filter · validate · tiers · simulate · metrics · pk · compare · uncertainty · sensitivity · combine · identify · interaction · budget · audit · report · cli
+│   ├── load · filter · validate · tiers · simulate · metrics · pk · compare · uncertainty · sensitivity · combine · identify · interaction · budget · response · audit · report · cli
 │   ├── py.typed                 # PEP 561 typing marker
 │   └── export/                  # registry · reference · nonmem · sbml · pharmml · pharmml_so
 │       · rxode2 · pumas · virtual_trial_json · jsonld · combine · annotate
@@ -1243,6 +1293,7 @@ own thesis rather than adding breadth:
 | **Mechanistic resistance** | `two_population_resistance` kernel + record: the Goldie-Coldman sensitive/resistant two-clone model replaces the phenomenological decay-of-effect λ with an interpretable resistant burden `R0`; the resistance *mechanism* becomes a model-selection axis (phenomenological vs mechanistic), raising the NSCLC model-selection fraction 0.39 → 0.47; both compartments round-trip to SBML/NONMEM; landmark-tested; reveals that a week-8 OS surrogate is nearly blind to the resistance-model choice. | ✅ v0.24 |
 | **Survival-metric choice** | `structure.link_metric` makes the on-treatment metric that drives a survival link a declared, swappable field (default unchanged); a non-default growth-rate-constant (`k_g`) OS link is added. Completes v0.24: the metric choice **inverts** the resistance-model ranking (two-pop > Claret under week-8; Claret > two-pop under `k_g`) and re-ranks a complete responder from last to first — making the surrogate-endpoint debate computable. Near-zero code; landmark-tested; the default is sacred. | ✅ v0.25 |
 | **Model-selection budget** (capstone) | `onkos.budget`: a balanced two-way variance-component decomposition (ANOVA / first-order Sobol over the structural factors) puts every structural choice on one ledger — `Var(Q) = WITHIN(parameter) + V_model + V_link + V_inter` — naming the dominant axis (where standardization buys the most). Strict generalization of the v0.21 split (collapse factor B to recover it); landmark-proven. Capstone finding: ~68% of the NSCLC OS forecast is irreducible structural risk and the model×link interaction dominates. Report ranks contexts by structure- vs parameter-dominance. | ✅ v0.26 |
+| **RECIST response & ORR surrogacy** | `onkos.response`: RECIST 1.1 best response (`CR/PR/SD/PD`) → population ORR / DCR over the IIV ensemble — the dominant phase-2 endpoint, previously absent. `response_vs_survival` reads ORR and OS off the same trial and counts discordant model pairs, showing the ORR → OS surrogate is **conditional on the survival mechanism**: faithful under the week-8 link (0/6), inverted under the `k_g` link (4/6, the high-responder has the shortest OS). Pure post-processing; landmark-tested; population level, no therapy ranking. | ✅ v0.27 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

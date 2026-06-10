@@ -286,6 +286,52 @@ def _cmd_identify(args) -> int:
     return 0
 
 
+def _cmd_response(args) -> int:
+    from .response import objective_response_rate, response_vs_survival
+
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    link = args.survival_link
+
+    if args.surrogate:
+        rs = response_vs_survival(ds, context=ctx, survival_link=link, n=args.n, seed=args.seed)
+        if args.json:
+            print(rs.to_json())
+            return 0
+        link_name = link.split(".")[-1] if link else "week-8 (default)"
+        print(f"ORR -> OS surrogate — {ctx}, OS link = {link_name}\n")
+        print(f"  {'model':<48} {'ORR':>5} {'DCR':>5} {'median OS':>10}")
+        for r in sorted(rs.rows, key=lambda x: -x["orr"]):
+            mos = f"{r['median_os_weeks']:.0f}" if r["median_os_weeks"] else "n/r"
+            print(f"  [{r['tier']}] {r['record_id']:<44} {r['orr']:>5.2f} {r['dcr']:>5.2f} {mos:>10}")
+        verdict = "ORR faithfully ranks OS" if rs.orr_predicts_os else "ORR MIS-RANKS OS"
+        print(
+            f"\n  >> discordant model pairs = {rs.discordant_pairs}/{rs.total_pairs} "
+            f"(fraction {rs.discordant_fraction:.2f})  ->  {verdict}"
+        )
+        return 0
+
+    if not args.record:
+        print("error: provide a RECORD id (or --surrogate)", file=sys.stderr)
+        return 2
+    rr = objective_response_rate(ds, args.record, context=ctx, drug_effect=args.drug_effect,
+                                 survival_link=link, n=args.n, seed=args.seed)
+    if args.json:
+        print(rr.to_json())
+        return 0
+    print(f"{args.record}  tier={rr.tier}  ({ctx}, n={rr.n})\n")
+    print(f"  ORR (objective response rate) = {rr.orr:.2f}    DCR (disease control) = {rr.dcr:.2f}")
+    if rr.median_os_weeks is not None:
+        print(f"  median OS (same trial)        = {rr.median_os_weeks:.0f} wk")
+    print("\n  RECIST best-response distribution:")
+    for cat in ("CR", "PR", "SD", "PD"):
+        frac = rr.distribution[cat]
+        print(f"    {cat}  {frac * 100:>4.0f}%  {'█' * round(frac * 30)}")
+    for w in rr.warnings:
+        print(f"  ! {w}")
+    return 0
+
+
 def _cmd_budget(args) -> int:
     from .budget import _AXIS_LABELS, model_selection_budget
 
@@ -501,6 +547,23 @@ def build_parser() -> argparse.ArgumentParser:
     ip.add_argument("--sigma-add", type=float, default=0.0, help="additive residual error")
     ip.add_argument("--json", action="store_true", help="emit the result as JSON")
     ip.set_defaults(func=_cmd_identify)
+
+    rsp = sub.add_parser(
+        "response",
+        help="RECIST best response / ORR, and the contested ORR -> OS surrogate",
+    )
+    rsp.add_argument("record", nargs="?", help="record id (omit with --surrogate)")
+    rsp.add_argument("--tumor-type", default="NSCLC")
+    rsp.add_argument("--line", default="first")
+    rsp.add_argument("--drug-effect", type=float, default=1.0)
+    rsp.add_argument("--survival-link", default=None,
+                     help="non-default OS link (e.g. survival_link.nsclc_os_growth_rate)")
+    rsp.add_argument("--surrogate", action="store_true",
+                     help="ORR -> OS discordance across the in-context TGI models")
+    rsp.add_argument("--n", type=int, default=300, help="ensemble depth")
+    rsp.add_argument("--seed", type=int, default=0)
+    rsp.add_argument("--json", action="store_true", help="emit the result as JSON")
+    rsp.set_defaults(func=_cmd_response)
 
     bp = sub.add_parser(
         "budget",

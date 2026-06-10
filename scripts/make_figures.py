@@ -1005,6 +1005,78 @@ def model_selection_budget_figure() -> None:
     plt.close(fig)
 
 
+def response_orr_figure() -> None:
+    """RECIST best-response distribution per model, and the ORR -> OS surrogate that is
+    concordant under the week-8 link but discordant under the tail-sensitive k_g link."""
+    from onkos.response import objective_response_rate, response_vs_survival
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    t = np.linspace(0.0, 156.0, 313)
+    models = [
+        ("drug_effect.norton_simon.nsclc", "Norton-Simon"),
+        ("resistance.claret_2009.tgi", "Claret"),
+        ("resistance.nsclc_first_line.two_population", "two-population"),
+        ("tgi_metrics.wang_2009.biexponential", "Wang biexp"),
+    ]
+    cat_colors = {"CR": "#2f855a", "PR": "#68d391", "SD": "#f6ad55", "PD": "#c53030"}
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    # Left: stacked RECIST best-response distribution (the population readout) per model.
+    labels, dists, orrs = [], [], []
+    for rid, name in models:
+        rr = objective_response_rate(ds, rid, context=ctx, t=t, n=400)
+        labels.append(f"{name}\nORR {rr.orr * 100:.0f}%")
+        dists.append(rr.distribution)
+        orrs.append(rr.orr)
+    x = np.arange(len(labels))
+    bottoms = np.zeros(len(labels))
+    for cat in ("CR", "PR", "SD", "PD"):
+        vals = np.array([d[cat] for d in dists])
+        ax1.bar(x, vals, bottom=bottoms, color=cat_colors[cat], label=cat)
+        bottoms += vals
+    ax1.axhline(0.5, ls=":", color="grey", lw=1)
+    ax1.set_xticks(x, labels, fontsize=8)
+    ax1.set_ylim(0, 1.0)
+    ax1.set_ylabel("fraction of trial (population)")
+    ax1.set_title("RECIST best-response distribution (NSCLC 1L)", fontsize=9)
+    ax1.legend(fontsize=8, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.16))
+
+    # Right: ORR vs median OS under two survival links — the conditional surrogate.
+    rs_w = response_vs_survival(ds, context=ctx, t=t, n=400)
+    rs_k = response_vs_survival(ds, context=ctx, survival_link="survival_link.nsclc_os_growth_rate",
+                               t=t, n=400)
+    by_w = {r["record_id"]: r for r in rs_w.rows}
+    by_k = {r["record_id"]: r for r in rs_k.rows}
+    for rid, name in models:
+        o = by_w[rid]["orr"]
+        ax2.plot([o], [by_w[rid]["median_os_weeks"]], "o", color="#2b6cb0", ms=8)
+        ax2.plot([o], [by_k[rid]["median_os_weeks"]], "s", color="#c53030", ms=8)
+        ax2.annotate(name, (o, by_w[rid]["median_os_weeks"]), textcoords="offset points",
+                     xytext=(6, 4), fontsize=7, color="#2b6cb0")
+    # Trend lines (sorted by ORR) to show concordance vs inversion.
+    order = sorted(models, key=lambda m: by_w[m[0]]["orr"])
+    ox = [by_w[m[0]]["orr"] for m in order]
+    ax2.plot(ox, [by_w[m[0]]["median_os_weeks"] for m in order], color="#2b6cb0", lw=1,
+             alpha=0.6, label=f"week-8 link (concordant, {rs_w.discordant_pairs}/{rs_w.total_pairs})")
+    ax2.plot(ox, [by_k[m[0]]["median_os_weeks"] for m in order], color="#c53030", lw=1,
+             alpha=0.6, label=f"k_g link (discordant, {rs_k.discordant_pairs}/{rs_k.total_pairs})")
+    ax2.set_xlabel("ORR (objective response rate)")
+    ax2.set_ylabel("median OS (weeks)")
+    ax2.set_title("ORR → OS surrogate: faithful under week-8, inverted under k_g", fontsize=9)
+    ax2.legend(fontsize=7, loc="center right")
+
+    fig.suptitle(
+        "RECIST response & the ORR→OS surrogate: the phase-2 endpoint can rank models the "
+        "opposite way survival does — conditional on the survival mechanism",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "response_orr.png", dpi=120)
+    plt.close(fig)
+
+
 def kill_mechanism_figure() -> None:
     """Norton-Simon (kill ∝ growth) vs log-kill (Claret, kill ∝ size) mechanisms."""
     from onkos.export.registry import get_kernel, kernel_values
@@ -1068,4 +1140,5 @@ if __name__ == "__main__":
     two_population_resistance_figure()
     survival_metric_choice_figure()
     model_selection_budget_figure()
+    response_orr_figure()
     print(f"Wrote figures to {OUT}")

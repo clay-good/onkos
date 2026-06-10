@@ -4,6 +4,39 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.27.0] — RECIST response & the ORR → OS surrogate
+
+Implements the research-track spec `docs/specs/research/recist-orr-surrogate.md`: the
+objective response rate (ORR) is the dominant phase-2 go/no-go endpoint, and a famously
+contested OS surrogate. Onkos had OS and PFS but no response endpoint; this adds it and
+makes the ORR → OS relationship a measured, context-dependent quantity.
+
+- `onkos.response`: `best_response(t, v)` classifies RECIST 1.1 best overall response
+  (`CR > PR > PD > SD`) from a tumor-size trajectory, measured from the observed baseline
+  (CR ≥95% shrinkage, PR ≥30%, PD ≥20% regrowth from nadir with no PR, else SD).
+  `objective_response_rate(...)` lifts it to **population rates** over the stored IIV
+  ensemble — ORR = P(CR or PR), DCR = P(CR, PR, or SD), and the CR/PR/SD/PD distribution —
+  with the median OS read off the *same* trial for the surrogate question. Trial-level
+  only; no individual response probability.
+- `response_vs_survival(...)` counts the **discordant model pairs** (one model with a
+  higher ORR yet shorter OS than another), making the contested surrogate computable. The
+  headline result is conditional: ORR and the week-8 survival surrogate are both
+  shrinkage-based, so ORR ranks OS **perfectly under the week-8 link (0/6 discordant)** but
+  **inverts under the tail-sensitive k_g link (4/6, 67%)** — the highest responder
+  (ORR ≈ 1.0) has the shortest OS, the eradicating drug the longest. Whether ORR is a valid
+  OS surrogate is conditional on the (unobservable) survival mechanism — the computational
+  core of every "high response, no survival benefit" phase-3 failure.
+- Landmark-tested (`tests/test_response.py`, 13 checks): the RECIST classification
+  boundaries (exactly −30% → PR, ≥95% → CR, a PR that later regrows stays PR, no-PR +
+  regrowth → PD), the rate simplex (`0 ≤ ORR ≤ DCR ≤ 1`, distribution sums to 1), ORR
+  monotone in drug effect, the degenerate (zero-IIV) ensemble, tier passthrough / D-floor,
+  and the conditional-surrogacy result (concordant under week-8, discordant under k_g).
+- Surfaces: `onkos response <id> [--survival-link --surrogate --json]`; a RECIST-distribution
+  + ORR-vs-OS figure and `notebooks/20_recist_response_orr.ipynb` (executed in CI); README
+  section + roadmap + cheat sheet + design-decisions row; the public-API contract test
+  extended. Pure post-processing — no new kernel, dataset record, or export surface.
+  Version 0.27.0.
+
 ## [0.26.0] — The model-selection budget: structural variance decomposition (capstone)
 
 Implements the research-track spec `docs/specs/research/model-selection-budget.md`, the
