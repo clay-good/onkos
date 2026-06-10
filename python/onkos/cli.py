@@ -440,6 +440,39 @@ def _cmd_pfs(args) -> int:
     return 0
 
 
+def _cmd_joint(args) -> int:
+    from .joint import compare_joint_vs_two_stage
+
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    cmp = compare_joint_vs_two_stage(ds, context=ctx, drug_effect=args.drug_effect, alpha=args.alpha)
+    print(
+        f"Two-stage (week-8, proportional hazards) vs joint (current-value link, alpha={args.alpha}) "
+        f"— {ctx}\n"
+    )
+    print(f"  {'model':<48} {'2-stage':>8} {'joint':>7} {'HR(end)/HR(8wk)':>16}")
+    for r in sorted(cmp.rows, key=lambda x: -(x["joint_median"] or 0)):
+        ts = "n/r" if r["two_stage_median"] is None else f"{r['two_stage_median']:.0f}"
+        jt = "n/r" if r["joint_median"] is None else f"{r['joint_median']:.0f}"
+        phv = "—" if not _finite(r["ph_violation"]) else f"{r['ph_violation']:.1f}x"
+        print(f"  [{r['tier']}] {r['record_id']:<44} {ts:>8} {jt:>7} {phv:>16}")
+    print(
+        f"\n  >> rank-discordant model pairs (two-stage vs joint) = {cmp.rank_discordant_pairs}"
+        f"   max PH-violation = {cmp.max_ph_violation:.0f}x"
+    )
+    print(
+        "  the two-stage links assume a CONSTANT hazard ratio; the joint link's HR rises as a "
+        "resistant clone regrows — a non-proportional hazard they cannot represent."
+    )
+    return 0
+
+
+def _finite(x) -> bool:
+    import math
+
+    return isinstance(x, (int, float)) and math.isfinite(x)
+
+
 def _cmd_budget(args) -> int:
     from .budget import _AXIS_LABELS, model_selection_budget
 
@@ -707,6 +740,17 @@ def build_parser() -> argparse.ArgumentParser:
     pp.add_argument("--seed", type=int, default=0)
     pp.add_argument("--json", action="store_true", help="emit the result as JSON")
     pp.set_defaults(func=_cmd_pfs)
+
+    jp = sub.add_parser(
+        "joint",
+        help="joint (current-value) vs two-stage survival: the non-proportional-hazard axis",
+    )
+    jp.add_argument("--tumor-type", default="NSCLC")
+    jp.add_argument("--line", default="first")
+    jp.add_argument("--drug-effect", type=float, default=1.0)
+    jp.add_argument("--alpha", type=float, default=1.0,
+                    help="association between log tumor size and log hazard (DECLARED, not fitted)")
+    jp.set_defaults(func=_cmd_joint)
 
     bp = sub.add_parser(
         "budget",

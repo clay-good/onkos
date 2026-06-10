@@ -21,6 +21,13 @@ from .interaction import (
     compare_interactions,
     simulate_combination,
 )
+from .joint import (
+    JointComparison,
+    JointSurvival,
+    compare_joint_vs_two_stage,
+    current_value_survival,
+    joint_survival,
+)
 from .load import DATASET_VERSION, Dataset, load
 from .report import build_report
 from .response import (
@@ -62,6 +69,11 @@ __all__ = [
     "PFSRouteDivergence",
     "progression_free_survival",
     "pfs_route_divergence",
+    "JointSurvival",
+    "JointComparison",
+    "current_value_survival",
+    "joint_survival",
+    "compare_joint_vs_two_stage",
     "load",
     "simulate",
     "simulate_ensemble",

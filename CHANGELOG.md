@@ -4,6 +4,43 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.34.0] — Joint longitudinal–survival modeling: the current-value link
+
+Implements the research-track spec `docs/specs/research/joint-survival.md`. Every survival link Onkos
+has shipped is **two-stage**: collapse the tumor trajectory to one static covariate (week-8 v0.12, `k_g`
+v0.25, integrated burden v0.33), then apply a parametric/Cox baseline. A static covariate means a
+**proportional hazard** — a constant hazard ratio over time. The joint longitudinal–survival model (the
+rigorous, gold-standard alternative to a two-stage landmark) relaxes exactly that. This adds its
+canonical **current-value** link and shows "two-stage vs joint" is a model-selection axis at the
+survival-link layer.
+
+- **New module `onkos.joint`** (pure post-processing — no record, kernel, schema, or export change, so
+  every default artifact is byte-identical). The current-value link makes the instantaneous hazard track
+  the *current* tumor size: `λ(t) = λ₀(t)·exp(α·log(v(t)/y0))`, `S(t)=exp(-∫λ)`. The pure core
+  `current_value_survival` integrates the time-varying hazard ratio as a Stieltjes sum against the
+  **analytic** baseline cumulative hazard `H₀(t)=(t/scale)^shape`, so it is a strict generalization,
+  exact in two limits: a constant HR recovers the two-stage Weibull-PH curve to machine precision, and
+  `HR≡1` recovers the Weibull baseline. The v0.33 burden link is the constant-trajectory special case.
+- **`joint_survival` / `compare_joint_vs_two_stage`** bind it to a record + context: the trajectory and
+  its two-stage (week-8) OS come from `simulate`; the Weibull baseline (`shape`/`scale`) from the
+  context's default Weibull OS link; the association `α` is a declared argument (never fitted). Tier and
+  transport warnings ride through unchanged.
+- **The finding — a non-proportional hazard, and a ranking inversion.** For NSCLC first line (`α=1`) the
+  joint hazard ratio is suppressed during the deep early response (HR ≈ 0.13–0.18) then **rises 10× to
+  255×** as the resistant clone regrows (largest for acquired resistance and two-population), while a
+  complete responder's hazard keeps *falling* — a time-varying hazard ratio no two-stage (PH) link,
+  parametric or Cox, can represent. And it **inverts** the week-8 ranking: the surrogate ranks the
+  deep-early-shrinking two-population model above Claret (94 vs 91); the joint link, weighting the
+  regrowth tail, reverses it (Claret 199 vs two-population 144). The survival-link *structure* choice is
+  the structural counterpart to the v0.25/v0.33 *metric* axis.
+- **11 landmarks** (`tests/test_joint.py`): the two exact-recovery limits, `α=0`, monotonicity, the
+  burden-link bridge, the non-proportional-hazard signature, the eradication mirror, the ranking
+  inversion, and the unchanged tier/transport guardrails.
+- **CLI `onkos joint`** (the two-stage-vs-joint median + PH-violation table); a hazard-ratio + survival
+  figure (`docs/images/joint_survival.png`); a CI-executed notebook (`notebooks/27_joint_survival.ipynb`);
+  README section; public-API surface + contract test extended. No new dataset records. 362 tests, 56
+  records.
+
 ## [0.33.0] — The integrated tumor burden: a third TGI→OS bridge metric
 
 Implements the research-track spec `docs/specs/research/burden-auc-bridge-metric.md`. v0.25 made the

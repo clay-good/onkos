@@ -1,5 +1,5 @@
 """Shared constants (kept import-cycle-free)."""
 
-VERSION = "0.33.0"
+VERSION = "0.34.0"
 
 CLINICAL_USE = "PROHIBITED — research / drug-development / education only"

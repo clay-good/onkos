@@ -1510,6 +1510,65 @@ def burden_auc_figure() -> None:
     plt.close(fig)
 
 
+def joint_survival_figure() -> None:
+    """Joint (current-value) vs two-stage survival. Left: the hazard ratio is TIME-VARYING —
+    suppressed while the tumor is small, then rising steeply as a resistant clone regrows — a
+    non-proportional hazard the two-stage links (a constant HR) cannot represent. Right: the
+    resulting OS curves; the joint link bends down in the tail for the regrowing models, and
+    it inverts the week-8 ranking of the light- vs heavy-tail resistance models."""
+    from onkos.joint import joint_survival
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    t = np.linspace(0.0, 260.0, 521)
+    models = [
+        ("resistance.claret_2009.tgi", "Claret (phenom.)", "#c05621"),
+        ("resistance.nsclc_first_line.two_population", "two-population", "#2f855a"),
+        ("drug_effect.norton_simon.nsclc", "Norton-Simon (complete resp.)", "#2b6cb0"),
+        ("resistance.nsclc_first_line.acquired", "acquired resistance", "#b7791f"),
+    ]
+    js = {rid: joint_survival(ds, rid, context=ctx, drug_effect=1.0, t=t, alpha=1.0)
+          for rid, _, _ in models}
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.6))
+
+    # Left: the time-varying hazard ratio (the non-proportionality).
+    for rid, label, color in models:
+        ax1.semilogy(t, np.maximum(js[rid].hazard_ratio, 1e-3), color=color, lw=1.7,
+                     label=f"{label}  (PH-viol {js[rid].ph_violation:.0f}x)")
+    ax1.axhline(1.0, ls=":", color="grey", lw=1)
+    ax1.text(5, 1.25, "HR = 1 (baseline size)\n— a two-stage link is FLAT here", fontsize=7, color="grey")
+    ax1.set_title("the current-value hazard ratio is time-varying (non-proportional)", fontsize=9)
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("hazard ratio HR(t) = exp(α·log(v/y0))")
+    ax1.set_ylim(1e-2, 3e2)
+    ax1.legend(fontsize=7, loc="upper left")
+
+    # Right: joint (solid) vs two-stage week-8 (dashed) OS for the light- vs heavy-tail pair.
+    for rid, label, color in models[:2]:
+        j = js[rid]
+        jm = f"{j.median_os:.0f}" if j.median_os else "n/r"
+        tm = f"{j.two_stage_median_os:.0f}" if j.two_stage_median_os else "n/r"
+        ax2.plot(t, j.os_curve, color=color, lw=1.9, label=f"{label} — joint (mOS {jm})")
+        ax2.plot(t, j.two_stage_curve, color=color, lw=1.3, ls="--",
+                 label=f"{label} — two-stage week-8 (mOS {tm})")
+    ax2.axhline(0.5, ls=":", color="grey", lw=1)
+    ax2.set_title("week-8 ranks two-pop > Claret; the joint link inverts it", fontsize=9)
+    ax2.set_xlabel("weeks")
+    ax2.set_ylabel("survival fraction")
+    ax2.set_ylim(0, 1.02)
+    ax2.legend(fontsize=7, loc="upper right")
+
+    fig.suptitle(
+        "Joint (current-value) vs two-stage survival: the hazard tracks the tumor in real time, so "
+        "a regrowing clone makes the hazard ratio rise — a non-proportional hazard PH links can't encode",
+        fontsize=9.0,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "joint_survival.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
@@ -1539,4 +1598,5 @@ if __name__ == "__main__":
     optimal_design_figure()
     acquired_resistance_figure()
     burden_auc_figure()
+    joint_survival_figure()
     print(f"Wrote figures to {OUT}")

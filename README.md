@@ -503,6 +503,47 @@ record; it is landmark-tested (`tests/test_burden_auc.py`): the closed-form iden
 depth-sensitivity where `k_g` is blind, and the third distinct ranking. NSCLC/first now exposes
 **four** eligible OS links (week-8, Cox, `k_g`, burden-AUC) to the model-selection budget.
 
+### Joint longitudinal–survival modeling — the non-proportional-hazard axis
+
+The three bridge metrics above are all **two-stage**: collapse the trajectory to one static
+number, then apply a hazard. A static covariate means a *proportional* hazard — the hazard ratio
+between two tumors is constant in time. That is itself a modeling assumption, and the rigorous
+alternative the pharmacometric literature treats as gold-standard is the **joint longitudinal–
+survival model**, whose current-value link makes the instantaneous hazard track the *current* tumor
+size: `λ(t) = λ₀(t)·exp(α·log(v(t)/y0))`. `onkos.joint` adds it as pure post-processing (no record,
+kernel, or export change — every default artifact is byte-identical). It is a strict generalization:
+a constant hazard ratio recovers the two-stage Weibull-PH curve *exactly* (and the v0.33 burden link
+is its constant-trajectory special case).
+
+![Joint vs two-stage survival: the time-varying hazard ratio and the ranking inversion](docs/images/joint_survival.png)
+
+The payload is a hazard the two-stage links structurally cannot encode:
+
+- **The hazard ratio is time-varying.** It is suppressed during the deep early response (HR ≈ 0.13–
+  0.18) then **rises 10× to 255×** as a resistant clone regrows — largest for the acquired-resistance
+  and two-population models — while a complete responder's hazard keeps *falling*. A two-stage link's
+  hazard ratio is flat (`ph_violation == 1`); the joint link's `ph_violation = HR(end)/HR(8wk)`
+  measures the non-proportionality, and it is concentrated in exactly the resistance models whose tail
+  the week-8 surrogate is blind to.
+- **The ranking inverts, structurally.** Week-8 ranks the deep-early-shrinking two-population model
+  *above* Claret (median OS 94 vs 91); the joint link, weighting the regrowth tail as a rising hazard,
+  **reverses** it (Claret 199 vs two-population 144). The survival-link *structure* choice (two-stage
+  PH vs joint current-value) is the structural counterpart to the `link_metric` choice.
+
+```python
+from onkos.joint import joint_survival, compare_joint_vs_two_stage
+j = joint_survival(ds, "resistance.nsclc_first_line.two_population", context=ctx, alpha=1.0)
+j.median_os, j.two_stage_median_os   # joint vs week-8 two-stage median
+j.ph_violation                       # HR(end)/HR(8wk): 1 for PH, ≫1 as resistance regrows
+compare_joint_vs_two_stage(ds, context=ctx, alpha=1.0).rank_discordant_pairs
+```
+
+Landmark-tested (`tests/test_joint.py`): the constant-HR⇒two-stage and unit-HR⇒baseline recoveries
+to machine precision, `α=0` removing the association, the non-proportional-hazard signature, the
+ranking inversion, and the inherited tier/transport guardrails. `α` and the baseline are declared,
+illustrative parameters — never fitted; a joint analysis never moves a tier and emits no individual
+prediction.
+
 ### RECIST response & ORR — the phase-2 endpoint and its contested OS surrogacy
 
 The objective response rate (**ORR**) is the dominant phase-2 go/no-go endpoint, and a
@@ -1563,6 +1604,7 @@ own thesis rather than adding breadth:
 | **D-optimal trial design** | `onkos.design`: the best sampling schedule a fixed budget allows, maximizing `det(M)` over the v0.22 design Fisher information (additive over timepoints → pure linear algebra, no re-simulation). Separates *circumstantial* from *structural* unidentifiability: for Claret NSCLC the optimal design **rescues** the borderline `λ` across the 50% line but the deeply flat `kL` stays unidentifiable under the best schedule (D-efficiency ≈ 1.14); the 2-parameter biexponential is fully identifiable (the control). Pure post-processing over the existing Fisher core; landmark-tested; cannot move a tier; design level, no per-patient schedule. | ✅ v0.31 |
 | **Acquired resistance** | `acquired_resistance` kernel + record: the resistance *origin* (drug-induced switching at rate `α`, resistance generated from `R0=0`) as a model-selection axis one layer below the v0.24 mechanism axis. Matched on `kg`/`kd`/`kgr` to the pre-existing two-population model, the origins agree at week-8 and on the week-8 OS surrogate (92 vs 94 wk) but diverge in the tail (nadir 8.0 vs 2.8 mm, RECIST TTP 26 vs 32 wk) — a silent assumption the surrogate misses, the mechanistic PFS catches. `α=0` recovers the pre-existing model (strict generalization); round-trip validated; landmark-tested; tier C, no therapy ranking. | ✅ v0.32 |
 | **Integrated tumor burden** (third bridge metric) | `log_burden_auc` (the time-averaged log relative tumor size — the AUC of the log-size curve) added to the Stein/Bruno panel + a non-default `survival_link.nsclc_os_burden_auc`. The one metric that integrates *both* depth and tail re-ranks the NSCLC models a **third, distinct** way (vs week-8 and `k_g`), so "which bridge metric" stays a live axis even for a "comprehensive" metric — and it **repairs `k_g`'s depth-blindness** (the pure-tail metric ranks a never-shrinking tumor 2nd; the integrated burden ranks it last). NSCLC/first now has four eligible OS links for the budget. Pure post-processing + one record; default view byte-identical; landmark-tested; population level, no therapy ranking. | ✅ v0.33 |
+| **Joint longitudinal–survival** | `onkos.joint`: the current-value link makes the instantaneous hazard track the current tumor size (`λ(t)=λ₀(t)·exp(α·log(v/y0))`) — the rigorous, two-stage-free survival model. A strict generalization of proportional hazards (a constant HR recovers the two-stage Weibull-PH curve exactly). The hazard ratio is **time-varying** (rises 10×–255× as a resistant clone regrows; falls for a complete responder) — a non-proportional hazard the two-stage links can't encode — and it **inverts** the week-8 resistance-model ranking (two-pop > Claret under week-8; Claret > two-pop under the joint link). So survival-link *structure* (two-stage PH vs joint) is a model-selection axis. Pure post-processing, no record/kernel/export change; `α` declared not fitted; landmark-tested; population level, no therapy ranking. | ✅ v0.34 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the
