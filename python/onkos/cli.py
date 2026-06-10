@@ -535,6 +535,32 @@ def _cmd_interactions(args) -> int:
     return 0
 
 
+def _cmd_atlas(args) -> int:
+    from .atlas import model_selection_atlas
+
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    a = model_selection_atlas(ds, context=ctx)
+    if args.json:
+        print(a.to_json())
+        return 0
+    print(
+        f"Model-selection atlas — {ctx}  tier={a.tier}\n"
+        f"  each axis in its OWN unit (a survey, not a decomposition; see `onkos budget`)\n"
+    )
+    print(f"  {'axis':<26} {'headline':>10}  unit / detail")
+    for e in a.entries:
+        h = "n/a" if e.headline is None else f"{e.headline}"
+        print(f"  {e.label:<26} {h:>10}  {e.unit}")
+        print(f"  {'':<26} {'':>10}  └ {e.detail}")
+    print(
+        "\n  >> a one-call map of where the model-selection risk lies for this context; "
+        "use each axis's own command for the deep dive (onkos joint / dose-response / "
+        "discriminability / …)."
+    )
+    return 0
+
+
 def _cmd_discriminability(args) -> int:
     from .discriminability import model_discriminability
 
@@ -949,6 +975,15 @@ def build_parser() -> argparse.ArgumentParser:
     dcp.add_argument("--alpha", type=float, default=0.05)
     dcp.add_argument("--json", action="store_true", help="emit the result as JSON")
     dcp.set_defaults(func=_cmd_discriminability)
+
+    atp = sub.add_parser(
+        "atlas",
+        help="model-selection atlas: a one-call survey of every axis's headline for a context",
+    )
+    atp.add_argument("--tumor-type", default="NSCLC")
+    atp.add_argument("--line", default="first")
+    atp.add_argument("--json", action="store_true", help="emit the result as JSON")
+    atp.set_defaults(func=_cmd_atlas)
 
     ep = sub.add_parser("export", help="generate export artifacts")
     ep.add_argument(

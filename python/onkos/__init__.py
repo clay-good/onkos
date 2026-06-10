@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from . import pk
 from ._const import VERSION as __version__
+from .atlas import AXES, Atlas, Axis, model_selection_atlas
 from .audit import audit_tiers, evidence_ceiling
 from .budget import Budget, model_selection_budget
 from .combine import ModelAverage
@@ -120,6 +121,10 @@ __all__ = [
     "horizon_hazard_ratio",
     "model_discriminability",
     "ModelDiscriminability",
+    "model_selection_atlas",
+    "Atlas",
+    "Axis",
+    "AXES",
     "compare",
     "filter_records",
     "validate_dataset",

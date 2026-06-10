@@ -1014,6 +1014,41 @@ ER-inverse round-trips, the effect-ceiling clamp, and the `bliss > loewe > hsa` 
 post-processing over the curated ER curves; the reference is a declared choice, never an estimated
 synergy; population/regimen level, no dose or therapy ranking.
 
+### The model-selection atlas — every axis in one view
+
+Across the sections above, Onkos turned each silent modeling choice into its own quantified
+**model-selection axis**. `onkos.atlas` is the synthesis layer: a declarative registry of the
+axes (`AXES` — the source of truth this table mirrors) and a one-call survey,
+`model_selection_atlas(ds, context)`, that runs each applicable axis and returns its native
+headline — a map of *where the model-selection risk lies* for a context.
+
+![The model-selection atlas: OS-swing leaderboard + detectability axes](docs/images/model_selection_atlas.png)
+
+| Axis | what it varies | headline finding | module · CLI | since |
+| --- | --- | --- | --- | --- |
+| **TGI model** | which growth model | matched in-context models imply median OS ~54–94 wk | `compare` · `simulate --compare` | v0.13 |
+| **survival link / metric** | week-8 vs k_g vs integrated burden | the metric choice *inverts* the resistance-model ranking | `simulate(survival_link=)` | v0.25/0.33 |
+| **survival structure** | two-stage PH vs joint current-value | the joint HR rises 10×–255× as a clone regrows (non-PH) | `joint` · `onkos joint` | v0.34 |
+| **resistance mechanism / origin** | phenomenological vs subclone; acquired vs pre-existing | matched on early kill, the choice is invisible at week-8 yet drives the tail | `compare` (kernels) | v0.24/0.32 |
+| **exposure-response shape** | Emax vs power vs sigmoid | invisible at the studied dose, ~19 wk OS swing on de-escalation | `dose_response` · `onkos dose-response` | v0.36 |
+| **additivity reference** | HSA vs Bliss vs Loewe | only Loewe passes the sham-combination test; the choice moves combined OS | `interaction` · `onkos loewe` | v0.35 |
+| **readout timing** | when the surrogate is read (ctDNA wk 2–4 vs RECIST wk 8) | earlier readout trades fidelity to durable benefit (9/10 → 3/10) | `early_surrogate` · `onkos early-surrogate` | v0.37 |
+| **model discriminability** (meta) | whether a trial can tell the models apart at all | the resistance choice needs 10⁴–10⁵ events: practically unidentifiable | `discriminability` · `onkos discriminability` | v0.38 |
+
+For NSCLC first line the survey ranks the OS-swing: survival structure (~108 wk) > bridge metric
+(~97) > TGI model (~41) > exposure-response (~22), while 4 of 10 model pairs are practically
+indistinguishable. The atlas is a **survey, not a decomposition** — the axes are not orthogonal and
+the headlines are in different units, so it flags `comparable = False` and routes the rigorous
+orthogonal partition to [`onkos.model_selection_budget`](#the-model-selection-budget). One entry
+point, the whole map; each axis's own command for the deep dive.
+
+```python
+a = onkos.model_selection_atlas(ds, context=ctx)
+a.os_swing_axes        # the weeks-unit leaderboard (loosely comparable)
+a.comparable, a.note   # False; points to the budget for the rigorous partition
+# onkos atlas --tumor-type NSCLC --line first
+```
+
 ---
 
 ## Install & quick start
@@ -1144,6 +1179,7 @@ onkos.combine_effects(0.6, 0.6, model="greco", psi=0.5)   # the pure interaction
 | `onkos dose-response <id> [--c-ref --e-ref]` | exposure-response model choice as a dose-extrapolation model-selection axis |
 | `onkos early-surrogate [--tumor-type --line --reference-link]` | early-surrogate readout timing — landmark week vs durable-benefit fidelity |
 | `onkos discriminability [--tumor-type --line --survival-link]` | required trial events to distinguish the competing models (model identifiability) |
+| `onkos atlas [--tumor-type --line]` | model-selection atlas — one survey of every axis's headline for a context |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
 
 Export formats: `nonmem`, `sbml`, `pharmml`, `so` (PharmML Standard Output),
@@ -1531,30 +1567,30 @@ flowchart TD
         REG["registry — bind record → kernel"]
         REF["reference — NumPy/SciPy kernels<br/>(ODE · survival · transform)"]
     end
-    subgraph ana["④ analyses"]
-        SIM["simulate (OS+PFS)"]
-        MET["metrics (Stein/Bruno panel)"]
-        PKM["pk (dose → exposure bridge)"]
-        CMP["compare (virtual-trial divergence)"]
-        UNC["uncertainty (IIV bands)"]
-        SEN["sensitivity (variance attribution)"]
-        AUD["audit (evidence-based tiers)"]
+    subgraph ana["④ analyses — each a model-selection axis"]
+        SIM["simulate (OS+PFS) · metrics · pk"]
+        CMP["compare (virtual-trial divergence) · combine (model averaging)"]
+        UNC["uncertainty (IIV) · sensitivity · budget (variance partition)"]
+        IDN["identify · design · discriminability (parameter→model identifiability)"]
+        SRV["joint (non-PH) · dose_response (ER) · early_surrogate (timing)"]
+        CMB["interaction / loewe (combination) · response/pfs (endpoints)"]
+        ATL["atlas (axis registry + survey) · audit (evidence-based tiers)"]
     end
     subgraph exp["⑤ exports — generated, never hand-edited"]
         EXP["NONMEM · SBML · PharmML · SO · rxode2 · Pumas<br/>vt-json · JSON-LD · COMBINE .omex · CSV · BibTeX"]
     end
     subgraph pres["⑥ presentation"]
-        CLI["onkos CLI"]
+        CLI["onkos CLI (21 subcommands)"]
         DASH["Streamlit dashboard"]
         REP["health report + tier audit"]
-        NB["25 CI-executed notebooks"]
+        NB["32 CI-executed notebooks"]
     end
     DS --> LOAD --> REG --> REF
     LOAD --> VAL & TIER
     REG --> SIM --> CMP
-    PKM --> SIM
-    SIM --> MET & UNC & SEN
-    CMP & UNC & SEN & AUD --> CLI & DASH & REP & NB
+    SIM --> UNC & SRV
+    CMP --> IDN & CMB
+    CMP & UNC & IDN & SRV & CMB & ATL --> CLI & DASH & REP & NB
     REG --> EXP
     REF -. "round-trip validates" .-> EXP
 ```
@@ -1699,7 +1735,9 @@ onkos/
 │   ├── records/                 # one JSON per model / context-baseline
 │   └── citations/               # Crossref/PubMed citation records
 ├── python/onkos/
-│   ├── load · filter · validate · tiers · simulate · metrics · pk · compare · uncertainty · sensitivity · combine · identify · interaction · budget · response · audit · report · cli
+│   ├── load · filter · validate · tiers · simulate · metrics · pk · compare · uncertainty · sensitivity
+│   ├── combine · identify · design · interaction · budget · response · audit · report · cli
+│   ├── joint · dose_response · early_surrogate · discriminability · atlas   # model-selection axes
 │   ├── py.typed                 # PEP 561 typing marker
 │   └── export/                  # registry · reference · nonmem · sbml · pharmml · pharmml_so
 │       · rxode2 · pumas · virtual_trial_json · jsonld · combine · annotate
@@ -1764,6 +1802,7 @@ own thesis rather than adding breadth:
 | **ER-model dose-extrapolation** | `onkos.dose_response`: the upstream exposure-response model choice (Emax / power / sigmoid-Emax) as a model-selection axis. Re-anchors the shapes to agree at the studied dose, then quantifies how their effect — and OS — diverge off it: **0 at the studied dose** (control), ≈19 wk at quarter-dose, sharpest on **de-escalation** (the dose-finding question). The transportability thesis with the *dose* as the context. Pure post-processing over the curated ER shapes, no new record/kernel/export; shapes re-anchored not refit; landmark-tested; population level, no dose recommendation. | ✅ v0.36 |
 | **Early-surrogate timing** | `onkos.early_surrogate`: *when* the surrogate is read (the ctDNA push to week 2–4 vs RECIST week 8) as a model-selection axis orthogonal to *which* metric. ctDNA modeled as burden-proportional, so the axis is readout time. Discordance against a tail-aware durable-benefit ranking falls monotonically with the landmark (NSCLC **9/10 at week 2 → 3/10 at week 52**); early landmarks over-reward the deep-but-doomed resistance models the durable-benefit ranking puts last. Reproduces across 5 contexts. Pure post-processing, no new record/kernel/export; landmark grid declared; landmark-tested; population level, no go/no-go. | ✅ v0.37 |
 | **Model discriminability** | `onkos.discriminability`: the rigorous close of the model-selection arc — given two models' OS curves, the required trial events to distinguish them (Schoenfeld logrank, `d=4(z_α+z_β)²/(ln HR)²`). Under week-8 OS the resistance mechanism/origin pairs need **10⁴–10⁵ events** (Claret vs two-pop ~11.8k, vs acquired ~103k) — practically unidentifiable, so the silent model-selection risk can only be assumed, not resolved by data; early-shrinkage-distinct pairs need ~60–90. The model-level twin of `identify`/`design`. Pure post-processing over the OS curves, no new record/kernel/export; landmark-tested; design/trial level, no trial designed, no recommendation. | ✅ v0.38 |
+| **Model-selection atlas** (synthesis) | `onkos.atlas`: a declarative registry (`AXES`) of every model-selection axis + a one-call per-context survey reporting each axis's native headline — the synthesis layer over eighteen versions. NSCLC OS-swing leaderboard: survival structure ~108 wk > metric ~97 > TGI model ~41 > ER shape ~22; plus the detectability axes (8/10 early-misranked, 4/10 indistinguishable). Deliberately a survey, not a decomposition (`comparable=False`, points to the budget). Pure orchestration, no new record/kernel/export; landmark-tested. Ships with a housekeeping doc-drift fix (architecture diagram + repo layout refreshed). | ✅ v0.39 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

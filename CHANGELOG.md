@@ -4,6 +4,39 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.39.0] — The model-selection atlas: one index and one survey of every axis (+ housekeeping)
+
+Implements the research-track spec `docs/specs/research/model-selection-atlas.md`. Eighteen versions
+turned each silent modeling choice into its own quantified axis in its own module; there was no single
+place that says, for a context, *which* choice matters and by how much. This adds the synthesis layer.
+
+- **New module `onkos.atlas`** (pure orchestration — no new record, kernel, schema, or export; every
+  default artifact byte-identical). `AXES` is a frozen **registry** of the model-selection axes
+  (`Axis(key, label, varies, finding, module, cli, scope, version)`) — the source of truth the README
+  cheat-sheet mirrors and the landmark suite checks for completeness. `model_selection_atlas(ds, context)`
+  runs each applicable single-agent axis and returns an `Atlas` of native headlines.
+- **Deliberately a survey, not a decomposition.** The axes are not orthogonal and the headlines are in
+  different units (weeks of median-OS spread, discordant pairs, required events), so the atlas reports each
+  in its own unit, exposes `comparable = False`, and points to `onkos.model_selection_budget` (v0.26) for
+  the rigorous orthogonal partition. The four weeks-unit axes form `os_swing_axes`, a loosely-comparable
+  leaderboard (worst-case OS swing over the models, so a complete responder cannot mask a swing).
+- **The result — one map of where the risk lies (NSCLC 1L).** survival structure (PH vs joint) ~108 wk >
+  bridge metric ~97 wk > TGI model ~41 wk > exposure-response shape ~22 wk (on extrapolation); and the
+  detectability axes: 8/10 model pairs misranked by an early (ctDNA-era) readout, 4/10 practically
+  indistinguishable by a realistic trial. Eighteen versions of axes, navigable in one view.
+- **8 landmarks** (`tests/test_atlas.py`): the registry is well-formed and covers the shipped axes, the
+  survey runs the single-agent axes and its headlines equal the underlying modules' outputs, the
+  OS-swing group is correct, `comparable = False` with the budget pointer, and the tier/clinical-use
+  guardrails.
+- **Housekeeping (doc-drift fix).** Eighteen rapid versions had left the architecture diagram's analyses
+  box and notebook count, and the repository-layout module list, stale. Refreshed both to include every
+  module shipped since (joint / dose_response / early_surrogate / discriminability / atlas / design /
+  identify / interaction / budget / response) and the correct notebook count (32) and CLI subcommand
+  count (21).
+- **CLI `onkos atlas`**; an OS-swing + detectability figure (`docs/images/model_selection_atlas.png`); a
+  CI-executed notebook (`notebooks/32_model_selection_atlas.ipynb`); README atlas section + cheat-sheet
+  row; public-API surface + contract test extended. No new dataset records. 413 tests, 56 records.
+
 ## [0.38.0] — Model discriminability: can a trial even tell the competing models apart?
 
 Implements the research-track spec `docs/specs/research/model-discriminability.md`. The model-selection

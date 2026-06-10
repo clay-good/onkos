@@ -1582,6 +1582,65 @@ def model_discriminability_figure() -> None:
     plt.close(fig)
 
 
+def model_selection_atlas_figure() -> None:
+    """The synthesis: one map of where the model-selection risk lies for a context. Left: the
+    OS-swing axes (weeks of median-OS spread riding on each single choice) — a loosely
+    comparable leaderboard (NOT orthogonal; see the budget). Right: the detectability axes in
+    their native units — how badly an early readout misranks, and how many model pairs a
+    realistic trial cannot tell apart."""
+    from onkos.atlas import model_selection_atlas
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    a = model_selection_atlas(ds, context=ctx)
+    swing = sorted([e for e in a.os_swing_axes if e.headline is not None],
+                   key=lambda e: e.headline)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11.5, 4.4),
+                                   gridspec_kw={"width_ratios": [1.7, 1.0]})
+
+    labels = [e.label.replace(" (PH vs joint)", "").replace(" / bridge metric", "") for e in swing]
+    vals = [e.headline for e in swing]
+    colors = ["#2b6cb0", "#6b46c1", "#c05621", "#2f855a"][: len(swing)]
+    ax1.barh(range(len(swing)), vals, color=colors)
+    ax1.set_yticks(range(len(swing)))
+    ax1.set_yticklabels(labels, fontsize=8.5)
+    for i, v in enumerate(vals):
+        ax1.text(v + 1.5, i, f"{v:.0f} wk", va="center", fontsize=8)
+    ax1.set_xlabel("median-OS swing from this one choice (weeks)")
+    ax1.set_title("OS-swing axes — loosely comparable (NOT a variance partition)", fontsize=8.8)
+    ax1.set_xlim(0, max(vals) * 1.18)
+
+    # Right: the detectability axes (native units), as annotated callouts.
+    ax2.axis("off")
+    rt = a.get("readout_timing")
+    md = a.get("model_discriminability")
+    ax2.set_title("detectability axes (native units)", fontsize=8.8)
+    lines = [
+        ("readout timing", f"{rt.headline}/10 model pairs misranked", "by an early (ctDNA-era)",
+         "readout vs durable benefit"),
+        ("model discriminability", f"{md.headline}/10 model pairs", "need an INFEASIBLE trial",
+         "to tell apart (10⁴–10⁵ events)"),
+    ]
+    y = 0.82
+    for title, big, s1, s2 in lines:
+        ax2.text(0.04, y, title, fontsize=9, weight="bold", transform=ax2.transAxes)
+        ax2.text(0.06, y - 0.10, big, fontsize=11, color="#c53030", transform=ax2.transAxes)
+        ax2.text(0.06, y - 0.18, s1, fontsize=7.5, color="#555", transform=ax2.transAxes)
+        ax2.text(0.06, y - 0.24, s2, fontsize=7.5, color="#555", transform=ax2.transAxes)
+        y -= 0.42
+    ax2.text(0.04, 0.02, "→ `onkos budget` for the rigorous orthogonal partition",
+             fontsize=7, style="italic", color="#777", transform=ax2.transAxes)
+
+    fig.suptitle(
+        "Model-selection atlas (NSCLC 1L): a one-call map of where the model-selection risk lies — "
+        "every silent choice Onkos has made explicit, in one view",
+        fontsize=9.2,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    fig.savefig(OUT / "model_selection_atlas.png", dpi=120)
+    plt.close(fig)
+
+
 def early_surrogate_timing_figure() -> None:
     """Readout TIMING is a model-selection axis. Left: the relative tumor-burden trajectories
     (the early-surrogate readout over time) — the deep-but-doomed resistance models are deepest
@@ -1850,4 +1909,5 @@ if __name__ == "__main__":
     dose_response_extrapolation_figure()
     early_surrogate_timing_figure()
     model_discriminability_figure()
+    model_selection_atlas_figure()
     print(f"Wrote figures to {OUT}")
