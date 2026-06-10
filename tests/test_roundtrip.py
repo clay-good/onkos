@@ -24,11 +24,13 @@ ANALYTIC_RECORDS = [
     "drug_effect.norton_simon.nsclc",
 ]
 
-# Every ODE record (incl. multi-state Simeoni and the IO QSP) is round-tripped.
+# Every ODE record (incl. multi-state Simeoni, the IO QSP, and the two-population
+# resistance model) is round-tripped.
 ODE_RECORDS = ANALYTIC_RECORDS + [
     "growth_laws.simeoni_exp_linear",
     "preclinical_translation.simeoni_2004.xenograft",
     "immuno_oncology.kuznetsov_1994.tumor_immune",
+    "resistance.nsclc_first_line.two_population",
 ]
 
 

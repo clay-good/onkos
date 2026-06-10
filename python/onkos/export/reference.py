@@ -192,6 +192,23 @@ def _norton_simon_rhs(t, y, v):
 
 
 # ----------------------------------------------------------------------------
+# Two-population (Goldie-Coldman) resistance: a tumor of a drug-SENSITIVE clone S
+# and a pre-existing drug-RESISTANT clone R, observed together as V = S + R.
+#   dS/dt = (kg - kd*E)*S      sensitive: net growth kg, killed at potency kd by E
+#   dR/dt =  kgr*R             resistant: grows at kgr, NOT killed by the drug
+# S starts at the measured baseline V0; R starts at a small pre-existing burden R0.
+# The kill potency kd matches the Claret parameterization (kd*E is the per-time kill
+# on sensitive cells), so a comparison against the phenomenological decay-of-effect
+# (Claret) model isolates the RESISTANCE MECHANISM rather than an effect-scale
+# difference. Distinct from Claret's exponential-decay-of-kill: here regrowth is the
+# resistant clone outgrowing, and R0 is a biologically interpretable parameter.
+# ----------------------------------------------------------------------------
+def _two_pop_rhs(t, y, v):
+    s, r = y
+    return [(v["kg"] - v["kd"] * v["E"]) * s, v["kgr"] * r]
+
+
+# ----------------------------------------------------------------------------
 # Biexponential clinical TGI: y = y0*(exp(-ks*E*t) + exp(kg*t) - 1)
 # ----------------------------------------------------------------------------
 def _biexp_analytic(t, v):
@@ -366,6 +383,23 @@ KERNELS: dict[str, KernelSpec] = {
         rhs=_norton_simon_rhs,
         rhs_infix={"tumor_size": "(g - k * E) * tumor_size * ln(Vmax / tumor_size)"},
         init_input="V0",
+    ),
+    "two_population_resistance": KernelSpec(
+        name="two_population_resistance",
+        kind="ode",
+        states=["sensitive", "resistant"],
+        params=["kg", "kd", "kgr", "R0"],
+        record_symbols=["kg", "kd", "kg_resistant", "R0"],
+        inputs=["V0", "E"],
+        rhs=_two_pop_rhs,
+        rhs_infix={
+            "sensitive": "(kg - kd * E) * sensitive",
+            "resistant": "kgr * resistant",
+        },
+        observable="sensitive + resistant",
+        # Sensitive clone seeded by the measured baseline V0; resistant clone by the
+        # pre-existing burden R0 (a parameter) — the multi-state init pattern.
+        init_inputs=["V0", "R0"],
     ),
     "biexp_tgi": KernelSpec(
         name="biexp_tgi",

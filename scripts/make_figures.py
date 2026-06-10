@@ -812,6 +812,73 @@ def combination_interaction_figure() -> None:
     plt.close(fig)
 
 
+def two_population_resistance_figure() -> None:
+    """Mechanistic resistance: the sensitive/resistant clone split that produces the
+    nadir-then-regrowth, and the phenomenological-vs-mechanistic resistance divergence."""
+    from onkos.export.reference import init_vector
+    from onkos.export.registry import get_kernel, kernel_values
+    from scipy.integrate import solve_ivp
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    rid = "resistance.nsclc_first_line.two_population"
+    t = np.linspace(0.0, 156.0, 313)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    # Left: the two clones and the observed tumor. The drug crushes the sensitive
+    # clone (nadir), then the untouched resistant clone outgrows — the mechanistic
+    # origin of resistance-driven regrowth, with R0 a biologically interpretable seed.
+    spec = get_kernel(ds[rid])
+    vals = kernel_values(ds[rid])
+    vals["V0"] = onkos.simulate(ds, rid, context=ctx, drug_effect=1.0, t=t).tumor_size[0] - vals["R0"]
+    vals["E"] = 1.0
+    sol = solve_ivp(lambda tt, yy: spec.rhs(tt, yy, vals), (t[0], t[-1]),
+                    init_vector(spec, vals), t_eval=t, rtol=1e-8, atol=1e-10, method="LSODA")
+    s, r = sol.y
+    ax1.semilogy(t, s, color="#2b6cb0", lw=1.6, label="sensitive clone S (killed)")
+    ax1.semilogy(t, r, color="#c53030", lw=1.6, label="resistant clone R (outgrows)")
+    ax1.semilogy(t, s + r, color="black", lw=2.0, ls="--", label="observed tumor V = S + R")
+    nadir_i = int(np.argmin(s + r))
+    ax1.scatter([t[nadir_i]], [(s + r)[nadir_i]], color="black", zorder=5)
+    ax1.annotate("nadir, then\nresistant-driven regrowth", (t[nadir_i], (s + r)[nadir_i]),
+                 textcoords="offset points", xytext=(14, 6), fontsize=8)
+    ax1.set_title("Two-population resistance — clone decomposition", fontsize=9)
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("tumor size (mm, SLD, log)")
+    ax1.legend(fontsize=7, loc="lower right")
+
+    # Right: same context, two resistance MECHANISMS — phenomenological decay-of-effect
+    # (Claret λ) vs mechanistic resistant-subclone. Tuned to share the early kill, they
+    # agree at week 8 (and hence on the week-8-driven OS) yet diverge in the tumor TAIL:
+    # the resistance-model risk is real but nearly invisible to a short-trial surrogate.
+    mech = onkos.simulate(ds, rid, context=ctx, drug_effect=1.0, t=t)
+    claret = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx, drug_effect=1.0, t=t)
+    ax2.semilogy(t, claret.tumor_size, color="#c05621", lw=1.8,
+                 label=f"phenomenological (Claret λ)  mOS {claret.median_os:.0f}")
+    ax2.semilogy(t, mech.tumor_size, color="#2f855a", lw=1.8,
+                 label=f"mechanistic (resistant subclone)  mOS {mech.median_os:.0f}")
+    ax2.fill_between(t, np.minimum(claret.tumor_size, mech.tumor_size),
+                     np.maximum(claret.tumor_size, mech.tumor_size), color="grey", alpha=0.15)
+    ax2.axvline(8, ls=":", color="grey", lw=1)
+    ax2.text(9, ax2.get_ylim()[1] * 0.5, "week 8\n(agree → same OS)", fontsize=7, color="grey")
+    ratio = mech.tumor_size[-1] / claret.tumor_size[-1]
+    ax2.set_title(f"Resistance model as a divergence axis — {ratio:.1f}x tumor split by 3 yr",
+                  fontsize=9)
+    ax2.set_xlabel("weeks")
+    ax2.set_ylabel("tumor size (mm, SLD, log)")
+    ax2.legend(fontsize=8, loc="lower right")
+
+    fig.suptitle(
+        "Mechanistic resistance (Goldie-Coldman): the resistance MODEL is a model-selection "
+        "axis — same early kill & OS, divergent tumor tail",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "two_population_resistance.png", dpi=120)
+    plt.close(fig)
+
+
 def kill_mechanism_figure() -> None:
     """Norton-Simon (kill ∝ growth) vs log-kill (Claret, kill ∝ size) mechanisms."""
     from onkos.export.registry import get_kernel, kernel_values
@@ -872,4 +939,5 @@ if __name__ == "__main__":
     model_average_figure()
     identifiability_figure()
     combination_interaction_figure()
+    two_population_resistance_figure()
     print(f"Wrote figures to {OUT}")

@@ -52,7 +52,7 @@ unquantified, sends drugs into doomed phase-3 trials.
 ![Virtual-trial divergence](docs/images/divergence.png)
 
 In the figure above (NSCLC, first line, E = 1.0), two NSCLC-validated models that
-fit early tumor data comparably imply median OS anywhere from ~54 to ~91 weeks.
+fit early tumor data comparably imply median OS anywhere from ~54 to ~94 weeks.
 Every model validated only on another tumor type is **greyed out automatically**
 because applying it to NSCLC leaves its validated envelope (tier → D + warning).
 That spread *is* the model-selection risk.
@@ -60,14 +60,16 @@ That spread *is* the model-selection risk.
 ```text
 $ onkos simulate --compare --tumor-type NSCLC --line first --drug-effect 1.0
 
-  [C] resistance.claret_2009.tgi              median OS   90.8  PFS   35.1
-  [C] tgi_metrics.wang_2009.biexponential     median OS   53.7  PFS   20.9
-  [-] resistance.crc_first_line.claret        EXCLUDED
+  [C] drug_effect.norton_simon.nsclc                median OS   58.0
+  [C] resistance.claret_2009.tgi                    median OS   90.8  PFS   35.1
+  [C] resistance.nsclc_first_line.two_population    median OS   94.5
+  [C] tgi_metrics.wang_2009.biexponential           median OS   53.7  PFS   20.9
+  [-] resistance.crc_first_line.claret              EXCLUDED
         (tumor_type 'NSCLC' is outside validated ['CRC'] -> tier_down_to_D and warn)
-  [-] ... 7 more excluded for out-of-context transport (breast, HCC, melanoma)
+  [-] ... 8 more excluded for out-of-context transport (breast, HCC, melanoma, 2L)
 
-  OS  divergence 0.247  | median OS range  (53.7, 90.8)
-  PFS divergence 0.300  | median PFS range (20.9, 35.1)
+  OS  divergence 0.265  | median OS range  (53.7, 94.5)
+  PFS divergence 0.242  | median PFS range (20.9, 36.5)
 ```
 
 ### The second uncertainty axis: parameter variability
@@ -120,15 +122,15 @@ triage), and `onkos report` prints exactly that ranking.
 ```text
 $ onkos compare --average --weights equal --decompose
 
-  Model-averaged median_os_weeks = 66.1  [OS, scheme=equal, tier=C]
-  Variance: within(parameter)=247.0  between(model-selection)=156.5
-  >> model_selection_fraction = 0.39   (irreducible model-choice risk)
+  Model-averaged median_os_weeks = 71.6  [OS, scheme=equal, tier=C]
+  Variance: within(parameter)=229.1  between(model-selection)=207.2
+  >> model_selection_fraction = 0.47   (irreducible model-choice risk)
 
   scheme        point    within   between   frac
-  equal          66.1     247.0     156.5   0.39
-  tier           66.1     247.0     156.5   0.39
-  evidence       65.4     229.4     155.8   0.40
-  weight_sensitivity (point swing across schemes) = 0.67
+  equal          71.6     229.1     207.2   0.47
+  tier           71.6     229.1     207.2   0.47
+  evidence       70.5     217.3     209.5   0.49
+  weight_sensitivity (point swing across schemes) = 1.08
 ```
 
 ```python
@@ -383,6 +385,52 @@ resistance model regrows.
 ```python
 ns = onkos.simulate(ds, "drug_effect.norton_simon.nsclc", context=ctx, drug_effect=1.0)
 # fractional kill rate rises as the tumor shrinks — the Norton-Simon signature
+```
+
+### Mechanistic resistance: the resistant subclone as a model-selection axis
+
+Resistance is the project's most load-bearing term (spec §1: the λ "Hydra"). Onkos
+modeled it *phenomenologically* — the Claret model fades the drug effect as
+`e^{−λt}`, a curve-fitting device whose λ has no cellular referent and is ~90%-CV
+unidentifiable. v0.24 adds the *mechanistic* alternative: a tumor of a drug-**sensitive**
+clone and a pre-existing drug-**resistant** clone (the Goldie-Coldman two-population
+model), observed together as `V = S + R`:
+
+```text
+dS/dt = (kg − kd·E)·S      sensitive: net growth kg, killed at potency kd by effect E
+dR/dt =  kgr·R             resistant: grows at kgr, NOT killed
+S(0) = V0 ,  R(0) = R0     a small pre-existing resistant burden R0
+```
+
+The drug crushes the sensitive clone to a nadir; the untouched resistant clone then
+outgrows — the *mechanistic* origin of the nadir-then-regrowth the phenomenological λ
+approximates by hand. Crucially, the resistance is now a **biologically interpretable
+parameter** (`R0`, the initial resistant burden) in place of an unidentifiable rate, and
+the choice between the two resistance models becomes a model-selection axis (the
+kill-mechanism move, applied to resistance itself).
+
+![Two-population resistance: clone decomposition and the resistance-model divergence](docs/images/two_population_resistance.png)
+
+**The sharp, honest finding — and where it hides.** The two models are tuned to share the
+early kill (matched `kd`), so they agree at **week 8** (≈−87% vs −82% change) and hence on
+the **week-8-driven OS** (median ≈94 vs ≈91 wk) — yet they diverge **≈5× in the tumor tail**
+(≈74 vs ≈15 mm at 3 years), because one regrowth is a fading effect and the other a
+compounding clone. This is the short-trial-indistinguishable, long-horizon-divergent failure
+mode exactly — and it carries a second lesson: a **week-8-based OS surrogate is nearly blind
+to the resistance-model choice**, which is how a short-trial-fit resistance model transports
+silently into a late-phase prediction it cannot support. Adding the mechanistic model to the
+NSCLC divergence view raises the measured model-selection fraction from 0.39 to **0.47** —
+the resistance-model axis is real between-model risk. The model is round-trip-validated
+(both compartments export to SBML/NONMEM), landmark-tested (`tests/test_two_population.py`:
+the closed form, eradication at `R0=0`, the late-time slope → `kgr`, the nadir, resistant-
+fraction monotonicity), and *mechanistic does not mean measured* — `R0` is still tier C and
+practically unidentifiable from a realistic trial (it composes with the v0.22 analyzer).
+
+```python
+mech = onkos.simulate(ds, "resistance.nsclc_first_line.two_population", context=ctx)
+mech.tumor_size            # V = S + R: nadir, then resistant-clone regrowth
+mech.tier                  # C; out-of-context transport still floors to D
+# It joins the divergence view automatically — two resistance mechanisms, one context.
 ```
 
 ### Combination therapy: the interaction model is itself a model-selection axis
@@ -911,7 +959,7 @@ computational ground truth). Kernels come in three kinds:
 
 | Kind | What it computes | Kernels |
 | --- | --- | --- |
-| **ODE** | tumor-size dynamics `dV/dt` (closed form where one exists, else integrated) | `growth_exponential/logistic/gompertz`, `claret_tgi`, `norton_simon`, `biexp_tgi`, `simeoni_exp_linear`, `simeoni_tgi` (4-state), `io_tumor_immune` (2-state) |
+| **ODE** | tumor-size dynamics `dV/dt` (closed form where one exists, else integrated) | `growth_exponential/logistic/gompertz`, `claret_tgi`, `norton_simon`, `biexp_tgi`, `two_population_resistance` (2-clone), `simeoni_exp_linear`, `simeoni_tgi` (4-state), `io_tumor_immune` (2-state) |
 | **survival** | population survival `S(t \| x)` from a TGI metric | `survival_weibull_ph` (parametric), `survival_cox_ph` (nonparametric baseline) |
 | **transform** | algebraic map (exposure → effect, or in-vitro → in-vivo) | `er_emax`, `er_sigmoid_emax`, `er_power`, `ivive_power` |
 
@@ -1019,6 +1067,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | Survival matching is line-aware; an unsupported line yields no curve, not a borrowed one | The line of therapy is part of the context, so a second-line simulation must use second-line survival — matching only on tumor type would silently transport a 1L model. When no curated link exists for a line, the honest result is no survival curve, mirroring the no-fallback rule for tumor type. |
 | The PK bridge is a thin illustrative adapter, not a PK toolkit (that's Hypnos) | Onkos's scope is exposure → tumor → survival. `onkos.pk` exposes only the standard dose↔exposure relations and a profile-ingestion adapter so the composability chain is runnable self-contained; modelling the PK itself stays in Hypnos, and the generators are clearly labelled illustrative. |
 | Kill mechanism is a separate subsystem, so it can be a divergence axis | Bundling the kill model into each TGI record would hide that two trials might shrink tumors identically yet predict different outcomes because one assumed log-kill and the other Norton-Simon. The `drug_effect` subsystem makes the mechanism an explicit, comparable choice — the same "make the silent assumption visible" move as `transportability`. |
+| Resistance ships in two forms — phenomenological and mechanistic — so the resistance *model* is a divergence axis | The Claret model fits resistance as a fading drug effect (an unidentifiable λ); the two-population model derives it from a sensitive/resistant clone split (an interpretable `R0`). Shipping both, tuned to the same early kill, makes the resistance-*mechanism* choice an explicit, comparable model-selection axis — and surfaces that a week-8 OS surrogate barely sees the resulting tumor-tail divergence (the silent-transport risk), the honest counterpoint to "we modeled resistance." |
 | The drug-interaction model is a model-selection axis, and synergy is an assumption not a finding | A combination's predicted benefit depends on how the two effects are assumed to combine (HSA / additive-Bliss / synergy), so `onkos.interaction` combines at the effect level and reports the OS divergence across those assumptions rather than picking one. The interaction parameter ψ is a *declared* input (never fitted from the dataset, flagged when non-zero): distinguishing synergy from additivity needs a combination trial designed for it, and asserting it without one is the over-optimism the divergence exposes. Combination at the effect level (not dose-level Loewe over the ER curves) is the v0.x scope, named not hidden. |
 | The architecture is a *tested* contract, not just a diagram | `tests/test_architecture.py` asserts every declared subsystem has records, every kernel is bound (no orphans/dead kernels), the CLI export formats match both the builders and the CI sweep, and the public API surface is stable. These checks have already caught real drift (an empty `drug_effect` subsystem; a CI export loop missing `so`/`jsonld`), so the diagrams above stay honest. |
 | Model-averaging weights are *combination* weights, never model posteriors | Posterior model probabilities `P(model\|data)` require the candidates to share one dataset; Onkos models are fit to different trials, so a posterior is not identifiable and would be invented. Framing the weights as Bates–Granger forecast-combination weights (and printing that everywhere) keeps the no-false-precision discipline; the headline output is a *fraction of uncertainty no better estimation can remove*, not a manufactured central probability. |
@@ -1086,6 +1135,7 @@ own thesis rather than adding breadth:
 | **Model-selection uncertainty** | `onkos.combine`: law-of-total-variance split of a composed forecast into parameter (within) vs model-selection (between) variance; the `model_selection_fraction`; declared `equal`/`tier`/`evidence` combination weights with cross-scheme fragility; the model-averaged `S̄(t)` curve + between-model band; report ranks contexts by irreducible model-choice risk. | ✅ v0.21 |
 | **Practical identifiability** | `onkos.identify`: the design Fisher information + Cramér–Rao RSE + Brun collinearity index over the existing kernels; measures whether a realistic trial could estimate each parameter, pairs predicted RSE with stored IIV CV (flagging flat-likelihood-artifact CVs), and ranks models a realistic design cannot support; landmark-proven; cannot move a tier. | ✅ v0.22 |
 | **Combination interaction** | `onkos.interaction`: combines two single-agent effects under declared interaction nulls (HSA / additive-Bliss / Greco interaction index ψ) and propagates through the existing TGI → survival chain; the interaction model becomes a quantified model-selection axis with its own OS divergence; synergy is a *declared assumption*, never fitted; the Bliss≡additive identity is landmark-tested; cannot rank regimens or raise a tier. | ✅ v0.23 |
+| **Mechanistic resistance** | `two_population_resistance` kernel + record: the Goldie-Coldman sensitive/resistant two-clone model replaces the phenomenological decay-of-effect λ with an interpretable resistant burden `R0`; the resistance *mechanism* becomes a model-selection axis (phenomenological vs mechanistic), raising the NSCLC model-selection fraction 0.39 → 0.47; both compartments round-trip to SBML/NONMEM; landmark-tested; reveals that a week-8 OS surrogate is nearly blind to the resistance-model choice. | ✅ v0.24 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

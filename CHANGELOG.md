@@ -4,6 +4,46 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.24.0] — Mechanistic (two-population) resistance: the resistance model as a model-selection axis
+
+Implements the research-track spec `docs/specs/research/mechanistic-resistance.md`:
+resistance is the project's most load-bearing term (the λ "Hydra"), modeled until now
+only *phenomenologically* (the Claret decay-of-drug-effect, whose λ has no cellular
+referent and is ~90%-CV unidentifiable). This adds the *mechanistic* alternative and
+makes the choice between them a quantified model-selection axis.
+
+- New `two_population_resistance` reference kernel (Goldie-Coldman): a drug-**sensitive**
+  clone and a pre-existing drug-**resistant** clone, observed together as `V = S + R`
+  (`dS/dt = (kg − kd·E)·S`, `dR/dt = kgr·R`). The drug crushes the sensitive clone to a
+  nadir; the untouched resistant clone then outgrows — the mechanistic origin of
+  nadir-then-regrowth — and resistance is now a **biologically interpretable parameter**
+  (`R0`, the initial resistant burden) instead of an unidentifiable rate. Two compartments,
+  seeded via the existing multi-state `init_inputs` pattern; closed-form
+  `V(t) = V0·e^{(kg−kd·E)t} + R0·e^{kgr·t}`.
+- New dataset record `resistance.nsclc_first_line.two_population` (tier C), with the kill
+  potency `kd` matched to the Claret model so the contrast isolates the **resistance
+  mechanism** rather than an effect-scale difference. It joins the NSCLC first-line
+  divergence view automatically — two resistance mechanisms in one context — raising the
+  measured model-selection fraction **0.39 → 0.47** (the resistance-model axis is real
+  between-model risk). Citations: Foo & Michor 2014 (modern quantitative dynamics, the
+  record's primary) and Goldie-Coldman 1979 (the conceptual two-population origin, on `R0`).
+- **The honest finding:** tuned to share the early kill, the two models agree at week 8
+  (≈−87% vs −82%) and on the week-8-driven OS (median ≈94 vs ≈91 wk) yet diverge **≈5× in
+  the tumor tail** (≈74 vs ≈15 mm at 3 yr) — the short-trial-indistinguishable,
+  long-horizon-divergent failure mode — surfacing that a **week-8 OS surrogate is nearly
+  blind to the resistance-model choice** (the silent-transport risk).
+- Validated on both project axes: round-trip (SBML/NONMEM/rxode2/Pumas, both compartments,
+  added to `ODE_RECORDS`) and a 10-check landmark suite (`tests/test_two_population.py`):
+  the closed form, the `R0=0` reduction + eradication, the late-time log-slope → `kgr`
+  (resistant-clone dominance), the interior nadir, resistant-fraction monotonicity, the
+  untreated growth reduction, the divergence-axis integration, the D-floor on transport,
+  and — composing with v0.22 — that `R0` stays practically unidentifiable (mechanistic
+  does not mean measured).
+- Surfaces: reachable through the existing `simulate` / `compare` / `identify` / exports
+  (no new module); a clone-decomposition + resistance-divergence figure and
+  `notebooks/17_mechanistic_resistance.ipynb` (executed in CI); README section, roadmap,
+  kernel taxonomy, design-decisions row, and the refreshed NSCLC virtual-trial numbers.
+
 ## [0.23.0] — Drug-combination interaction: the interaction model as a model-selection axis
 
 Implements the research-track spec `docs/specs/research/combination-interaction.md`
