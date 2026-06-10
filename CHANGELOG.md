@@ -4,6 +4,38 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.38.0] — Model discriminability: can a trial even tell the competing models apart?
+
+Implements the research-track spec `docs/specs/research/model-discriminability.md`. The model-selection
+arc (v0.21–v0.37) quantified how much the survival forecast depends on the modeling choice; this closes
+the loop by asking whether a trial could ever resolve it. Given two models' population OS curves, the
+required events to distinguish them is a logrank power calculation — and when that runs to tens of
+thousands of events, the model choice is *practically unidentifiable from the trial*: it can only be
+assumed, not resolved by the data. The rigorous close of the divergence arc, and the model-level twin of
+`identify` (v0.22) and `design` (v0.31).
+
+- **New module `onkos.discriminability`** (pure post-processing — no new record, kernel, schema, or
+  export; every default artifact byte-identical). `required_events(HR)` is Schoenfeld's logrank formula
+  `d = 4(z_{1-α/2}+z_{1-β})²/(ln HR)²` (depends only on `|ln HR|`, diverges as HR→1).
+  `horizon_hazard_ratio` is the follow-up-horizon ratio of cumulative hazards (exact under PH).
+  `model_discriminability` runs it pairwise over a context's eligible TGI models and flags the pairs that
+  need an infeasible trial. The normal quantile uses `scipy.special.ndtri` (scipy already required).
+- **The finding — the silent risks are silent because they are unidentifiable.** For NSCLC under the
+  week-8 link, the resistance-model pairs (which diverge only in the regrowth tail) need **10⁴–10⁵ events**
+  to distinguish — Claret vs two-population ~11,800, acquired vs two-population ~27,000, Claret vs acquired
+  ~103,000 — all practically infeasible. The v0.24/v0.32 observation ("the week-8 surrogate is nearly blind
+  to the resistance-model choice") is now a number. By contrast the pairs that differ in early shrinkage
+  (vs the complete/minimal responder) need ~60–90 events, and the survival-metric swing (week-8 vs k_g,
+  same model) needs <500 — so the risk lives exactly in the trial's blind spot.
+- **11 landmarks** (`tests/test_discriminability.py`): the Schoenfeld benchmark (HR 0.5 → ~65 events),
+  HR↔1/HR symmetry, identical-curves-infinite, power/α monotonicity, the horizon-HR PH recovery, the
+  resistance-models-indistinguishable result, the detectable-metric contrast, and the tier/clinical-use
+  guardrails (infinite events serialize as `null`).
+- **CLI `onkos discriminability`** (the required-events table with feasibility verdicts); a curves +
+  required-events-heatmap figure (`docs/images/model_discriminability.png`); a CI-executed notebook
+  (`notebooks/31_model_discriminability.ipynb`); README section; public-API surface + contract test
+  extended. No new dataset records. 405 tests, 56 records.
+
 ## [0.37.0] — Early-surrogate readout timing: *when* you read the surrogate is a model-selection axis
 
 Implements the research-track spec `docs/specs/research/early-surrogate-timing.md`. The metric-choice work

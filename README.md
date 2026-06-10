@@ -387,6 +387,47 @@ the best design, and that the biexponential is fully identifiable. Pure post-pro
 the v0.22 Fisher core — no new kernel, record, or export. Design/population level only; cannot
 move a tier; no per-patient schedule, no dosing or therapy choice.
 
+### …and could a trial even tell the *models* apart? Model discriminability
+
+Parameter identifiability (above) asks whether a trial can pin a number *within* a model. The
+model-level twin asks whether a trial can choose *between* models: given two models' population
+OS curves, what trial would it take to distinguish them? `onkos.discriminability` answers it with
+the logrank power calculation — Schoenfeld's required events
+`d = 4(z_{1-α/2}+z_{1-β})²/(ln HR)²`, where HR is the follow-up-horizon hazard ratio between the
+curves. This is the rigorous close of the whole model-selection arc: when the answer is tens of
+thousands of events, the model choice is **practically unidentifiable from the trial** — it can
+only be assumed, not resolved by the data.
+
+![Required trial events to distinguish each model pair — the resistance choice is unidentifiable](docs/images/model_discriminability.png)
+
+The payload reframes the project's load-bearing idea. Under the week-8 OS surrogate (NSCLC, power
+0.8, α 0.05), the model pairs that diverge only in the regrowth **tail** — the resistance
+*mechanism* (Claret vs two-population, v0.24) and *origin* (acquired vs pre-existing, v0.32) —
+need **10⁴–10⁵ events** to distinguish (≈11,800, ≈27,000, ≈103,000); the pairs that differ in
+early **shrinkage** (vs the complete/minimal responder) need ~60–90. So:
+
+- **The silent model-selection risks are silent because they are unidentifiable.** The v0.24/v0.32
+  observation ("the week-8 surrogate is nearly blind to the resistance-model choice") is now a
+  number: distinguishing them would take an impossible trial. The choice can only be assumed —
+  with its tier and transportability attached, which is exactly the uncertainty Onkos makes
+  first-class.
+- **The risk lives in the trial's blind spot.** The consequences a surrogate-driven trial *can*
+  see (early shrinkage; the survival-metric swing, week-8 vs k_g, needs <500 events) are
+  identifiable; the tail-mechanism choice the surrogate is *blind* to is not.
+
+```python
+from onkos.discriminability import required_events, model_discriminability
+required_events(0.75)                              # events to distinguish a HR=0.75 difference
+md = onkos.model_discriminability(ds, context=ctx)
+md.n_indistinguishable                             # model pairs a realistic trial cannot resolve
+```
+
+Landmark-tested (`tests/test_discriminability.py`): the Schoenfeld benchmark (HR 0.5 → ~65
+events), HR↔1/HR symmetry, the horizon-HR proportional-hazards recovery, and the
+resistance-models-indistinguishable result. The model-level member of the identifiability family
+(`identify` v0.22, `design` v0.31). Pure post-processing over the OS curves; design/trial level
+only; cannot move a tier; no real trial designed, no recommendation.
+
 ### Two survival endpoints: OS and PFS
 
 The spec (§2, §6) calls for both **overall survival (OS)** and **progression-free
@@ -1102,6 +1143,7 @@ onkos.combine_effects(0.6, 0.6, model="greco", psi=0.5)   # the pure interaction
 | `onkos joint [--tumor-type --line --alpha]` | joint (current-value) vs two-stage survival — the non-proportional-hazard axis |
 | `onkos dose-response <id> [--c-ref --e-ref]` | exposure-response model choice as a dose-extrapolation model-selection axis |
 | `onkos early-surrogate [--tumor-type --line --reference-link]` | early-surrogate readout timing — landmark week vs durable-benefit fidelity |
+| `onkos discriminability [--tumor-type --line --survival-link]` | required trial events to distinguish the competing models (model identifiability) |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
 
 Export formats: `nonmem`, `sbml`, `pharmml`, `so` (PharmML Standard Output),
@@ -1721,6 +1763,7 @@ own thesis rather than adding breadth:
 | **Dose-level Loewe additivity** | `onkos.interaction` extension: combines two *doses* through the dose-response curves via the isobole `d_A/D_A(E)+d_B/D_B(E)=1`, beside the v0.23 effect-level nulls. The "no-interaction" **reference** is itself a model-selection axis — Loewe is the only one satisfying the sham-combination identity (a drug with itself is exactly additive), Bliss overstates (can exceed either drug's max effect), HSA understates. The same dose pair gives combined effect 0.90/1.07/1.60 and median OS 88/92/101 wk across HSA/Loewe/Bliss; the gap grows with dose. Pure post-processing over the curated ER curves (analytic inverses), no new record/kernel/export; reference declared not fitted; landmark-tested (sham identity exact); population level, no dose/therapy ranking. | ✅ v0.35 |
 | **ER-model dose-extrapolation** | `onkos.dose_response`: the upstream exposure-response model choice (Emax / power / sigmoid-Emax) as a model-selection axis. Re-anchors the shapes to agree at the studied dose, then quantifies how their effect — and OS — diverge off it: **0 at the studied dose** (control), ≈19 wk at quarter-dose, sharpest on **de-escalation** (the dose-finding question). The transportability thesis with the *dose* as the context. Pure post-processing over the curated ER shapes, no new record/kernel/export; shapes re-anchored not refit; landmark-tested; population level, no dose recommendation. | ✅ v0.36 |
 | **Early-surrogate timing** | `onkos.early_surrogate`: *when* the surrogate is read (the ctDNA push to week 2–4 vs RECIST week 8) as a model-selection axis orthogonal to *which* metric. ctDNA modeled as burden-proportional, so the axis is readout time. Discordance against a tail-aware durable-benefit ranking falls monotonically with the landmark (NSCLC **9/10 at week 2 → 3/10 at week 52**); early landmarks over-reward the deep-but-doomed resistance models the durable-benefit ranking puts last. Reproduces across 5 contexts. Pure post-processing, no new record/kernel/export; landmark grid declared; landmark-tested; population level, no go/no-go. | ✅ v0.37 |
+| **Model discriminability** | `onkos.discriminability`: the rigorous close of the model-selection arc — given two models' OS curves, the required trial events to distinguish them (Schoenfeld logrank, `d=4(z_α+z_β)²/(ln HR)²`). Under week-8 OS the resistance mechanism/origin pairs need **10⁴–10⁵ events** (Claret vs two-pop ~11.8k, vs acquired ~103k) — practically unidentifiable, so the silent model-selection risk can only be assumed, not resolved by data; early-shrinkage-distinct pairs need ~60–90. The model-level twin of `identify`/`design`. Pure post-processing over the OS curves, no new record/kernel/export; landmark-tested; design/trial level, no trial designed, no recommendation. | ✅ v0.38 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

@@ -535,6 +535,39 @@ def _cmd_interactions(args) -> int:
     return 0
 
 
+def _cmd_discriminability(args) -> int:
+    from .discriminability import model_discriminability
+
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    md = model_discriminability(ds, context=ctx, survival_link=args.survival_link,
+                                power=args.power, alpha=args.alpha)
+    if args.json:
+        print(md.to_json())
+        return 0
+    link = args.survival_link.split(".")[-1] if args.survival_link else "default week-8"
+    print(
+        f"tier={md.tier}  ({ctx}, link={link}, power={args.power}, alpha={args.alpha})\n"
+        f"  required events to distinguish each model pair's OS curves:\n"
+    )
+    for p in sorted(md.pairs, key=lambda x: x["required_events"]):
+        a = p["record_a"].split(".")[-1]
+        b = p["record_b"].split(".")[-1]
+        d = p["required_events"]
+        if not (d == d) or d == float("inf"):  # nan/inf
+            tag, ds_ = "INDISTINGUISHABLE", "inf"
+        else:
+            tag = "feasible" if d < 500 else ("large" if d < 3000 else "INFEASIBLE")
+            ds_ = f"{d:,.0f}"
+        print(f"  HR={p['hazard_ratio']:>5.2f}  events={ds_:>10}  {tag:<17} {a} vs {b}")
+    print(
+        f"\n  >> {md.n_indistinguishable}/{len(md.pairs)} model pairs are practically "
+        "indistinguishable (need an infeasible trial): the model choice cannot be resolved by "
+        "the data — only assumed. The silent model-selection risk, quantified in events."
+    )
+    return 0
+
+
 def _cmd_early_surrogate(args) -> int:
     from .early_surrogate import surrogate_timing_fidelity
 
@@ -904,6 +937,18 @@ def build_parser() -> argparse.ArgumentParser:
                      help="durable-benefit reference link (default: the context's k_g OS link)")
     esp.add_argument("--json", action="store_true", help="emit the result as JSON")
     esp.set_defaults(func=_cmd_early_surrogate)
+
+    dcp = sub.add_parser(
+        "discriminability",
+        help="model discriminability: required trial events to tell competing models apart",
+    )
+    dcp.add_argument("--tumor-type", default="NSCLC")
+    dcp.add_argument("--line", default="first")
+    dcp.add_argument("--survival-link", default=None, help="survival link (default: week-8)")
+    dcp.add_argument("--power", type=float, default=0.8)
+    dcp.add_argument("--alpha", type=float, default=0.05)
+    dcp.add_argument("--json", action="store_true", help="emit the result as JSON")
+    dcp.set_defaults(func=_cmd_discriminability)
 
     ep = sub.add_parser("export", help="generate export artifacts")
     ep.add_argument(

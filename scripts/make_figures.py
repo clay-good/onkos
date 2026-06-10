@@ -1510,6 +1510,78 @@ def burden_auc_figure() -> None:
     plt.close(fig)
 
 
+def model_discriminability_figure() -> None:
+    """Can a trial even tell the models apart? Left: the week-8-driven OS curves — the
+    resistance models (Claret / two-population / acquired) nearly overlap, while the complete
+    and minimal responders separate. Right: the required trial events to distinguish each
+    pair (log scale) — the resistance-model pairs need tens of thousands (practically
+    unidentifiable), the early-shrinkage-distinct pairs need ~60-90."""
+    from onkos.discriminability import horizon_hazard_ratio, required_events
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    t = np.linspace(0.0, 312.0, 625)
+    models = [
+        ("resistance.claret_2009.tgi", "Claret", "#c05621"),
+        ("resistance.nsclc_first_line.two_population", "two-pop", "#2f855a"),
+        ("resistance.nsclc_first_line.acquired", "acquired", "#b7791f"),
+        ("drug_effect.norton_simon.nsclc", "Norton", "#2b6cb0"),
+        ("tgi_metrics.wang_2009.biexponential", "Wang", "#6b46c1"),
+    ]
+    curves = {lab: onkos.simulate(ds, rid, context=ctx, drug_effect=1.0, t=t).os_curve
+              for rid, lab, _ in models}
+    labels = [lab for _, lab, _ in models]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.6))
+
+    # Left: OS curves (the resistance trio overlaps).
+    for _, lab, color in models:
+        ax1.plot(t, curves[lab], color=color, lw=1.8, label=lab)
+    ax1.axhline(0.5, ls=":", color="grey", lw=1)
+    ax1.text(120, 0.82, "Claret / two-pop / acquired\nnearly overlap → indistinguishable",
+             fontsize=7, color="#555")
+    ax1.set_title("week-8-driven OS: the resistance models nearly coincide", fontsize=9)
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("survival fraction")
+    ax1.set_ylim(0, 1.02)
+    ax1.legend(fontsize=7.5, loc="upper right")
+
+    # Right: required-events heatmap (log scale).
+    n = len(labels)
+    mat = np.full((n, n), np.nan)
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            mat[i, j] = required_events(horizon_hazard_ratio(curves[labels[i]], curves[labels[j]]))
+    logmat = np.log10(np.where(np.isfinite(mat), mat, np.nan))
+    im = ax2.imshow(logmat, cmap="RdYlGn_r", vmin=1.5, vmax=5.0)
+    ax2.set_xticks(range(n))
+    ax2.set_xticklabels(labels, fontsize=7.5, rotation=40, ha="right")
+    ax2.set_yticks(range(n))
+    ax2.set_yticklabels(labels, fontsize=7.5)
+    for i in range(n):
+        for j in range(n):
+            if i == j or not np.isfinite(mat[i, j]):
+                continue
+            d = mat[i, j]
+            txt = f"{d / 1000:.0f}k" if d >= 1000 else f"{d:.0f}"
+            ax2.text(j, i, txt, ha="center", va="center", fontsize=7,
+                     color="white" if logmat[i, j] > 3.2 else "black")
+    ax2.set_title("required events to distinguish (green feasible, red infeasible)", fontsize=8.5)
+    cbar = fig.colorbar(im, ax=ax2, fraction=0.046, pad=0.04)
+    cbar.set_label("log10(required events)", fontsize=8)
+
+    fig.suptitle(
+        "Model discriminability: under the week-8 OS surrogate the resistance mechanism / origin choice "
+        "needs 1e4-1e5 events to detect — practically unidentifiable, so it can only be assumed",
+        fontsize=8.8,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "model_discriminability.png", dpi=120)
+    plt.close(fig)
+
+
 def early_surrogate_timing_figure() -> None:
     """Readout TIMING is a model-selection axis. Left: the relative tumor-burden trajectories
     (the early-surrogate readout over time) — the deep-but-doomed resistance models are deepest
@@ -1777,4 +1849,5 @@ if __name__ == "__main__":
     loewe_additivity_figure()
     dose_response_extrapolation_figure()
     early_surrogate_timing_figure()
+    model_discriminability_figure()
     print(f"Wrote figures to {OUT}")

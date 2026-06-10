@@ -13,6 +13,12 @@ from .budget import Budget, model_selection_budget
 from .combine import ModelAverage
 from .compare import Comparison, compare
 from .design import OptimalDesign, optimal_schedule
+from .discriminability import (
+    ModelDiscriminability,
+    horizon_hazard_ratio,
+    model_discriminability,
+    required_events,
+)
 from .dose_response import (
     ExtrapolationComparison,
     calibrated_er,
@@ -110,6 +116,10 @@ __all__ = [
     "landmark_response",
     "surrogate_timing_fidelity",
     "SurrogateTiming",
+    "required_events",
+    "horizon_hazard_ratio",
+    "model_discriminability",
+    "ModelDiscriminability",
     "compare",
     "filter_records",
     "validate_dataset",

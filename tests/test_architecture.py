@@ -93,6 +93,7 @@ def test_public_api_surface_is_stable():
         "loewe_effect", "combine_doses", "compare_additivity_references",
         "calibrated_er", "compare_er_extrapolation",
         "landmark_response", "surrogate_timing_fidelity",
+        "required_events", "model_discriminability", "horizon_hazard_ratio",
         "build_report", "audit_tiers", "evidence_ceiling", "validate_dataset",
         "filter_records", "pk", "Dataset", "Trajectory", "Comparison",
     }
