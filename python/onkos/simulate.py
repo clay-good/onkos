@@ -222,7 +222,17 @@ def simulate(
         )
     for link in links:
         link_spec = get_kernel(link)
-        link_vals = _survival_vals(link, metrics["week8_relative_change"])
+        # Which on-treatment TGI metric drives this link's hazard. The default is the
+        # week-8 relative change (the early-shrinkage surrogate); a link may instead
+        # declare a tail-sensitive metric (e.g. the growth-rate constant k_g) via
+        # structure.link_metric — making "which metric predicts survival" an explicit
+        # model-selection axis. A metric that did not occur (e.g. k_g with no regrowth)
+        # is nan and maps to the no-effect covariate 0 (baseline hazard).
+        metric_key = link.structure.get("link_metric", "week8_relative_change")
+        x = metrics.get(metric_key, float("nan"))
+        if not np.isfinite(x):
+            x = 0.0
+        link_vals = _survival_vals(link, x)
         survival[_endpoint(link)] = np.asarray(link_spec.analytic(t, link_vals), dtype=float)
         contributing.append(link)
     os_curve = survival.get("OS")

@@ -322,6 +322,46 @@ cox = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx,
                      survival_link="survival_link.nsclc_os_cox")
 ```
 
+### Survival-metric choice — and how it can invert the answer
+
+The survival link reads *one* on-treatment number to drive its hazard, and that
+number has been a silent constant: the **week-8 change**, an early-shrinkage
+surrogate blind to everything after week 8. v0.25 makes the bridge metric a declared,
+swappable field (`structure.link_metric`, defaulting to the existing week-8 behavior)
+and adds the tail-sensitive **growth-rate-constant (`k_g`)** link — the Stein/Bruno
+quantity that out-discriminates early shrinkage for OS. This completes the v0.24
+finding (a week-8 surrogate barely sees the resistance-model tail divergence) and
+turns *which metric predicts survival* into an explicit model-selection axis.
+
+![Survival-metric choice: week-8 vs k_g, and the ranking inversion](docs/images/survival_metric_choice.png)
+
+The result is the sharpest in the project — the metric choice **inverts the answer**:
+
+- **The resistance-model ranking flips.** Under week-8 the *mechanistic* two-population
+  model looks better than the phenomenological Claret model (deeper early shrinkage:
+  median OS 94 vs 91); under `k_g` it looks worse (faster regrowth: 32 vs 39). Which
+  survival metric you assume decides which resistance model wins.
+- **The complete responder is undervalued by the surrogate.** Norton-Simon eradicates
+  the tumor (slow early shrinkage, no regrowth). Week-8 scores it mediocre (58, below
+  both resistance models); `k_g` — seeing no regrowth (mapped to the baseline hazard) —
+  correctly makes it the longest survivor (102). An early-shrinkage gate systematically
+  penalizes a slow-but-complete responder.
+
+```python
+default = onkos.simulate(ds, "resistance.nsclc_first_line.two_population", context=ctx)
+kg = onkos.simulate(ds, "resistance.nsclc_first_line.two_population", context=ctx,
+                    survival_link="survival_link.nsclc_os_growth_rate")
+default.median_os, kg.median_os    # the bridge metric re-ranks the resistance models
+```
+
+The change is near-zero code (the metric becomes a dataset field, default unchanged so
+no existing curve moves) plus one record, and is landmark-tested
+(`tests/test_survival_metric.py`): backward compatibility, the two inversions, and that
+an undefined `k_g` (no regrowth) maps to the baseline hazard — a finite best-case
+survival, never a nan curve. Onkos ships *both* metrics and shows they disagree; it does
+not declare a winner — making the field's surrogate-endpoint debate computable rather
+than rhetorical.
+
 ### Line of therapy — and line-aware survival matching
 
 The context library is indexed by tumor type **and line of therapy**. NSCLC now
@@ -1062,6 +1102,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | Linked data is validated by RDF expansion, not just emitted | A JSON file with `onkos:` keys is not automatically valid JSON-LD. Shipping a single `@context`, typing `isDescribedBy` as `@id`, and having CI expand the output with rdflib to check the triples means the machine-readability claim is enforced rather than assumed. |
 | OS and PFS share one mechanism (a tagged survival link), not two code paths | Both endpoints are Weibull-PH links on the same week-8 TGI metric, distinguished only by a `structure.endpoint` tag and their scale. `simulate` returns a curve per endpoint found for the context, so adding PFS needed data, not new kernels — and every analysis (divergence, uncertainty, sensitivity) works on either endpoint for free. |
 | The Cox link is non-default and opt-in, not an auto-selected competitor | Auto-discovery assumes one link per (context, endpoint). The Cox alternative carries `structure.default: false`, so it's reachable only via explicit `survival_link=` — turning "Weibull vs Cox" into a deliberate survival-model-choice comparison instead of a silent collision. Its tabulated baseline rides along in the vt-json / JSON-LD exports. |
+| The metric that bridges tumor dynamics to survival is a declared field, not a hidden constant | Every survival link consumed the week-8 change by default; making it `structure.link_metric` (default unchanged) exposes the most consequential surrogate choice in early oncology. Shipping a tail-sensitive `k_g` link beside it shows the choice can *invert* which model looks better — so Onkos surfaces the surrogate-endpoint debate rather than silently picking a side. An undefined metric (e.g. `k_g` with no regrowth) maps to the no-effect covariate (baseline hazard), never a fabricated or nan curve. |
 | The dashboard owns no logic — it renders a tested, serializable result | The virtual-trial result is a `Comparison.to_dict()/to_json()` the package builds and tests; the Streamlit file only draws it. That keeps the headline view honest (the same numbers everywhere), lets external simulators ingest the JSON, and means CI catches UI/API drift by lint + compile, not by screenshots. |
 | Confidence tiers are audited against evidence, not just hand-set | Spec §5 says tiers are "partly numeric." `onkos audit` derives the tier each clinical record's recorded external validation + IIV supports and fails `validate` on any inflation. A hand-set tier can't quietly over-claim — the honesty thesis applied to the honesty field itself. |
 | Survival matching is line-aware; an unsupported line yields no curve, not a borrowed one | The line of therapy is part of the context, so a second-line simulation must use second-line survival — matching only on tumor type would silently transport a 1L model. When no curated link exists for a line, the honest result is no survival curve, mirroring the no-fallback rule for tumor type. |
@@ -1136,6 +1177,7 @@ own thesis rather than adding breadth:
 | **Practical identifiability** | `onkos.identify`: the design Fisher information + Cramér–Rao RSE + Brun collinearity index over the existing kernels; measures whether a realistic trial could estimate each parameter, pairs predicted RSE with stored IIV CV (flagging flat-likelihood-artifact CVs), and ranks models a realistic design cannot support; landmark-proven; cannot move a tier. | ✅ v0.22 |
 | **Combination interaction** | `onkos.interaction`: combines two single-agent effects under declared interaction nulls (HSA / additive-Bliss / Greco interaction index ψ) and propagates through the existing TGI → survival chain; the interaction model becomes a quantified model-selection axis with its own OS divergence; synergy is a *declared assumption*, never fitted; the Bliss≡additive identity is landmark-tested; cannot rank regimens or raise a tier. | ✅ v0.23 |
 | **Mechanistic resistance** | `two_population_resistance` kernel + record: the Goldie-Coldman sensitive/resistant two-clone model replaces the phenomenological decay-of-effect λ with an interpretable resistant burden `R0`; the resistance *mechanism* becomes a model-selection axis (phenomenological vs mechanistic), raising the NSCLC model-selection fraction 0.39 → 0.47; both compartments round-trip to SBML/NONMEM; landmark-tested; reveals that a week-8 OS surrogate is nearly blind to the resistance-model choice. | ✅ v0.24 |
+| **Survival-metric choice** | `structure.link_metric` makes the on-treatment metric that drives a survival link a declared, swappable field (default unchanged); a non-default growth-rate-constant (`k_g`) OS link is added. Completes v0.24: the metric choice **inverts** the resistance-model ranking (two-pop > Claret under week-8; Claret > two-pop under `k_g`) and re-ranks a complete responder from last to first — making the surrogate-endpoint debate computable. Near-zero code; landmark-tested; the default is sacred. | ✅ v0.25 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

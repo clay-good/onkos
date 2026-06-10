@@ -4,6 +4,44 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.25.0] — Survival-metric choice: which TGI metric predicts OS is a model-selection axis
+
+Implements the research-track spec `docs/specs/research/survival-metric-choice.md`,
+completing the v0.24 finding. A composed forecast is `TGI model → on-treatment metric →
+survival link → OS`; the first and third arrows were already model-selection axes, but
+the bridge metric was a silent constant (the week-8 change, a shrinkage surrogate blind
+to the regrowth tail). This makes the bridge metric an explicit, swappable choice.
+
+- `simulate` reads `structure.link_metric` from a survival link (default
+  `"week8_relative_change"`, so **every existing curve is byte-identical**) and feeds that
+  metric as the hazard covariate. A metric that did not occur (e.g. the growth-rate
+  constant `k_g` for a tumor that never regrows) is `nan` and maps to the **no-effect
+  covariate `x=0`** (the baseline hazard) — a complete responder gets the best, not an
+  undefined, survival.
+- New non-default record `survival_link.nsclc_os_growth_rate` (Weibull-PH,
+  `link_metric: tumor_growth_rate_kg`, `default: false`): the tail-sensitive,
+  more-prognostic Stein/Bruno growth-rate link, opt-in via `survival_link=` exactly like
+  the Cox alternative (so *which metric* and *which baseline structure* are orthogonal
+  survival-model choices). Citation `stein-2008-grc`; recorded external C-index 0.69 vs
+  the week-8 link's 0.64 (k_g out-discriminates early shrinkage), but a better metric
+  cannot raise a tier.
+- **The sharp result — the metric choice inverts the answer** (illustrative NSCLC medians):
+  under week-8 the mechanistic two-population resistance model looks *better* than the
+  phenomenological Claret model (deeper early shrinkage, OS 94 vs 91); under `k_g` it looks
+  *worse* (faster regrowth, OS 32 vs 39) — the v0.24 tail divergence made decisive, and
+  pointing the other way. And the complete responder (Norton-Simon, eradication) is
+  undervalued by week-8 (OS 58, last) but correctly ranked first by `k_g` (OS 102) — an
+  early-shrinkage gate systematically penalizes a slow-but-complete responder.
+- Landmark-tested (`tests/test_survival_metric.py`, 7 checks): backward compatibility (a
+  link with no `link_metric` reads week-8; default curves unchanged), the metric materially
+  moves OS, the resistance-model ranking inversion, the complete-responder re-ranking, the
+  undefined-metric→baseline floor, non-default/opt-in behavior, and the D-floor on
+  out-of-context transport.
+- Surfaces: reachable through the existing `survival_link=` argument and the exports (no new
+  module or kernel); a week-8-vs-`k_g` figure with the inversion and
+  `notebooks/18_survival_metric_choice.ipynb` (executed in CI); README section + roadmap +
+  design-decisions row; report counts regenerated. Version bump to 0.25.0.
+
 ## [0.24.0] — Mechanistic (two-population) resistance: the resistance model as a model-selection axis
 
 Implements the research-track spec `docs/specs/research/mechanistic-resistance.md`:

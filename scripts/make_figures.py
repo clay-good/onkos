@@ -879,6 +879,52 @@ def two_population_resistance_figure() -> None:
     plt.close(fig)
 
 
+def survival_metric_choice_figure() -> None:
+    """Which on-treatment metric drives the OS link is a model-selection axis: the
+    early week-8 surrogate vs the tail-sensitive growth-rate constant k_g re-rank —
+    and invert — which model looks better."""
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    t = np.linspace(0.0, 260.0, 521)
+    models = [
+        ("resistance.claret_2009.tgi", "Claret (phenom. resistance)", "#c05621"),
+        ("resistance.nsclc_first_line.two_population", "two-population (mechanistic)", "#2f855a"),
+        ("drug_effect.norton_simon.nsclc", "Norton-Simon (complete responder)", "#2b6cb0"),
+        ("tgi_metrics.wang_2009.biexponential", "Wang biexponential", "#6b46c1"),
+    ]
+    kg_link = "survival_link.nsclc_os_growth_rate"
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4), sharey=True)
+
+    for rid, label, color in models:
+        w = onkos.simulate(ds, rid, context=ctx, drug_effect=1.0, t=t)            # week-8 link
+        g = onkos.simulate(ds, rid, context=ctx, drug_effect=1.0, t=t, survival_link=kg_link)
+        wm = f"{w.median_os:.0f}" if w.median_os else "n/r"
+        gm = f"{g.median_os:.0f}" if g.median_os else "n/r"
+        ax1.plot(t, w.os_curve, color=color, lw=1.8, label=f"{label}  (mOS {wm})")
+        ax2.plot(t, g.os_curve, color=color, lw=1.8, label=f"{label}  (mOS {gm})")
+
+    for ax, title in (
+        (ax1, "OS from week-8 change (default surrogate)"),
+        (ax2, "OS from growth-rate constant k_g (tail-sensitive)"),
+    ):
+        ax.axhline(0.5, ls=":", color="grey", lw=1)
+        ax.set_title(title, fontsize=9)
+        ax.set_xlabel("weeks")
+        ax.set_ylim(0, 1.02)
+        ax.legend(fontsize=7, loc="upper right")
+    ax1.set_ylabel("survival fraction")
+
+    fig.suptitle(
+        "Survival-metric choice is a model-selection axis: week-8 says two-population > Claret "
+        "and ranks the complete responder last; k_g inverts both",
+        fontsize=9.5,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "survival_metric_choice.png", dpi=120)
+    plt.close(fig)
+
+
 def kill_mechanism_figure() -> None:
     """Norton-Simon (kill ∝ growth) vs log-kill (Claret, kill ∝ size) mechanisms."""
     from onkos.export.registry import get_kernel, kernel_values
@@ -940,4 +986,5 @@ if __name__ == "__main__":
     identifiability_figure()
     combination_interaction_figure()
     two_population_resistance_figure()
+    survival_metric_choice_figure()
     print(f"Wrote figures to {OUT}")
