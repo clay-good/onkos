@@ -1602,7 +1602,7 @@ computational ground truth). Kernels come in three kinds:
 
 | Kind | What it computes | Kernels |
 | --- | --- | --- |
-| **ODE** | tumor-size dynamics `dV/dt` (closed form where one exists, else integrated) | `growth_exponential/logistic/gompertz`, `claret_tgi`, `norton_simon`, `biexp_tgi`, `two_population_resistance` (2-clone), `simeoni_exp_linear`, `simeoni_tgi` (4-state), `io_tumor_immune` (2-state) |
+| **ODE** | tumor-size dynamics `dV/dt` (closed form where one exists, else integrated) | `growth_exponential/logistic/gompertz/von_bertalanffy`, `claret_tgi`, `norton_simon`, `biexp_tgi`, `two_population_resistance` (2-clone), `acquired_resistance` (2-clone), `simeoni_exp_linear`, `simeoni_tgi` (4-state), `io_tumor_immune` (2-state) |
 | **survival** | population survival `S(t \| x)` from a TGI metric | `survival_weibull_ph` (parametric), `survival_cox_ph` (nonparametric baseline) |
 | **transform** | algebraic map (exposure → effect, or in-vitro → in-vivo) | `er_emax`, `er_sigmoid_emax`, `er_power`, `ivive_power` |
 
@@ -1614,6 +1614,14 @@ flowchart LR
     ANN["annotate — clinicalUse=PROHIBITED · tier · DOI RDF · predictionStatus"] --> B
     REF -. "round-trip: analytic↔ODE (1e-4) · MathML↔rhs per state (1e-6) · cross-format" .-> B
 ```
+
+The unperturbed growth-law family (spec §2) is complete: exponential, logistic, Gompertz,
+Simeoni (exp→linear), and **von Bertalanffy** (`dV/dt = a·V^(2/3) − b·V` — surface-limited
+proliferation minus volume loss, sub-exponential to a carrying capacity `V∞ = (a/b)³`). The
+laws are distinguished by their *specific growth rate* `(1/V)dV/dt` signature — the
+analytically-derivable landmark each kernel must reproduce.
+
+![The growth-law family, completed with von Bertalanffy](docs/images/growth_laws.png)
 
 ### Round-trip validation — why exports cannot lie
 
@@ -1803,6 +1811,7 @@ own thesis rather than adding breadth:
 | **Early-surrogate timing** | `onkos.early_surrogate`: *when* the surrogate is read (the ctDNA push to week 2–4 vs RECIST week 8) as a model-selection axis orthogonal to *which* metric. ctDNA modeled as burden-proportional, so the axis is readout time. Discordance against a tail-aware durable-benefit ranking falls monotonically with the landmark (NSCLC **9/10 at week 2 → 3/10 at week 52**); early landmarks over-reward the deep-but-doomed resistance models the durable-benefit ranking puts last. Reproduces across 5 contexts. Pure post-processing, no new record/kernel/export; landmark grid declared; landmark-tested; population level, no go/no-go. | ✅ v0.37 |
 | **Model discriminability** | `onkos.discriminability`: the rigorous close of the model-selection arc — given two models' OS curves, the required trial events to distinguish them (Schoenfeld logrank, `d=4(z_α+z_β)²/(ln HR)²`). Under week-8 OS the resistance mechanism/origin pairs need **10⁴–10⁵ events** (Claret vs two-pop ~11.8k, vs acquired ~103k) — practically unidentifiable, so the silent model-selection risk can only be assumed, not resolved by data; early-shrinkage-distinct pairs need ~60–90. The model-level twin of `identify`/`design`. Pure post-processing over the OS curves, no new record/kernel/export; landmark-tested; design/trial level, no trial designed, no recommendation. | ✅ v0.38 |
 | **Model-selection atlas** (synthesis) | `onkos.atlas`: a declarative registry (`AXES`) of every model-selection axis + a one-call per-context survey reporting each axis's native headline — the synthesis layer over eighteen versions. NSCLC OS-swing leaderboard: survival structure ~108 wk > metric ~97 > TGI model ~41 > ER shape ~22; plus the detectability axes (8/10 early-misranked, 4/10 indistinguishable). Deliberately a survey, not a decomposition (`comparable=False`, points to the budget). Pure orchestration, no new record/kernel/export; landmark-tested. Ships with a housekeeping doc-drift fix (architecture diagram + repo layout refreshed). | ✅ v0.39 |
+| **Von Bertalanffy growth** | `growth_von_bertalanffy` kernel + record completes the spec §2 growth-law family. Surface-area-limited `dV/dt = a·V^(2/3) − b·V` (closed form via `u=V^(1/3)`), sub-exponential to `V∞=(a/b)³`. First kernel with a fractional-power `rhs_infix`, exercising the MathML `power` round-trip. Scientific-landmark-validated (carrying capacity, surface-limited inflection below `V∞/2`, monotone-falling specific rate). A different *kind* of work — a first-class reference kernel, not an analysis axis. | ✅ v0.40 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

@@ -19,6 +19,7 @@ ANALYTIC_RECORDS = [
     "growth_laws.exponential",
     "growth_laws.logistic",
     "growth_laws.gompertz",
+    "growth_laws.von_bertalanffy",
     "resistance.claret_2009.tgi",
     "tgi_metrics.wang_2009.biexponential",
     "drug_effect.norton_simon.nsclc",

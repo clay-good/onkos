@@ -65,6 +65,43 @@ def test_gompertz_inflection_at_vmax_over_e():
     assert np.isclose(argmax, peak, rtol=2e-3)
 
 
+def test_von_bertalanffy_carrying_capacity_and_inflection():
+    """Von Bertalanffy growth dV/dt = a*V^(2/3) - b*V is stationary at the carrying
+    capacity V_inf = (a/b)^3, and (being surface-limited) its growth rate peaks at the
+    published inflection V_inf*(2/3)^3 = (2a/3b)^3 — strictly below Vmax/2, unlike logistic."""
+    s = KERNELS["growth_von_bertalanffy"]
+    a, b = 0.2924, 0.05
+    v = {"a": a, "b": b}
+
+    def rate(V):
+        return s.rhs(0.0, [V], v)[0]
+
+    v_inf = (a / b) ** 3
+    assert np.isclose(v_inf, 200.0, rtol=1e-3)  # the record's illustrative carrying capacity
+    assert np.isclose(rate(v_inf), 0.0, atol=1e-9)  # stationary at carrying capacity (exact)
+
+    # the absolute growth rate peaks at (2a/3b)^3 (where d/dV[a V^2/3 - bV] = 0)
+    peak = (2.0 * a / (3.0 * b)) ** 3
+    grid = np.linspace(1.0, v_inf - 1.0, 4000)
+    argmax = grid[int(np.argmax([rate(V) for V in grid]))]
+    assert np.isclose(argmax, peak, rtol=3e-3)
+    assert peak < v_inf / 2  # surface-limited: inflection below the logistic half-capacity
+
+
+def test_von_bertalanffy_is_sub_exponential():
+    """The specific growth rate (1/V)dV/dt = a*V^(-1/3) - b falls monotonically with size —
+    growth is sub-exponential from the first cell, the defining surface-limited behavior."""
+    s = KERNELS["growth_von_bertalanffy"]
+    v = {"a": 0.2924, "b": 0.05}
+
+    def specific_rate(V):
+        return s.rhs(0.0, [V], v)[0] / V
+
+    sizes = [5.0, 25.0, 75.0, 150.0]
+    rates = [specific_rate(V) for V in sizes]
+    assert all(rates[i] > rates[i + 1] for i in range(len(rates) - 1))
+
+
 # --- drug-effect / TGI -----------------------------------------------------
 
 

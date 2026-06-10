@@ -1641,6 +1641,65 @@ def model_selection_atlas_figure() -> None:
     plt.close(fig)
 
 
+def growth_laws_figure() -> None:
+    """The unperturbed growth-law family (spec §2), now complete with von Bertalanffy. Left:
+    each law from the same baseline — exponential runs away; logistic/Gompertz/von Bertalanffy
+    saturate at a carrying capacity by different routes. Right: the specific growth rate
+    (1/V)dV/dt vs size — the signature that separates the laws (exponential flat; von
+    Bertalanffy surface-limited, falling as V^(-1/3) from the first cell)."""
+    from onkos.export.registry import get_kernel, kernel_values
+
+    ds = onkos.load()
+    V0, Vmax = 10.0, 200.0
+    t = np.linspace(0.0, 160.0, 321)
+    laws = [
+        ("growth_laws.exponential", "exponential", "#c53030"),
+        ("growth_laws.logistic", "logistic", "#2b6cb0"),
+        ("growth_laws.gompertz", "Gompertz", "#6b46c1"),
+        ("growth_laws.von_bertalanffy", "von Bertalanffy (new)", "#2f855a"),
+    ]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    for rid, label, color in laws:
+        spec = get_kernel(ds[rid])
+        v = kernel_values(ds[rid])
+        v["V0"] = V0
+        lw = 2.2 if "bertalanffy" in rid else 1.7
+        ax1.plot(t, spec.analytic(t, v), color=color, lw=lw, label=label)
+    ax1.axhline(Vmax, ls=":", color="grey", lw=1)
+    ax1.text(3, Vmax + 4, "carrying capacity V∞ = 200", fontsize=7, color="grey")
+    ax1.set_title("unperturbed growth from a common baseline", fontsize=9)
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("tumor size (mm)")
+    ax1.set_ylim(0, 260)
+    ax1.legend(fontsize=8, loc="center right")
+
+    # Right: specific growth rate (1/V) dV/dt vs size — the discriminating signature.
+    sizes = np.linspace(2.0, Vmax * 0.98, 300)
+    for rid, label, color in laws:
+        spec = get_kernel(ds[rid])
+        v = kernel_values(ds[rid])
+        lw = 2.2 if "bertalanffy" in rid else 1.7
+        sr = [spec.rhs(0.0, [V], v)[0] / V for V in sizes]
+        ax2.plot(sizes, sr, color=color, lw=lw, label=label)
+    ax2.axhline(0.0, ls="-", color="black", lw=0.5)
+    ax2.set_title("specific growth rate (1/V)·dV/dt vs size — the law's signature", fontsize=9)
+    ax2.set_xlabel("tumor size (mm)")
+    ax2.set_ylabel("specific growth rate (1/week)")
+    ax2.set_ylim(-0.01, 0.16)
+    ax2.legend(fontsize=8, loc="upper right")
+
+    fig.suptitle(
+        "The growth-law family (spec §2), completed with von Bertalanffy: surface-limited proliferation "
+        "(a·V^⅔) minus volume loss (b·V) → sub-exponential growth to V∞ = (a/b)³",
+        fontsize=9.0,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "growth_laws.png", dpi=120)
+    plt.close(fig)
+
+
 def early_surrogate_timing_figure() -> None:
     """Readout TIMING is a model-selection axis. Left: the relative tumor-burden trajectories
     (the early-surrogate readout over time) — the deep-but-doomed resistance models are deepest
@@ -1910,4 +1969,5 @@ if __name__ == "__main__":
     early_surrogate_timing_figure()
     model_discriminability_figure()
     model_selection_atlas_figure()
+    growth_laws_figure()
     print(f"Wrote figures to {OUT}")

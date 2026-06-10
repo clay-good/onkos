@@ -4,6 +4,31 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.40.0] — Von Bertalanffy growth: completing the spec §2 growth-law family
+
+Implements the research-track spec `docs/specs/research/von-bertalanffy-growth.md`. Spec §2's declared
+growth-law envelope — exponential, logistic, Gompertz, Simeoni exp→linear, **von Bertalanffy /
+power-law** — had a hole: the last was missing. This fills it with the canonical surface-area-limited
+model, a different *kind* of work from the model-selection-analysis arc: a first-class reference kernel,
+not a post-processing axis.
+
+- **New kernel `growth_von_bertalanffy`** — `dV/dt = a·V^(2/3) − b·V` (proliferation scales with the
+  tumor surface, loss with volume). The substitution `u = V^(1/3)` linearizes it to the closed form
+  `V(t) = (c + (V0^(1/3) − c)·e^(−bt/3))³`, `c = a/b = V∞^(1/3)`. Carrying capacity `V∞ = (a/b)³`;
+  sub-exponential from the first cell. **First kernel whose `rhs_infix` uses a fractional power**
+  (`V^(2/3)`), exercising the SBML MathML `power` round-trip path. Round-trip validated (analytic↔ODE,
+  MathML per state, NONMEM/rxode2/Pumas/SO) like every ODE kernel.
+- **New record `growth_laws.von_bertalanffy`** (`a = 0.2924`, `b = 0.05` → `V∞ ≈ 200`), tier B,
+  `unverified`; added to `ANALYTIC_RECORDS` in the round-trip suite.
+- **Scientific-landmark validation** (`tests/test_landmarks.py`): stationary at `V∞ = (a/b)³` (exact);
+  the absolute growth rate peaks at the surface-limited inflection `(2/3)³·V∞`, strictly below the
+  logistic `V∞/2`; the specific growth rate `a·V^(−1/3) − b` falls monotonically with size
+  (sub-exponential). 2 new landmarks.
+- **Surfaces.** A growth-law-family comparison figure (`docs/images/growth_laws.png` — the four laws
+  from a common baseline + their discriminating specific-growth-rate signatures) and a CI-executed
+  notebook (`notebooks/33_growth_laws.ipynb`); README kernel-taxonomy update. No new module or CLI
+  command (a growth law is exercised through the existing simulate/export paths). 420 tests, 57 records.
+
 ## [0.39.0] — The model-selection atlas: one index and one survey of every axis (+ housekeeping)
 
 Implements the research-track spec `docs/specs/research/model-selection-atlas.md`. Eighteen versions

@@ -163,6 +163,23 @@ def _gompertz_rhs(t, y, v):
 
 
 # ----------------------------------------------------------------------------
+# Von Bertalanffy (surface-area-limited) growth: dV/dt = a*V^(2/3) - b*V.
+# Proliferation scales with the tumor SURFACE (V^2/3, nutrient/oxygen access at
+# the rim) while loss scales with VOLUME (V) — the classic ontogenetic-growth
+# law. Carrying capacity V_inf = (a/b)^3 (where dV/dt = 0). The substitution
+# u = V^(1/3) linearizes it (du/dt = (a - b*u)/3), giving the closed form below.
+# ----------------------------------------------------------------------------
+def _von_bertalanffy_analytic(t, v):
+    V0, a, b = v["V0"], v["a"], v["b"]
+    c = a / b  # = V_inf^(1/3)
+    return (c + (V0 ** (1.0 / 3.0) - c) * np.exp(-b * t / 3.0)) ** 3
+
+
+def _von_bertalanffy_rhs(t, y, v):
+    return [v["a"] * y[0] ** (2.0 / 3.0) - v["b"] * y[0]]
+
+
+# ----------------------------------------------------------------------------
 # Claret 2009 clinical TGI: dy/dt = kL*y - kD*E*exp(-lam*t)*y
 # ----------------------------------------------------------------------------
 def _claret_analytic(t, v):
@@ -377,6 +394,17 @@ KERNELS: dict[str, KernelSpec] = {
         analytic=_gompertz_analytic,
         rhs=_gompertz_rhs,
         rhs_infix={"tumor_size": "kg * tumor_size * ln(Vmax / tumor_size)"},
+    ),
+    "growth_von_bertalanffy": KernelSpec(
+        name="growth_von_bertalanffy",
+        kind="ode",
+        states=["tumor_size"],
+        params=["a", "b"],
+        record_symbols=["a", "b"],
+        inputs=["V0"],
+        analytic=_von_bertalanffy_analytic,
+        rhs=_von_bertalanffy_rhs,
+        rhs_infix={"tumor_size": "a * tumor_size ** (2 / 3) - b * tumor_size"},
     ),
     "claret_tgi": KernelSpec(
         name="claret_tgi",
