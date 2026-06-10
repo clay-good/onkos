@@ -192,7 +192,7 @@ parameter noise a bigger trial would shrink — and the **single largest compone
 model×link interaction** (the v0.25 inversion, that the survival metric flips which TGI
 model wins, *is* an interaction term, and it dominates). The survival-link axis (~24%)
 outweighs the tumor-growth-model axis (~12%) everyone argues about. Across contexts the
-budget ranks where standardization buys the most: 4 of 6 are structure-dominated, and it
+budget ranks where standardization buys the most: 5 of 6 are structure-dominated, and it
 flags the contexts with only one survival link, where the survival-model axis is not even
 cross-checked.
 
@@ -496,6 +496,37 @@ response_episode[0]`), the closed-form DoR, censoring of durable responses, the 
 durability dissociation, and that the k_g-discordant (highest-ORR) model is the
 short-DoR one — durability tracks survival where breadth inverts it. Population/trial level
 only, no individual duration, no therapy ranking.
+
+### Cross-context generalization — the findings are not NSCLC artifacts
+
+Every result above was first demonstrated on **NSCLC first line**. The natural question is
+whether they generalize or are artifacts of one tumor type's illustrative parameters. v0.29
+answers it: each other curated solid-tumor context (breast, CRC, HCC, melanoma) is given the
+**same two pieces** NSCLC had — a mechanistic **two-population** resistance model (universal
+response, but a fast resistant regrowth → broad-but-brief) and a non-default tail-sensitive
+**`k_g` OS link** — and every NSCLC-only finding reappears, unchanged in direction, across
+all five contexts.
+
+![Cross-context generalization: the surrogate and budget findings reproduce across tumors](docs/images/cross_context_generalization.png)
+
+| Context (1L) | ORR→OS under week-8 | ORR→OS under `k_g` | budget survival-link share | dominant axis |
+| --- | --- | --- | --- | --- |
+| NSCLC | concordant (0/6) | **discordant** (4/6) | 24% | model×link interaction |
+| breast | concordant (0/3) | **discordant** (2/3) | 72% | survival-link |
+| CRC | concordant (0/3) | **discordant** (2/3) | 52% | survival-link |
+| HCC | concordant (0/3) | **discordant** (3/3) | 21% | parameter |
+| melanoma | concordant (0/3) | **discordant** (2/3) | 54% | survival-link |
+
+In every context the two-population model has the **highest ORR but the shortest DoR**
+(depth ≠ durability), the **worst** OS under the tail-sensitive `k_g` link (so ORR — faithful
+under the week-8 surrogate — **mis-ranks** OS), and the budget's **survival-link axis is now
+real** (often the dominant structural axis). The model-selection budget report now flags
+**5 of 6 contexts as structure-dominated** (was 4/6, with the survival-link axis empty for
+the non-NSCLC contexts). CI enforces the generalization (`tests/test_response.py`,
+`tests/test_budget.py`): the resistance-mechanism divergence, the conditional ORR→OS
+surrogacy, the depth-vs-durability dissociation, and the budget's survival-link axis are
+**dataset-wide**, not an NSCLC demo. The new records are illustrative and tier C — this
+generalizes the *structural findings*, not validated per-tumor parameters.
 
 ### Line of therapy — and line-aware survival matching
 
@@ -952,18 +983,21 @@ links, so every supported tumor type carries:
 
 - a **baseline** (`tumor_type_baselines.*`) — baseline SLD `y0` and unperturbed
   growth, supplying the simulation's initial conditions;
-- a **survival link** (`survival_link.*_os_week8`) — a tumor-specific Weibull-PH
-  OS model whose scale reflects that indication's baseline prognosis;
-- **≥2 eligible TGI models** (a Claret resistance form + a biexponential form),
-  so model-selection risk is measurable rather than hypothetical.
+- a **survival link** (`survival_link.*_os_week8`, plus a non-default tail-sensitive
+  `*_os_growth_rate` k_g link since v0.29) — a tumor-specific Weibull-PH OS model
+  whose scale reflects that indication's baseline prognosis;
+- **3 eligible TGI models** (a Claret phenomenological-resistance form, a
+  biexponential form, and a mechanistic two-population resistance form), so
+  model-selection risk — and the resistance-*mechanism* axis — is measurable in
+  every context, not just NSCLC.
 
 | Context (1L) | baseline SLD | OS scale (wk) | eligible TGI models | OS divergence |
 | --- | --- | --- | --- | --- |
-| NSCLC | 80 mm | 60 | Claret 2009 · Wang 2009 biexp | 0.25 |
-| breast | 55 mm | 130 | breast Claret · Bruno 2020 biexp | 0.16 |
-| CRC | 90 mm | 95 | CRC Claret (capecitabine) · CRC biexp | 0.26 |
-| HCC | 110 mm | 48 | HCC Claret · HCC biexp | 0.33 |
-| melanoma | 60 mm | 85 | melanoma Claret · melanoma biexp | 0.25 |
+| NSCLC | 80 mm | 60 | Claret 2009 · Wang biexp · two-population · (+Norton-Simon) | 0.26 |
+| breast | 55 mm | 130 | breast Claret · Bruno biexp · two-population | 0.13 |
+| CRC | 90 mm | 95 | CRC Claret · CRC biexp · two-population | 0.25 |
+| HCC | 110 mm | 48 | HCC Claret · HCC biexp · two-population | 0.35 |
+| melanoma | 60 mm | 85 | melanoma Claret · melanoma biexp · two-population | 0.25 |
 
 ![Tumor-context library](docs/images/context_library.png)
 
@@ -1332,6 +1366,7 @@ own thesis rather than adding breadth:
 | **Model-selection budget** (capstone) | `onkos.budget`: a balanced two-way variance-component decomposition (ANOVA / first-order Sobol over the structural factors) puts every structural choice on one ledger — `Var(Q) = WITHIN(parameter) + V_model + V_link + V_inter` — naming the dominant axis (where standardization buys the most). Strict generalization of the v0.21 split (collapse factor B to recover it); landmark-proven. Capstone finding: ~68% of the NSCLC OS forecast is irreducible structural risk and the model×link interaction dominates. Report ranks contexts by structure- vs parameter-dominance. | ✅ v0.26 |
 | **RECIST response & ORR surrogacy** | `onkos.response`: RECIST 1.1 best response (`CR/PR/SD/PD`) → population ORR / DCR over the IIV ensemble — the dominant phase-2 endpoint, previously absent. `response_vs_survival` reads ORR and OS off the same trial and counts discordant model pairs, showing the ORR → OS surrogate is **conditional on the survival mechanism**: faithful under the week-8 link (0/6), inverted under the `k_g` link (4/6, the high-responder has the shortest OS). Pure post-processing; landmark-tested; population level, no therapy ranking. | ✅ v0.27 |
 | **Duration of response** | `response_episode` returns best response *and* DoR from one trajectory; ORR (breadth) gains median DoR (durability) over the ensemble with honest right-censoring. Depth ≠ durability: the highest-ORR NSCLC model has the *shortest* DoR, the mechanism of the v0.27 surrogate failure (broad but brief responses → worst tail-driven OS). Pure post-processing; landmark-tested; population level. | ✅ v0.28 |
+| **Cross-context generalization** (breadth) | A mechanistic two-population model + a tail-sensitive `k_g` OS link added to breast, CRC, HCC, melanoma (8 records). The resistance-mechanism divergence, the budget's survival-link axis, the conditional ORR→OS surrogacy, and depth≠durability all **reproduce across five solid-tumor contexts** — CI-enforced (`tests/test_response.py`, `tests/test_budget.py`). 5/6 contexts now structure-dominated. Turns four single-context demos into a dataset-wide claim. | ✅ v0.29 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

@@ -4,6 +4,38 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.29.0] — Cross-context generalization: the findings are not NSCLC artifacts
+
+Implements the research-track spec `docs/specs/research/cross-context-generalization.md`,
+a *breadth* release. The project's headline findings — the resistance-mechanism divergence
+axis (v0.24), the model-selection budget's survival-link axis (v0.26), the conditional
+ORR → OS surrogate (v0.27), and depth ≠ durability (v0.28) — were all demonstrated only on
+NSCLC first line. This gives the four other curated solid-tumor contexts the same two pieces
+NSCLC had and shows every finding reproduces.
+
+- **8 new dataset records** — for breast, CRC, HCC, and melanoma first line: a mechanistic
+  **two-population** resistance model (`resistance.<tt>_first_line.two_population`, kd
+  matched to that context's Claret model, resistant growth `kgr` set faster than the
+  sensitive growth → universal response but a fast resistant regrowth) and a non-default
+  tail-sensitive **`k_g` OS link** (`survival_link.<tt>_os_growth_rate`, calibrated per
+  context). Tier C, illustrative, `unverified`; existing citations. Each first-line context
+  goes from a 2-model / 1-link layout to 3 models / 2 links.
+- **Every NSCLC-only finding reproduces across all five contexts:** the two-population model
+  has the highest ORR but the shortest DoR (depth ≠ durability); under the tail-sensitive
+  `k_g` link it has the worst OS, so ORR — faithful under the week-8 surrogate (0 discordant
+  pairs) — **mis-ranks** OS (2/3 or 3/3 discordant); and the budget's survival-link axis is
+  now real (24–72% of forecast variance, the dominant axis in three of the four new
+  contexts). The model-selection-budget report now flags **5 / 6 contexts as
+  structure-dominated** (was 4/6).
+- **CI-enforced generalization:** `tests/test_response.py` asserts the ORR-surrogate is
+  concordant under week-8 and discordant under `k_g` in every first-line solid-tumor
+  context; `tests/test_budget.py` asserts every such context has ≥2 OS links and a populated
+  `v_link` (and the single-link control moved to NSCLC second line). A cross-context figure
+  and `notebooks/22_cross_context_generalization.ipynb` (executed in CI).
+- No new methodology, kernel, or module — pure curated content over the v0.24–v0.28 machinery.
+  README states the findings as dataset-wide with a per-context table; the tumor-context
+  library, budget, and divergence figures/numbers are refreshed. Version 0.29.0 (54 records).
+
 ## [0.28.0] — Duration of response: depth is not durability
 
 Implements the research-track spec `docs/specs/research/duration-of-response.md`,

@@ -1143,6 +1143,63 @@ def duration_of_response_figure() -> None:
     plt.close(fig)
 
 
+def cross_context_generalization_figure() -> None:
+    """The headline findings are not NSCLC artifacts: the ORR->OS surrogate inversion and
+    the budget's survival-link axis reproduce across five solid-tumor contexts."""
+    from onkos.budget import model_selection_budget
+    from onkos.response import response_vs_survival
+
+    ds = onkos.load()
+    contexts = ["NSCLC", "breast", "CRC", "HCC", "melanoma"]
+    t = np.linspace(0.0, 312.0, 625)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    # Left: ORR->OS discordant fraction, week-8 (faithful) vs k_g (inverted), per context.
+    w_disc, k_disc = [], []
+    for tt in contexts:
+        ctx = {"tumor_type": tt, "line": "first"}
+        kg = f"survival_link.{tt.lower()}_os_growth_rate"
+        w_disc.append(response_vs_survival(ds, context=ctx, t=t, n=200).discordant_fraction)
+        k_disc.append(response_vs_survival(ds, context=ctx, survival_link=kg, t=t, n=200)
+                      .discordant_fraction)
+    x = np.arange(len(contexts))
+    ax1.bar(x - 0.2, w_disc, 0.4, color="#2b6cb0", label="week-8 link (shrinkage surrogate)")
+    ax1.bar(x + 0.2, k_disc, 0.4, color="#c53030", label="k_g link (tail-sensitive)")
+    ax1.set_xticks(x, contexts, fontsize=8)
+    ax1.set_ylim(0, 1.05)
+    ax1.set_ylabel("ORR→OS discordant fraction")
+    ax1.set_title("ORR→OS surrogate inverts under k_g — in every context", fontsize=9)
+    ax1.legend(fontsize=7, loc="upper left")
+
+    # Right: model-selection budget — the survival-link axis, empty before v0.29, now real.
+    vlink, vstruct = [], []
+    for tt in contexts:
+        b = model_selection_budget(ds, context={"tumor_type": tt, "line": "first"},
+                                   endpoint="OS", n=120)
+        vlink.append(b.fractions["survival_link"])
+        vstruct.append(b.structural_fraction)
+    ax2.bar(x, vstruct, 0.6, color="#e2e8f0", label="all structural choices")
+    ax2.bar(x, vlink, 0.6, color="#2f855a", label="survival-link axis (new in v0.29)")
+    ax2.axhline(0.5, ls=":", color="grey", lw=1)
+    for i, v in enumerate(vlink):
+        ax2.text(i, vstruct[i] + 0.02, f"{v * 100:.0f}%", ha="center", fontsize=8, color="#2f855a")
+    ax2.set_xticks(x, contexts, fontsize=8)
+    ax2.set_ylim(0, 1.05)
+    ax2.set_ylabel("share of forecast variance")
+    ax2.set_title("Budget survival-link axis now populated across tumors", fontsize=9)
+    ax2.legend(fontsize=7, loc="upper right")
+
+    fig.suptitle(
+        "Cross-context generalization (v0.29): the resistance-mechanism, surrogate, and "
+        "budget findings reproduce across five solid-tumor contexts — not NSCLC artifacts",
+        fontsize=9.5,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "cross_context_generalization.png", dpi=120)
+    plt.close(fig)
+
+
 def kill_mechanism_figure() -> None:
     """Norton-Simon (kill ∝ growth) vs log-kill (Claret, kill ∝ size) mechanisms."""
     from onkos.export.registry import get_kernel, kernel_values
@@ -1208,4 +1265,5 @@ if __name__ == "__main__":
     model_selection_budget_figure()
     response_orr_figure()
     duration_of_response_figure()
+    cross_context_generalization_figure()
     print(f"Wrote figures to {OUT}")

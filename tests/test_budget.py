@@ -137,10 +137,23 @@ def test_budget_tier_is_worst_included_and_carries_clinical_use():
 
 
 def test_single_link_context_flags_and_zeroes_v_link():
-    """A context with one OS survival link reduces to the v0.21 split and is flagged."""
+    """A context with one OS survival link reduces to the v0.21 split and is flagged.
+    NSCLC second line still has a single OS link (the first-line solid-tumor contexts now
+    carry both a week-8 and a k_g link)."""
     ds = onkos.load()
-    b = model_selection_budget(ds, context={"tumor_type": "breast", "line": "first"},
+    b = model_selection_budget(ds, context={"tumor_type": "NSCLC", "line": "second"},
                                endpoint="OS", n=60)
     assert len(b.links) == 1
     assert np.isclose(b.v_link, 0.0) and np.isclose(b.v_inter, 0.0)
     assert any("single_survival_link" in w for w in b.warnings)
+
+
+def test_first_line_solid_tumor_contexts_now_populate_the_survival_link_axis():
+    """v0.29 breadth: each first-line solid-tumor context now carries ≥2 OS survival
+    links, so the budget's survival-link axis (v_link) is real across the dataset."""
+    ds = onkos.load()
+    for tt in ("NSCLC", "breast", "CRC", "HCC", "melanoma"):
+        b = model_selection_budget(ds, context={"tumor_type": tt, "line": "first"},
+                                   endpoint="OS", n=60)
+        assert len(b.links) >= 2, tt
+        assert b.v_link > 0.0, tt

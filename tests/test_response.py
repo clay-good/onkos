@@ -127,3 +127,22 @@ def test_surrogate_result_carries_clinical_use_and_pairs():
     assert d["NOT_FOR_CLINICAL_USE"] is True
     assert d["total_pairs"] >= 1 and 0.0 <= d["discordant_fraction"] <= 1.0
     assert len(d["rows"]) >= 3
+
+
+# --- cross-context generalization (v0.29) ----------------------------------
+
+
+def test_orr_surrogate_generalizes_across_solid_tumor_contexts():
+    """v0.29 breadth: the conditional ORR -> OS surrogacy is not an NSCLC artifact. In
+    every first-line solid-tumor context, ORR ranks OS faithfully under the shrinkage-based
+    week-8 link but mis-ranks it under the tail-sensitive k_g link — because each context
+    now carries a mechanistic two-population model (high ORR, fast resistant regrowth)."""
+    ds = onkos.load()
+    t = np.linspace(0.0, 312.0, 625)
+    for tt in ("NSCLC", "breast", "CRC", "HCC", "melanoma"):
+        ctx = {"tumor_type": tt, "line": "first"}
+        kg_link = f"survival_link.{tt.lower()}_os_growth_rate"
+        week8 = response_vs_survival(ds, context=ctx, t=t, n=200)
+        kg = response_vs_survival(ds, context=ctx, survival_link=kg_link, t=t, n=200)
+        assert week8.orr_predicts_os, f"{tt}: expected ORR concordant under week-8"
+        assert kg.discordant_fraction > 0.0, f"{tt}: expected ORR discordant under k_g"

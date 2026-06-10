@@ -1,0 +1,132 @@
+{
+  "id": "resistance.melanoma_first_line.two_population",
+  "kind": "model",
+  "purpose": "tgi",
+  "subsystem": "resistance",
+  "name": "Two-population (Goldie-Coldman) resistance model \u2014 melanoma first line",
+  "description": "Mechanistic resistance for melanoma first line: a drug-sensitive clone S and a pre-existing drug-resistant clone R, observed as V = S + R (dS/dt = (kg - kd*E)*S, dR/dt = kgr*R). The drug kills only the sensitive clone; post-nadir regrowth is the resistant subpopulation outgrowing. kd is matched to the melanoma Claret model so the contrast isolates the resistance MECHANISM. Values illustrative (melanoma first-line scale) and unverified; R0 (initial resistant burden) is interpretable but practically unidentifiable from a short trial.",
+  "kernel": "two_population_resistance",
+  "structure": {
+    "growth_law": "exponential",
+    "kill_model": "first_order_sensitive_clone_only",
+    "resistance": "pre_existing_resistant_subclone",
+    "states": [
+      "sensitive",
+      "resistant"
+    ]
+  },
+  "parameters": [
+    {
+      "symbol": "kg",
+      "label": "kg",
+      "value": {
+        "central": 0.022,
+        "low": null,
+        "high": null,
+        "units": "1/week"
+      },
+      "iiv_cv_percent": 38,
+      "tier": "B",
+      "primary_citation": "foo-michor-2014",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form (Goldie-Coldman 1979); value illustrative (matched to melanoma Claret kL)",
+        "tier_rationale": "model form (Goldie-Coldman 1979); value illustrative (matched to melanoma Claret kL)"
+      }
+    },
+    {
+      "symbol": "kd",
+      "label": "kd",
+      "value": {
+        "central": 0.35,
+        "low": null,
+        "high": null,
+        "units": "1/week per effect-unit"
+      },
+      "iiv_cv_percent": 85,
+      "tier": "C",
+      "primary_citation": "foo-michor-2014",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative (matched to melanoma Claret kD)",
+        "tier_rationale": "model form; value illustrative (matched to melanoma Claret kD)"
+      }
+    },
+    {
+      "symbol": "kg_resistant",
+      "label": "kg_resistant",
+      "value": {
+        "central": 0.034,
+        "low": null,
+        "high": null,
+        "units": "1/week"
+      },
+      "iiv_cv_percent": 55,
+      "tier": "C",
+      "primary_citation": "foo-michor-2014",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative (resistant clone outgrows the sensitive)",
+        "tier_rationale": "model form; value illustrative (resistant clone outgrows the sensitive)"
+      }
+    },
+    {
+      "symbol": "R0",
+      "label": "R0",
+      "value": {
+        "central": 0.9,
+        "low": null,
+        "high": null,
+        "units": "mm (SLD-equivalent)"
+      },
+      "iiv_cv_percent": 120,
+      "tier": "C",
+      "primary_citation": "goldie-coldman-1979",
+      "extraction": {
+        "review_status": "unverified",
+        "source_locator": "model form; value illustrative (~1.5% of a 60 mm baseline); practically unidentifiable",
+        "tier_rationale": "model form; value illustrative (~1.5% of a 60 mm baseline); practically unidentifiable"
+      }
+    }
+  ],
+  "derivation_context": {
+    "drug": "illustrative_cytotoxic",
+    "drug_class": "generic_kill_with_resistant_subclone",
+    "tumor_type": "melanoma",
+    "line_of_therapy": "first",
+    "trial": "illustrative",
+    "n_patients": null,
+    "measurement": "RECIST_sum_longest_diameters"
+  },
+  "transportability": {
+    "validated_tumor_types": [
+      "melanoma"
+    ],
+    "validated_drug_classes": [
+      "generic_kill_with_resistant_subclone"
+    ],
+    "validated_lines": [
+      "first"
+    ],
+    "out_of_context_action": "tier_down_to_D and warn"
+  },
+  "known_failure_modes": [
+    {
+      "condition": "applied to a regimen whose regrowth is not driven by a resistant subclone",
+      "behavior": "R0 / kgr unidentifiable; the resistant tail is fabricated rather than fit",
+      "action": "tier_down_to_D and warn",
+      "citation": "bruno-2020-review"
+    }
+  ],
+  "predictive_performance": [
+    {
+      "metric": "OS_C_index_external",
+      "value": 0.61,
+      "population": "independent melanoma cohort (illustrative)",
+      "citation": "foo-michor-2014"
+    }
+  ],
+  "tier": "C",
+  "review_status": "unverified",
+  "primary_citation": "foo-michor-2014"
+}
