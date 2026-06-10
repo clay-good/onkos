@@ -535,6 +535,36 @@ def _cmd_interactions(args) -> int:
     return 0
 
 
+def _cmd_dose_response(args) -> int:
+    from .dose_response import compare_er_extrapolation
+
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    cmp = compare_er_extrapolation(ds, args.record, context=ctx, c_ref=args.c_ref, e_ref=args.e_ref)
+    if args.json:
+        print(cmp.to_json())
+        return 0
+    print(
+        f"{args.record}  tier={cmp.tier}  (ER-shape extrapolation anchored at "
+        f"C_ref={args.c_ref:g} -> E_ref={args.e_ref:g}, {ctx})\n"
+    )
+    shapes = [er.split(".")[-1] for er in cmp.er_ids]
+    print(f"  {'dose':>7} | " + " ".join(f"{s:>7}" for s in shapes) + f" | {'OS spread':>9}")
+    for r in cmp.rows:
+        effs = " ".join(f"{r['effects'][er]:>7.2f}" for er in cmp.er_ids)
+        tag = "  <- anchor" if abs(r["dose"] - args.c_ref) < 1e-9 else ""
+        print(f"  {r['dose']:>7.0f} | {effs} | {r['os_divergence']:>8.0f}w{tag}")
+    print(
+        f"\n  OS spread at the studied dose = {cmp.reference_os_divergence:.1f}w (anchored); "
+        f"max on extrapolation = {cmp.max_os_divergence:.0f}w"
+    )
+    print(
+        "  >> the ER-model choice is invisible at the studied dose but a model-selection axis "
+        "off it — a dose-extrapolation risk, sharpest on de-escalation"
+    )
+    return 0
+
+
 def _cmd_loewe(args) -> int:
     from .interaction import compare_additivity_references
 
@@ -825,6 +855,18 @@ def build_parser() -> argparse.ArgumentParser:
     lp.add_argument("--dose-b", type=float, default=90.0, help="dose of drug B (exposure units)")
     lp.add_argument("--json", action="store_true", help="emit the result as JSON")
     lp.set_defaults(func=_cmd_loewe)
+
+    drp = sub.add_parser(
+        "dose-response",
+        help="exposure-response model choice as a dose-extrapolation model-selection axis",
+    )
+    drp.add_argument("record", help="record id (a TGI model driven by a drug effect)")
+    drp.add_argument("--tumor-type", default="NSCLC")
+    drp.add_argument("--line", default="first")
+    drp.add_argument("--c-ref", type=float, default=150.0, help="reference exposure (the studied dose)")
+    drp.add_argument("--e-ref", type=float, default=1.0, help="effect the shapes share at C_ref")
+    drp.add_argument("--json", action="store_true", help="emit the result as JSON")
+    drp.set_defaults(func=_cmd_dose_response)
 
     ep = sub.add_parser("export", help="generate export artifacts")
     ep.add_argument(

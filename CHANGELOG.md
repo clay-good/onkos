@@ -4,6 +4,36 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.36.0] — Exposure-response model choice: the dose-extrapolation model-selection axis
+
+Implements the research-track spec `docs/specs/research/exposure-response-extrapolation.md`. Every chain
+so far started from a *given* drug effect; that effect is the output of an exposure-response (ER) model
+(Emax / sigmoid-Emax / power) that all fit the studied dose comparably but **diverge** when extrapolated
+to an untested dose — which is exactly what dose selection asks of them. This makes the ER-model choice
+the project's transportability thesis one layer upstream, with the *dose* as the context.
+
+- **New module `onkos.dose_response`** (pure post-processing — no new record, kernel, schema, or export;
+  every default artifact byte-identical). `calibrated_er` re-anchors each curated ER shape so it passes
+  through a reference `(c_ref, e_ref)` (the studied dose): the shape parameters (EC50, gamma, theta) are
+  kept from the curated record, the single scale parameter (Emax or slope) is solved to hit the anchor.
+  The curves are then identical at the studied dose and differ only in how they extrapolate.
+- **`compare_er_extrapolation`** runs the shapes over a dose grid through the existing TGI→survival chain
+  and reports the effect and OS spread per dose, with `reference_os_divergence` (~0, the control) and
+  `max_os_divergence`.
+- **The finding — invisible at the studied dose, a model-selection axis off it.** Anchored at
+  `(150, 1.0)` for Claret NSCLC, the OS spread across ER shapes is **0 at the studied dose** and grows on
+  extrapolation: **19 wk at quarter-dose**, 14 wk at half-dose, 5 wk at 2–4×. The risk is **asymmetric** —
+  sharpest on de-escalation (the effect sits on the steep part of the survival relationship), where
+  dose-finding actually lives; upward extrapolation gives a larger *effect* spread (the unbounded power
+  curve runs to E≈3.25 at 4×) but a smaller *OS* spread (survival saturates). A dose-response model fit at
+  one dose carries an unquantified model-selection risk the moment it picks another.
+- **11 landmarks** (`tests/test_dose_response.py`): the exact anchor, calibration monotonicity, off-anchor
+  divergence, the zero-divergence control at the studied dose, the de-escalation-diverges-most asymmetry,
+  the single-model-zero-divergence degenerate case, and the inherited tier/transport guardrails.
+- **CLI `onkos dose-response`**; an ER-curves + OS-spread figure (`docs/images/dose_response_extrapolation.png`);
+  a CI-executed notebook (`notebooks/29_dose_response_extrapolation.ipynb`); README section; public-API
+  surface + contract test extended. No new dataset records. 384 tests, 56 records.
+
 ## [0.35.0] — Dose-level Loewe additivity: the additivity reference as a model-selection axis
 
 Implements the research-track spec `docs/specs/research/loewe-additivity.md`. v0.23 made the

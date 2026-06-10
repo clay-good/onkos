@@ -1510,6 +1510,65 @@ def burden_auc_figure() -> None:
     plt.close(fig)
 
 
+def dose_response_extrapolation_figure() -> None:
+    """The exposure-response model choice as a dose-extrapolation axis. Left: three ER shapes
+    re-anchored to agree at the studied dose (they cross there) but diverging away from it.
+    Right: the OS spread those shapes drive — ~0 at the anchor, growing on extrapolation and
+    largest on de-escalation. A dose-response model fit at one dose is a model-selection risk
+    when used to pick another."""
+    from onkos.dose_response import calibrated_er, compare_er_extrapolation
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    c_ref, e_ref = 150.0, 1.0
+    shapes = [
+        ("exposure_response.emax_generic", "Emax (saturating)", "#2b6cb0"),
+        ("exposure_response.power_generic", "power (unbounded)", "#c05621"),
+        ("exposure_response.sigmoid_emax_generic", "sigmoid-Emax (switch-like)", "#2f855a"),
+    ]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.5))
+
+    # Left: the calibrated ER curves crossing at the anchor.
+    doses = np.linspace(1.0, 4.0 * c_ref, 400)
+    for er, label, color in shapes:
+        f = calibrated_er(ds, er, c_ref=c_ref, e_ref=e_ref)
+        ax1.plot(doses, [f(d) for d in doses], color=color, lw=1.8, label=label)
+    ax1.plot([c_ref], [e_ref], "ko", ms=7, zorder=5)
+    ax1.annotate("studied dose\n(all shapes agree)", (c_ref, e_ref), xytext=(c_ref + 40, e_ref - 0.55),
+                 fontsize=7.5, arrowprops=dict(arrowstyle="->", lw=0.8))
+    ax1.axvspan(1.0, c_ref, color="grey", alpha=0.06)
+    ax1.text(20, 2.2, "extrapolate DOWN\n(de-escalation)", fontsize=7, color="#555")
+    ax1.set_title("anchored at the studied dose, the ER shapes diverge off it", fontsize=9)
+    ax1.set_xlabel("exposure / dose (ug/L)")
+    ax1.set_ylabel("drug effect E")
+    ax1.set_ylim(0, 2.6)
+    ax1.legend(fontsize=7.5, loc="upper left")
+
+    # Right: OS spread across the shapes vs dose.
+    cmp = compare_er_extrapolation(ds, "resistance.claret_2009.tgi", context=ctx,
+                                   c_ref=c_ref, e_ref=e_ref)
+    xs = [r["dose"] for r in cmp.rows]
+    osd = [r["os_divergence"] for r in cmp.rows]
+    colors = ["#c53030" if d < c_ref else "#718096" if d > c_ref else "black" for d in xs]
+    ax2.bar([f"{d:.0f}" for d in xs], osd, color=colors, width=0.6)
+    for x, d in zip(range(len(xs)), osd):
+        ax2.text(x, d + 0.3, f"{d:.0f}w", ha="center", fontsize=8)
+    ax2.set_title("OS spread from the ER-model choice alone (0 at the anchor)", fontsize=9)
+    ax2.set_xlabel("dose (ug/L)  —  150 = studied")
+    ax2.set_ylabel("median-OS spread across ER shapes (weeks)")
+    ax2.set_ylim(0, max(osd) * 1.25 + 1)
+
+    fig.suptitle(
+        "Exposure-response model choice is a dose-extrapolation model-selection axis: invisible at the "
+        "studied dose, it moves the OS prediction off it — most on de-escalation",
+        fontsize=9.0,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "dose_response_extrapolation.png", dpi=120)
+    plt.close(fig)
+
+
 def loewe_additivity_figure() -> None:
     """Dose-level additivity references as a model-selection axis. Left: the combined effect
     under HSA / Bliss (effect-additive) / Loewe (dose-additive) as both doses scale up — they
@@ -1656,4 +1715,5 @@ if __name__ == "__main__":
     burden_auc_figure()
     joint_survival_figure()
     loewe_additivity_figure()
+    dose_response_extrapolation_figure()
     print(f"Wrote figures to {OUT}")

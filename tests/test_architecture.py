@@ -91,6 +91,7 @@ def test_public_api_surface_is_stable():
         "progression_free_survival", "pfs_route_divergence", "optimal_schedule",
         "joint_survival", "compare_joint_vs_two_stage", "current_value_survival",
         "loewe_effect", "combine_doses", "compare_additivity_references",
+        "calibrated_er", "compare_er_extrapolation",
         "build_report", "audit_tiers", "evidence_ceiling", "validate_dataset",
         "filter_records", "pk", "Dataset", "Trajectory", "Comparison",
     }

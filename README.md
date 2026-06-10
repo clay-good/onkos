@@ -1061,6 +1061,7 @@ onkos.combine_effects(0.6, 0.6, model="greco", psi=0.5)   # the pure interaction
 | `onkos interactions <id> [--effect-a --effect-b --psi]` | drug-combination divergence — the interaction model as a model-selection axis |
 | `onkos loewe <id> [--dose-a --dose-b --er-a --er-b]` | dose-level additivity references (HSA / Bliss / Loewe) as a model-selection axis |
 | `onkos joint [--tumor-type --line --alpha]` | joint (current-value) vs two-stage survival — the non-proportional-hazard axis |
+| `onkos dose-response <id> [--c-ref --e-ref]` | exposure-response model choice as a dose-extrapolation model-selection axis |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
 
 Export formats: `nonmem`, `sbml`, `pharmml`, `so` (PharmML Standard Output),
@@ -1239,6 +1240,41 @@ resistance.claret_2009.tgi  tier=C  (exposure=200.0 via exposure_response.dacomi
 The ER record's tier and `transportability` propagate like any other component:
 an ER model validated only on NSCLC/EGFR-TKI floors an out-of-context simulation
 to **D** with a warning, exactly as the TGI and survival components do.
+
+### The ER-model choice is a dose-extrapolation model-selection axis
+
+The chain's *first* modeling link — which ER shape maps exposure to effect — is itself a
+silent choice. Emax (saturating), power (unbounded), and sigmoid-Emax (switch-like) all fit
+the studied dose comparably and **diverge when extrapolated** to a dose the trial never
+studied, which is exactly what dose selection asks of them. `onkos.dose_response` makes this
+the project's transportability thesis one layer upstream, with the *dose* as the context: it
+re-anchors each curated ER shape to agree at the studied dose `(c_ref, e_ref)`, then reads off
+how far the predicted effect — and the resulting OS — diverge off it.
+
+![Exposure-response model choice as a dose-extrapolation axis](docs/images/dose_response_extrapolation.png)
+
+The OS spread across ER shapes is **0 at the studied dose** (the built-in control — the curves
+are anchored there) and grows on extrapolation: ≈19 weeks at quarter-dose, 14 at half-dose, 5
+at 2–4×. The risk is **asymmetric, and sharpest on de-escalation**: a lower dose lands the
+effect on the steep part of the effect→survival relationship, so the ER-model choice moves OS
+most there — the very question ("can we give less?") that dose-finding exists to answer.
+Upward extrapolation gives a larger *effect* spread (the unbounded power curve runs to `E≈3.25`
+at 4×) but a smaller *OS* spread, because survival saturates once the tumor is controlled.
+
+```python
+from onkos.dose_response import calibrated_er, compare_er_extrapolation
+f = calibrated_er(ds, "exposure_response.power_generic", c_ref=150.0, e_ref=1.0)  # f(150)==1.0 exactly
+cmp = onkos.compare_er_extrapolation(ds, "resistance.claret_2009.tgi", context=ctx,
+                                     c_ref=150.0, e_ref=1.0)
+cmp.reference_os_divergence   # ~0 (anchored control)
+cmp.max_os_divergence         # weeks of OS riding on the ER-shape choice on extrapolation
+cmp.os_divergence_at(37.5)    # the de-escalation case (largest)
+```
+
+Landmark-tested (`tests/test_dose_response.py`): the exact anchor, the zero-divergence control
+at the studied dose, the de-escalation-diverges-most asymmetry, and the inherited tier/transport
+guardrails. Pure post-processing — it re-anchors the curated ER *shapes*, never refits them, and
+ranks no doses; population/trial level, no dose or therapy recommendation.
 
 ---
 
@@ -1643,6 +1679,7 @@ own thesis rather than adding breadth:
 | **Integrated tumor burden** (third bridge metric) | `log_burden_auc` (the time-averaged log relative tumor size — the AUC of the log-size curve) added to the Stein/Bruno panel + a non-default `survival_link.nsclc_os_burden_auc`. The one metric that integrates *both* depth and tail re-ranks the NSCLC models a **third, distinct** way (vs week-8 and `k_g`), so "which bridge metric" stays a live axis even for a "comprehensive" metric — and it **repairs `k_g`'s depth-blindness** (the pure-tail metric ranks a never-shrinking tumor 2nd; the integrated burden ranks it last). NSCLC/first now has four eligible OS links for the budget. Pure post-processing + one record; default view byte-identical; landmark-tested; population level, no therapy ranking. | ✅ v0.33 |
 | **Joint longitudinal–survival** | `onkos.joint`: the current-value link makes the instantaneous hazard track the current tumor size (`λ(t)=λ₀(t)·exp(α·log(v/y0))`) — the rigorous, two-stage-free survival model. A strict generalization of proportional hazards (a constant HR recovers the two-stage Weibull-PH curve exactly). The hazard ratio is **time-varying** (rises 10×–255× as a resistant clone regrows; falls for a complete responder) — a non-proportional hazard the two-stage links can't encode — and it **inverts** the week-8 resistance-model ranking (two-pop > Claret under week-8; Claret > two-pop under the joint link). So survival-link *structure* (two-stage PH vs joint) is a model-selection axis. Pure post-processing, no record/kernel/export change; `α` declared not fitted; landmark-tested; population level, no therapy ranking. | ✅ v0.34 |
 | **Dose-level Loewe additivity** | `onkos.interaction` extension: combines two *doses* through the dose-response curves via the isobole `d_A/D_A(E)+d_B/D_B(E)=1`, beside the v0.23 effect-level nulls. The "no-interaction" **reference** is itself a model-selection axis — Loewe is the only one satisfying the sham-combination identity (a drug with itself is exactly additive), Bliss overstates (can exceed either drug's max effect), HSA understates. The same dose pair gives combined effect 0.90/1.07/1.60 and median OS 88/92/101 wk across HSA/Loewe/Bliss; the gap grows with dose. Pure post-processing over the curated ER curves (analytic inverses), no new record/kernel/export; reference declared not fitted; landmark-tested (sham identity exact); population level, no dose/therapy ranking. | ✅ v0.35 |
+| **ER-model dose-extrapolation** | `onkos.dose_response`: the upstream exposure-response model choice (Emax / power / sigmoid-Emax) as a model-selection axis. Re-anchors the shapes to agree at the studied dose, then quantifies how their effect — and OS — diverge off it: **0 at the studied dose** (control), ≈19 wk at quarter-dose, sharpest on **de-escalation** (the dose-finding question). The transportability thesis with the *dose* as the context. Pure post-processing over the curated ER shapes, no new record/kernel/export; shapes re-anchored not refit; landmark-tested; population level, no dose recommendation. | ✅ v0.36 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

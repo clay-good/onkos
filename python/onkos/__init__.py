@@ -13,6 +13,11 @@ from .budget import Budget, model_selection_budget
 from .combine import ModelAverage
 from .compare import Comparison, compare
 from .design import OptimalDesign, optimal_schedule
+from .dose_response import (
+    ExtrapolationComparison,
+    calibrated_er,
+    compare_er_extrapolation,
+)
 from .filter import filter_records
 from .identify import Identifiability, identifiability
 from .interaction import (
@@ -94,6 +99,9 @@ __all__ = [
     "simulate_dose_combination",
     "compare_additivity_references",
     "AdditivityComparison",
+    "calibrated_er",
+    "compare_er_extrapolation",
+    "ExtrapolationComparison",
     "compare",
     "filter_records",
     "validate_dataset",
