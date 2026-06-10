@@ -925,6 +925,86 @@ def survival_metric_choice_figure() -> None:
     plt.close(fig)
 
 
+def model_selection_budget_figure() -> None:
+    """The model-selection budget: total forecast variance split across the structural
+    choices (TGI model, survival link, their interaction) vs parameter noise — the
+    capstone of the model-selection arc."""
+    from onkos.budget import model_selection_budget
+
+    ds = onkos.load()
+    comp_colors = {
+        "parameter": "#3182ce",
+        "tgi_model": "#b7791f",
+        "survival_link": "#2f855a",
+        "interaction": "#c53030",
+    }
+    comp_labels = {
+        "parameter": "parameter noise (IIV)",
+        "tgi_model": "TGI-model choice",
+        "survival_link": "survival-link choice",
+        "interaction": "model × link interaction",
+    }
+    order = ["parameter", "tgi_model", "survival_link", "interaction"]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    # Left: NSCLC 1L — the full 4x3 grid, one stacked bar of the four components.
+    b = model_selection_budget(ds, context={"tumor_type": "NSCLC", "line": "first"},
+                               endpoint="OS", n=300)
+    left = 0.0
+    for k in order:
+        frac = b.fractions[k]
+        ax1.barh([0], [frac], left=left, color=comp_colors[k], label=comp_labels[k])
+        if frac > 0.04:
+            ax1.text(left + frac / 2, 0, f"{frac * 100:.0f}%", ha="center", va="center",
+                     color="white", fontsize=9, fontweight="bold")
+        left += frac
+    ax1.axvline(b.fractions["parameter"], color="black", lw=1.2, ls=":")
+    ax1.set_xlim(0, 1)
+    ax1.set_ylim(-0.5, 0.5)
+    ax1.set_yticks([])
+    ax1.set_xlabel("share of total forecast variance")
+    ax1.set_title(
+        f"NSCLC 1L OS budget — {b.structural_fraction * 100:.0f}% structural "
+        f"(irreducible), {b.fractions['parameter'] * 100:.0f}% parameter",
+        fontsize=9,
+    )
+    ax1.legend(fontsize=7, loc="upper center", bbox_to_anchor=(0.5, -0.18), ncol=2)
+
+    # Right: per-context parameter-vs-structural split, ranked by structural share.
+    contexts = [("NSCLC", "first"), ("CRC", "first"), ("HCC", "first"), ("melanoma", "first"),
+                ("breast", "first"), ("NSCLC", "second")]
+    rows = []
+    for tt, ln in contexts:
+        bb = model_selection_budget(ds, context={"tumor_type": tt, "line": ln},
+                                    endpoint="OS", n=120)
+        rows.append((f"{tt}\n{ln[:2]}", bb.fractions["parameter"], bb.structural_fraction))
+    rows.sort(key=lambda r: r[2], reverse=True)
+    labels = [r[0] for r in rows]
+    param = np.array([r[1] for r in rows])
+    struct = np.array([r[2] for r in rows])
+    x = np.arange(len(labels))
+    ax2.bar(x, param, color="#3182ce", label="parameter (reducible by more data)")
+    ax2.bar(x, struct, bottom=param, color="#c53030", label="structural (irreducible)")
+    ax2.axhline(0.5, ls=":", color="grey", lw=1)
+    for i, s in enumerate(struct):
+        ax2.text(i, param[i] + s + 0.01, f"{s * 100:.0f}%", ha="center", fontsize=8)
+    ax2.set_xticks(x, labels, fontsize=8)
+    ax2.set_ylim(0, 1.12)
+    ax2.set_ylabel("share of forecast variance")
+    ax2.set_title("Structural vs parameter share by context", fontsize=9)
+    ax2.legend(fontsize=7, loc="upper center", bbox_to_anchor=(0.5, -0.18), ncol=1)
+
+    fig.suptitle(
+        "The model-selection budget (capstone): which structural assumption — not the "
+        "parameters — drives the forecast, and where standardization buys the most",
+        fontsize=9.5,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "model_selection_budget.png", dpi=120)
+    plt.close(fig)
+
+
 def kill_mechanism_figure() -> None:
     """Norton-Simon (kill ∝ growth) vs log-kill (Claret, kill ∝ size) mechanisms."""
     from onkos.export.registry import get_kernel, kernel_values
@@ -987,4 +1067,5 @@ if __name__ == "__main__":
     combination_interaction_figure()
     two_population_resistance_figure()
     survival_metric_choice_figure()
+    model_selection_budget_figure()
     print(f"Wrote figures to {OUT}")

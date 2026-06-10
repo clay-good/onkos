@@ -160,6 +160,55 @@ def practical_identifiability_summary(ds: Dataset) -> list[dict]:
     return out
 
 
+# Model-selection-budget reference depth. The per-context structural fraction is
+# reported as a binary (structure- vs parameter-dominated) split at 0.5 — the eligible
+# contexts cluster near ~0.40 and ~0.65, well clear of the boundary, so the CI
+# report-in-sync diff stays byte-stable.
+_BUDGET_N = 80
+
+
+def model_selection_budget_summary(ds: Dataset) -> list[dict]:
+    """Per-context model-selection budget (research spec model-selection-budget §6,
+    step 4): the share of a composed OS forecast's variance that is irreducible
+    structural-choice risk (TGI model + survival link + their interaction) vs
+    parameter noise a bigger trial would shrink, plus whether the survival-model axis
+    is even cross-checked (≥2 eligible survival links). Ranks where standardizing an
+    assumption has the most leverage.
+
+    Deferred import avoids loading the budget stack at report import time."""
+    from .budget import eligible_survival_links, model_selection_budget
+
+    contexts = sorted(
+        {
+            (r.derivation_context.tumor_type, r.derivation_context.line_of_therapy)
+            for r in ds
+            if r.kind == "context_baseline"
+            and r.derivation_context
+            and r.derivation_context.tumor_type
+            and r.derivation_context.line_of_therapy
+        }
+    )
+    out: list[dict] = []
+    for tumor_type, line in contexts:
+        ctx = {"tumor_type": tumor_type, "line": line}
+        try:
+            b = model_selection_budget(ds, context=ctx, endpoint="OS", n=_BUDGET_N, seed=0)
+        except ValueError:
+            continue  # no eligible TGI models / links for this context
+        out.append({
+            "tumor_type": tumor_type,
+            "line": line,
+            "n_models": len(b.models),
+            "n_links": len(eligible_survival_links(ds, ctx, "OS")),
+            "tier": b.tier,
+            # Binary, edge-safe at 0.5 (contexts cluster near 0.40 / 0.65).
+            "dominated_by": "structure" if b.structural_fraction >= 0.5 else "parameter",
+        })
+    # Structure-dominated first (where standardization buys the most), then alphabetical.
+    out.sort(key=lambda d: (d["dominated_by"] != "structure", d["tumor_type"], d["line"]))
+    return out
+
+
 def _tier_by_subsystem(ds: Dataset) -> dict:
     table: dict = {}
     for r in ds:
@@ -288,6 +337,35 @@ def build_report(ds: Dataset) -> str:
             worst = "—" if m["identifiable"] else f"`{m['worst']}`"
             lines.append(
                 f"| `{m['record_id']}` | {m['n_params']} | {m['tier']} | {verdict} | {worst} |"
+            )
+
+    budget = model_selection_budget_summary(ds)
+    if budget:
+        n_struct = sum(1 for b in budget if b["dominated_by"] == "structure")
+        lines += [
+            "",
+            "## Model-selection budget by context",
+            "",
+            "Splitting a composed OS forecast's total variance across its structural choices "
+            "(TGI model + survival link + their interaction) versus parameter noise a bigger "
+            "trial would shrink. A context *dominated by structure* is one where most of the "
+            "forecast uncertainty is irreducible model-choice risk — standardizing an "
+            "assumption (or adding a second survival link where there is only one, so the "
+            "survival-model axis is even cross-checked) has more leverage there than more "
+            "patients. Equal-weight balanced design; population/trial level only. See "
+            "`onkos.budget`.",
+            "",
+            f"- **Structure-dominated** (structural share ≥ 50% of forecast variance): "
+            f"{n_struct} / {len(budget)} contexts.",
+            "",
+            "| context | line | TGI models | survival links | tier | uncertainty dominated by |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+        for b in budget:
+            links = b["n_links"] if b["n_links"] > 1 else f"{b['n_links']} ⚠"
+            lines.append(
+                f"| {b['tumor_type']} | {b['line']} | {b['n_models']} | {links} | {b['tier']} | "
+                f"{b['dominated_by']} |"
             )
 
     if s["hypothesis_tier"]:

@@ -9,6 +9,7 @@ from __future__ import annotations
 from . import pk
 from ._const import VERSION as __version__
 from .audit import audit_tiers, evidence_ceiling
+from .budget import Budget, model_selection_budget
 from .combine import ModelAverage
 from .compare import Comparison, compare
 from .filter import filter_records
@@ -38,6 +39,8 @@ __all__ = [
     "SensitivityResult",
     "Identifiability",
     "InteractionComparison",
+    "Budget",
+    "model_selection_budget",
     "load",
     "simulate",
     "simulate_ensemble",

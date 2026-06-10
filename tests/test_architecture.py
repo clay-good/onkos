@@ -87,6 +87,7 @@ def test_public_api_surface_is_stable():
     expected = {
         "load", "simulate", "simulate_ensemble", "sensitivity", "compare",
         "identifiability", "combine_effects", "simulate_combination", "compare_interactions",
+        "model_selection_budget",
         "build_report", "audit_tiers", "evidence_ceiling", "validate_dataset",
         "filter_records", "pk", "Dataset", "Trajectory", "Comparison",
     }

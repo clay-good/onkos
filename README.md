@@ -163,6 +163,63 @@ combiner is the same idea one layer up. The combination math is proven against a
 landmark suite (`tests/test_combine.py`) the way the kernels are: the estimator
 *is* the law of total variance and a convex forecast combination, not a curve fit.
 
+### The model-selection budget: which structural assumption drives the forecast
+
+The model-averaging split is one structural axis (TGI-model choice) at a fixed
+survival link. But v0.25 showed the **survival link** is a second, co-equal axis that
+can *invert* the answer. `onkos.budget` is the **capstone**: it puts every structural
+choice on one ledger via a balanced **two-way variance-component decomposition** (an
+ANOVA / first-order Sobol over the structural factors — the structural analog of the
+parameter tornado), splitting total forecast variance into parameter noise and the
+variance contributed by each structural choice:
+
+```text
+Var(Q) = WITHIN(parameter)  +  V_model(TGI choice)  +  V_link(survival choice)  +  V_inter
+                  (reducible by a bigger trial)  |  (irreducible structural-choice risk)
+```
+
+Factor A = the in-context TGI models (`compare().included`); factor B = every eligible
+survival link (week-8 Weibull, Cox, k_g). Each cell runs the parameter-IIV ensemble;
+the components sum exactly to the total (the ANOVA identity), and collapsing factor B to
+one level recovers the v0.21 within/between split exactly — the budget is a strict
+generalization, landmark-proven (`tests/test_budget.py`).
+
+![The model-selection budget: structural vs parameter variance](docs/images/model_selection_budget.png)
+
+The capstone finding is decision-grade and uncomfortable: for the NSCLC first-line OS
+forecast, **~68% of the variance is irreducible structural-choice risk** — only ~32% is
+parameter noise a bigger trial would shrink — and the **single largest component is the
+model×link interaction** (the v0.25 inversion, that the survival metric flips which TGI
+model wins, *is* an interaction term, and it dominates). The survival-link axis (~24%)
+outweighs the tumor-growth-model axis (~12%) everyone argues about. Across contexts the
+budget ranks where standardization buys the most: 4 of 6 are structure-dominated, and it
+flags the contexts with only one survival link, where the survival-model axis is not even
+cross-checked.
+
+```text
+$ onkos budget --tumor-type NSCLC --line first --endpoint OS
+
+  axis                                             share
+  model × link interaction                          35%  ██████████
+  parameter noise (within-model IIV)                31%  █████████
+  survival-link choice (metric / structure)         23%  ███████
+  TGI-model choice                                  12%  ████
+  >> structural-choice share = 69% (irreducible by a bigger trial); parameter share = 31%
+  >> dominant axis: model × link interaction — standardize / validate this first
+```
+
+```python
+b = onkos.model_selection_budget(ds, context=ctx, endpoint="OS")
+b.fractions                  # {parameter, tgi_model, survival_link, interaction} -> share
+b.structural_fraction        # share that more patients cannot remove
+b.dominant                   # the largest-share axis — standardize/validate this first
+b.tier, b.warnings           # worst included tier; single-level degeneracy notes
+```
+
+It attributes variance across *assumptions* — population/trial level only, no individual
+prediction, no model recommendation. The structural share is the honest opposite of false
+precision: it is the part of the forecast that a bigger trial will *not* fix.
+
 ### TGI metrics — the Stein/Bruno panel
 
 Every simulated trajectory is summarized into the derived metrics oncology
@@ -572,6 +629,11 @@ ma.model_selection_fraction                # BETWEEN / TOTAL — irreducible mod
 ma.curve, ma.between_band                  # S̄(t) + pointwise between-model ±1σ
 cmp.uncertainty_decomposition()            # per-scheme (equal/tier/evidence) table
 
+# Model-selection budget — variance split across ALL the structural choices (capstone)
+b = onkos.model_selection_budget(ds, context=ctx, endpoint="OS")
+b.fractions                                # parameter / tgi_model / survival_link / interaction
+b.structural_fraction, b.dominant          # irreducible share; the axis to standardize first
+
 # Parameter uncertainty — propagate the stored IIV CVs (Monte-Carlo bands)
 ens = onkos.simulate_ensemble(ds, "resistance.claret_2009.tgi", context=ctx, n=400, seed=0)
 ens.tumor_size.median, ens.tumor_size.lo, ens.tumor_size.hi   # 5–95% band arrays
@@ -611,6 +673,7 @@ onkos.combine_effects(0.6, 0.6, model="greco", psi=0.5)   # the pure interaction
 | `onkos simulate <id> [--tumor-type --line --drug-effect]` | one model's trajectory + metrics |
 | `onkos simulate --compare [--json --include-curves]` | virtual-trial divergence across eligible models (text or JSON) |
 | `onkos compare --average [--weights --decompose --json]` | model-averaged forecast + within/between variance decomposition |
+| `onkos budget [--tumor-type --line --endpoint --json]` | model-selection budget — variance split across the structural choices |
 | `onkos uncertainty <id> [--n --seed]` | Monte-Carlo parameter-uncertainty bands (propagates IIV CV) |
 | `onkos sensitivity <id> [--target --n]` | rank parameters by how much their IIV drives a target metric |
 | `onkos identify <id> [--schedule --sigma-prop]` | predicted RSE vs stored CV — can a realistic trial design estimate the parameters? |
@@ -1102,6 +1165,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | Linked data is validated by RDF expansion, not just emitted | A JSON file with `onkos:` keys is not automatically valid JSON-LD. Shipping a single `@context`, typing `isDescribedBy` as `@id`, and having CI expand the output with rdflib to check the triples means the machine-readability claim is enforced rather than assumed. |
 | OS and PFS share one mechanism (a tagged survival link), not two code paths | Both endpoints are Weibull-PH links on the same week-8 TGI metric, distinguished only by a `structure.endpoint` tag and their scale. `simulate` returns a curve per endpoint found for the context, so adding PFS needed data, not new kernels — and every analysis (divergence, uncertainty, sensitivity) works on either endpoint for free. |
 | The Cox link is non-default and opt-in, not an auto-selected competitor | Auto-discovery assumes one link per (context, endpoint). The Cox alternative carries `structure.default: false`, so it's reachable only via explicit `survival_link=` — turning "Weibull vs Cox" into a deliberate survival-model-choice comparison instead of a silent collision. Its tabulated baseline rides along in the vt-json / JSON-LD exports. |
+| The structural uncertainties are accounted on one ledger, not just scored in isolation | Each model-selection axis (TGI model, survival metric/structure) was first surfaced alone; `onkos.budget` is the capstone that decomposes total forecast variance across all of them at once via a balanced two-way ANOVA, so their *relative* weights — and their interaction — are visible. It names the dominant axis (where standardization has the most leverage) instead of leaving "it depends on your assumptions" as a slogan, and it strictly generalizes the v0.21 within/between split (collapse one factor to recover it). The headline distinction — parameter (reducible by data) vs structural (not) — is the honest opposite of false precision. |
 | The metric that bridges tumor dynamics to survival is a declared field, not a hidden constant | Every survival link consumed the week-8 change by default; making it `structure.link_metric` (default unchanged) exposes the most consequential surrogate choice in early oncology. Shipping a tail-sensitive `k_g` link beside it shows the choice can *invert* which model looks better — so Onkos surfaces the surrogate-endpoint debate rather than silently picking a side. An undefined metric (e.g. `k_g` with no regrowth) maps to the no-effect covariate (baseline hazard), never a fabricated or nan curve. |
 | The dashboard owns no logic — it renders a tested, serializable result | The virtual-trial result is a `Comparison.to_dict()/to_json()` the package builds and tests; the Streamlit file only draws it. That keeps the headline view honest (the same numbers everywhere), lets external simulators ingest the JSON, and means CI catches UI/API drift by lint + compile, not by screenshots. |
 | Confidence tiers are audited against evidence, not just hand-set | Spec §5 says tiers are "partly numeric." `onkos audit` derives the tier each clinical record's recorded external validation + IIV supports and fails `validate` on any inflation. A hand-set tier can't quietly over-claim — the honesty thesis applied to the honesty field itself. |
@@ -1126,7 +1190,7 @@ onkos/
 │   ├── records/                 # one JSON per model / context-baseline
 │   └── citations/               # Crossref/PubMed citation records
 ├── python/onkos/
-│   ├── load · filter · validate · tiers · simulate · metrics · pk · compare · uncertainty · sensitivity · combine · identify · interaction · audit · report · cli
+│   ├── load · filter · validate · tiers · simulate · metrics · pk · compare · uncertainty · sensitivity · combine · identify · interaction · budget · audit · report · cli
 │   ├── py.typed                 # PEP 561 typing marker
 │   └── export/                  # registry · reference · nonmem · sbml · pharmml · pharmml_so
 │       · rxode2 · pumas · virtual_trial_json · jsonld · combine · annotate
@@ -1178,6 +1242,7 @@ own thesis rather than adding breadth:
 | **Combination interaction** | `onkos.interaction`: combines two single-agent effects under declared interaction nulls (HSA / additive-Bliss / Greco interaction index ψ) and propagates through the existing TGI → survival chain; the interaction model becomes a quantified model-selection axis with its own OS divergence; synergy is a *declared assumption*, never fitted; the Bliss≡additive identity is landmark-tested; cannot rank regimens or raise a tier. | ✅ v0.23 |
 | **Mechanistic resistance** | `two_population_resistance` kernel + record: the Goldie-Coldman sensitive/resistant two-clone model replaces the phenomenological decay-of-effect λ with an interpretable resistant burden `R0`; the resistance *mechanism* becomes a model-selection axis (phenomenological vs mechanistic), raising the NSCLC model-selection fraction 0.39 → 0.47; both compartments round-trip to SBML/NONMEM; landmark-tested; reveals that a week-8 OS surrogate is nearly blind to the resistance-model choice. | ✅ v0.24 |
 | **Survival-metric choice** | `structure.link_metric` makes the on-treatment metric that drives a survival link a declared, swappable field (default unchanged); a non-default growth-rate-constant (`k_g`) OS link is added. Completes v0.24: the metric choice **inverts** the resistance-model ranking (two-pop > Claret under week-8; Claret > two-pop under `k_g`) and re-ranks a complete responder from last to first — making the surrogate-endpoint debate computable. Near-zero code; landmark-tested; the default is sacred. | ✅ v0.25 |
+| **Model-selection budget** (capstone) | `onkos.budget`: a balanced two-way variance-component decomposition (ANOVA / first-order Sobol over the structural factors) puts every structural choice on one ledger — `Var(Q) = WITHIN(parameter) + V_model + V_link + V_inter` — naming the dominant axis (where standardization buys the most). Strict generalization of the v0.21 split (collapse factor B to recover it); landmark-proven. Capstone finding: ~68% of the NSCLC OS forecast is irreducible structural risk and the model×link interaction dominates. Report ranks contexts by structure- vs parameter-dominance. | ✅ v0.26 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

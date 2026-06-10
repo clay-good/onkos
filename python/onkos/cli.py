@@ -286,6 +286,35 @@ def _cmd_identify(args) -> int:
     return 0
 
 
+def _cmd_budget(args) -> int:
+    from .budget import _AXIS_LABELS, model_selection_budget
+
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    b = model_selection_budget(ds, context=ctx, endpoint=args.endpoint, n=args.n, seed=args.seed)
+    if args.json:
+        print(b.to_json())
+        return 0
+    print(
+        f"Model-selection budget — {ctx}, {args.endpoint}  "
+        f"(grid: {len(b.models)} TGI models x {len(b.links)} survival links, tier {b.tier})\n"
+    )
+    print(f"  grand-mean {b.target} = {b.grand_mean:.1f}   total variance = {b.total:.1f}\n")
+    print(f"  {'axis':<46} {'share':>7}")
+    for axis, frac in sorted(b.fractions.items(), key=lambda kv: kv[1], reverse=True):
+        bar = "█" * round(frac * 30)
+        print(f"  {_AXIS_LABELS[axis]:<46} {frac * 100:>5.0f}%  {bar}")
+    print(
+        f"\n  >> structural-choice share = {b.structural_fraction * 100:.0f}% "
+        f"(irreducible by a bigger trial); parameter share = "
+        f"{b.fractions['parameter'] * 100:.0f}%"
+    )
+    print(f"  >> dominant axis: {_AXIS_LABELS[b.dominant]} — standardize / validate this first")
+    for w in b.warnings:
+        print(f"  ! {w}")
+    return 0
+
+
 def _cmd_interactions(args) -> int:
     from .interaction import SYNERGY_IS_AN_ASSUMPTION, compare_interactions
 
@@ -472,6 +501,18 @@ def build_parser() -> argparse.ArgumentParser:
     ip.add_argument("--sigma-add", type=float, default=0.0, help="additive residual error")
     ip.add_argument("--json", action="store_true", help="emit the result as JSON")
     ip.set_defaults(func=_cmd_identify)
+
+    bp = sub.add_parser(
+        "budget",
+        help="model-selection budget: variance split across the structural choices",
+    )
+    bp.add_argument("--tumor-type", default="NSCLC")
+    bp.add_argument("--line", default="first")
+    bp.add_argument("--endpoint", default="OS", choices=["OS", "PFS"])
+    bp.add_argument("--n", type=int, default=200, help="within-cell ensemble depth")
+    bp.add_argument("--seed", type=int, default=0)
+    bp.add_argument("--json", action="store_true", help="emit the result as JSON")
+    bp.set_defaults(func=_cmd_budget)
 
     xp = sub.add_parser(
         "interactions",

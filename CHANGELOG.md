@@ -4,6 +4,41 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.26.0] — The model-selection budget: structural variance decomposition (capstone)
+
+Implements the research-track spec `docs/specs/research/model-selection-budget.md`, the
+synthesis of the model-selection arc (v0.21–v0.25). Each structural choice had been scored
+in isolation; this puts them on one ledger and names which assumption drives the forecast.
+
+- `onkos.budget`: a balanced **two-way variance-component decomposition** (ANOVA /
+  first-order Sobol over the structural factors — the structural analog of the parameter
+  tornado in `onkos.sensitivity`). For a context it splits the total variance of median OS
+  into `WITHIN(parameter) + V_model(TGI choice) + V_link(survival choice) + V_inter`, over
+  the grid of in-context TGI models (`compare().included`) × every eligible survival link
+  (week-8 Weibull, Cox, k_g). `variance_components(cell_means, cell_within)` is the pure,
+  landmark-tested core; `model_selection_budget(...)` binds it to the forecast by reusing
+  `ensemble_samples` per cell. Collapsing the survival-link factor to one level recovers
+  exactly the v0.21 within/between split — the budget is a strict generalization.
+- **The capstone finding:** for NSCLC first-line OS, ~68% of the forecast variance is
+  irreducible structural-choice risk (only ~32% is parameter noise a bigger trial would
+  shrink), and the single largest component is the **model×link interaction** — the v0.25
+  result that the survival metric can *invert* which TGI model wins is exactly an
+  interaction term, and it dominates. The survival-link axis (~24%) outweighs the
+  tumor-growth-model axis (~12%).
+- Landmark suite (`tests/test_budget.py`, 13 checks): the sum identity (components sum to
+  total, fractions to 1), non-negativity of every component (incl. the residual
+  interaction), single-factor collapse to the v0.21 split, identical-cells → zero between,
+  pure-main-effect and additive-layout (zero interaction) cases, a match against a direct
+  two-way sum-of-squares decomposition, the convex-hull bound, zero-within degeneracy, and
+  the worst-included-tier floor; plus integration checks (the NSCLC four-component budget,
+  the clinical-use flag, and the single-survival-link flag).
+- Surfaces: `onkos budget [--tumor-type --line --endpoint --json]`; `onkos report` gains a
+  per-context **model-selection budget** section ranking contexts by structure- vs
+  parameter-dominance (binary, edge-safe at 0.5) and flagging contexts with only one
+  survival link (the survival-model axis uncross-checked); a stacked-budget figure and
+  `notebooks/19_model_selection_budget.ipynb` (executed in CI); README capstone section +
+  roadmap + design-decisions row; the public-API contract test extended. Version 0.26.0.
+
 ## [0.25.0] — Survival-metric choice: which TGI metric predicts OS is a model-selection axis
 
 Implements the research-track spec `docs/specs/research/survival-metric-choice.md`,
