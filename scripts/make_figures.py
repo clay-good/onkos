@@ -1077,6 +1077,72 @@ def response_orr_figure() -> None:
     plt.close(fig)
 
 
+def duration_of_response_figure() -> None:
+    """Depth is not durability: ORR (breadth) and median DoR (durability) dissociate, and
+    under the tail-sensitive k_g link durability tracks survival where breadth inverts it."""
+    from onkos.response import response_vs_survival
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    t = np.linspace(0.0, 208.0, 417)
+    names = {
+        "drug_effect.norton_simon.nsclc": "Norton-Simon",
+        "resistance.claret_2009.tgi": "Claret",
+        "resistance.nsclc_first_line.two_population": "two-population",
+        "tgi_metrics.wang_2009.biexponential": "Wang biexp",
+    }
+    # k_g link: the tail-sensitive endpoint where ORR mis-ranks OS (v0.27).
+    rs = response_vs_survival(ds, context=ctx, survival_link="survival_link.nsclc_os_growth_rate",
+                              t=t, n=500)
+    rows = [r for r in rs.rows if r["median_dor_weeks"] is not None]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    # Left: ORR (breadth) vs median DoR (durability), coloured by tail-driven OS.
+    orr = np.array([r["orr"] for r in rows])
+    dor = np.array([r["median_dor_weeks"] for r in rows])
+    osv = np.array([r["median_os_weeks"] for r in rows])
+    sc = ax1.scatter(orr, dor, c=osv, cmap="viridis", s=140, edgecolor="black", zorder=3)
+    for r in rows:
+        ax1.annotate(names[r["record_id"]], (r["orr"], r["median_dor_weeks"]),
+                     textcoords="offset points", xytext=(8, 4), fontsize=8)
+    ax1.axhspan(0, 35, xmin=0.55, color="#c53030", alpha=0.07)
+    ax1.text(0.99, 24, "broad but brief\n(durability failure)", fontsize=7, color="#c53030",
+             ha="right")
+    ax1.set_xlabel("ORR — breadth (how many respond)")
+    ax1.set_ylabel("median DoR — durability (weeks)")
+    ax1.set_title("Breadth and durability dissociate", fontsize=9)
+    fig.colorbar(sc, ax=ax1, shrink=0.85, label="median OS under k_g (wk)")
+
+    # Right: per model sorted by tail-driven OS — the highest-ORR (broadest) model is the
+    # worst survivor, and its responses are among the briefest; the best survivor's
+    # responses are durable. Breadth (ORR) does not order OS; durability (DoR) does better.
+    order = sorted(rows, key=lambda r: r["median_os_weeks"])
+    labels = [f"{names[r['record_id']]}\nOS {r['median_os_weeks']:.0f}" for r in order]
+    x = np.arange(len(order))
+    ax2.bar(x - 0.2, [r["orr"] for r in order], 0.4, color="#c53030", label="ORR (breadth)")
+    ax2b = ax2.twinx()
+    ax2b.bar(x + 0.2, [r["median_dor_weeks"] for r in order], 0.4, color="#2b6cb0",
+             label="median DoR (durability)")
+    ax2.set_xticks(x, labels, fontsize=7)
+    ax2.set_ylabel("ORR", color="#c53030")
+    ax2.set_ylim(0, 1.1)
+    ax2b.set_ylabel("median DoR (wk)", color="#2b6cb0")
+    ax2b.set_ylim(0, 75)
+    ax2.set_title("Sorted by survival (k_g): broadest ≠ longest-lived", fontsize=9)
+    lines = ax2.containers + ax2b.containers
+    ax2.legend(lines, [c.get_label() for c in lines], fontsize=7, loc="upper center")
+
+    fig.suptitle(
+        "Duration of response — depth is not durability: the highest response rate can be "
+        "the least durable, which is the mechanism of the ORR→OS surrogate failure",
+        fontsize=9.5,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "duration_of_response.png", dpi=120)
+    plt.close(fig)
+
+
 def kill_mechanism_figure() -> None:
     """Norton-Simon (kill ∝ growth) vs log-kill (Claret, kill ∝ size) mechanisms."""
     from onkos.export.registry import get_kernel, kernel_values
@@ -1141,4 +1207,5 @@ if __name__ == "__main__":
     survival_metric_choice_figure()
     model_selection_budget_figure()
     response_orr_figure()
+    duration_of_response_figure()
     print(f"Wrote figures to {OUT}")

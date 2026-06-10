@@ -311,8 +311,23 @@ def _cmd_response(args) -> int:
         )
         return 0
 
+    if args.durability:
+        rs = response_vs_survival(ds, context=ctx, survival_link=link, n=args.n, seed=args.seed)
+        if args.json:
+            print(rs.to_json())
+            return 0
+        link_name = link.split(".")[-1] if link else "week-8 (default)"
+        print(f"Breadth vs durability — {ctx}, OS link = {link_name}\n")
+        print(f"  {'model':<48} {'ORR':>5} {'DoR':>7} {'OS':>6}   (ORR=breadth, DoR=durability)")
+        for r in sorted(rs.rows, key=lambda x: -x["orr"]):
+            dor = "n/r" if r["median_dor_weeks"] is None else f"{r['median_dor_weeks']:.0f}"
+            mos = f"{r['median_os_weeks']:.0f}" if r["median_os_weeks"] else "n/r"
+            print(f"  [{r['tier']}] {r['record_id']:<44} {r['orr']:>5.2f} {dor:>7} {mos:>6}")
+        print("\n  >> depth is not durability: the highest response rate can be the least durable")
+        return 0
+
     if not args.record:
-        print("error: provide a RECORD id (or --surrogate)", file=sys.stderr)
+        print("error: provide a RECORD id (or --surrogate / --durability)", file=sys.stderr)
         return 2
     rr = objective_response_rate(ds, args.record, context=ctx, drug_effect=args.drug_effect,
                                  survival_link=link, n=args.n, seed=args.seed)
@@ -321,6 +336,10 @@ def _cmd_response(args) -> int:
         return 0
     print(f"{args.record}  tier={rr.tier}  ({ctx}, n={rr.n})\n")
     print(f"  ORR (objective response rate) = {rr.orr:.2f}    DCR (disease control) = {rr.dcr:.2f}")
+    if rr.median_dor_weeks is not None:
+        cens = f"  ({rr.dor_censored_fraction:.0%} censored)" if rr.dor_censored_fraction else ""
+        print(f"  median DoR (durability)       = {rr.median_dor_weeks:.0f} wk{cens}  "
+              f"[{rr.n_responders} responders]")
     if rr.median_os_weeks is not None:
         print(f"  median OS (same trial)        = {rr.median_os_weeks:.0f} wk")
     print("\n  RECIST best-response distribution:")
@@ -560,6 +579,8 @@ def build_parser() -> argparse.ArgumentParser:
                      help="non-default OS link (e.g. survival_link.nsclc_os_growth_rate)")
     rsp.add_argument("--surrogate", action="store_true",
                      help="ORR -> OS discordance across the in-context TGI models")
+    rsp.add_argument("--durability", action="store_true",
+                     help="breadth (ORR) vs durability (median DoR) table across the models")
     rsp.add_argument("--n", type=int, default=300, help="ensemble depth")
     rsp.add_argument("--seed", type=int, default=0)
     rsp.add_argument("--json", action="store_true", help="emit the result as JSON")

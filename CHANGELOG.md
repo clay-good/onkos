@@ -4,6 +4,42 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.28.0] — Duration of response: depth is not durability
+
+Implements the research-track spec `docs/specs/research/duration-of-response.md`,
+completing the response endpoint and isolating the *mechanism* of the v0.27 ORR → OS
+surrogate failure. ORR measures response **breadth** (how many respond); this adds
+**duration of response (DoR)** — response **durability** (how long).
+
+- `response_episode(t, v)` returns the RECIST best response *and* the DoR from one
+  observed-baseline trajectory, so the category and the duration are mutually consistent
+  (`best_response` now delegates to it). DoR = time from PR onset (SLD ≤70% of baseline)
+  to progression (SLD ≥120% of nadir); `nan` for a non-responder or a response that never
+  progresses (right-censored).
+- `objective_response_rate(...)` gains `median_dor_weeks`, `dor_censored_fraction`, and
+  `n_responders` over the IIV ensemble — the population durability beside the population
+  breadth — with a `dor_heavily_censored` warning when >50% of responders never progress
+  (the observed median is then a lower bound, never mistaken for the truth). The durable
+  responders are right-censored, not silently zeroed.
+- **Depth is not durability:** the NSCLC model with the highest ORR (1.00, two-population)
+  has the *shortest* median DoR (~32 wk) — its responses are universal but brief (a deep
+  early shrink, then a fast resistant regrowth). That durability deficit is exactly why it
+  has the worst tail-driven OS: sorted by survival under the k_g link, the *broadest*
+  responder is the *worst* survivor while the longest-lived model's responses are the most
+  durable. DoR is the mechanism behind the v0.27 surrogate failure and the immunotherapy
+  lesson (a modest-ORR/durable drug beating a high-ORR/brief one on survival) made
+  computable.
+- Landmark-tested (`tests/test_duration.py`, 10 checks): episode consistency
+  (`best_response == response_episode[0]`), nan DoR for non-responders, the closed-form
+  DoR, censoring of durable responses, durability ordered by regrowth rate, the depth ≠
+  durability dissociation, and that the k_g-discordant (highest-ORR) model is the short-DoR
+  one (durability tracks survival where breadth inverts it).
+- Surfaces: `onkos response` now reports DoR (with censoring), `onkos response --durability`
+  prints the breadth-vs-durability table; a breadth-vs-durability figure and
+  `notebooks/21_duration_of_response.ipynb` (executed in CI); README section + roadmap +
+  cheat sheet + design-decisions row. Pure post-processing — no new kernel, dataset record,
+  or export surface. Version 0.28.0.
+
 ## [0.27.0] — RECIST response & the ORR → OS surrogate
 
 Implements the research-track spec `docs/specs/research/recist-orr-surrogate.md`: the

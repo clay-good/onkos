@@ -461,6 +461,42 @@ assumption rather than certifying ORR valid or invalid. Landmark-tested
 monotone in drug effect, and the conditional-surrogacy result (concordant under week-8,
 discordant under `k_g`).
 
+### Duration of response — depth is not durability
+
+ORR measures response **breadth** (how many patients respond); it cannot see
+**durability** (how long each response lasts). v0.28 adds **duration of response (DoR)** —
+read from the *same* RECIST episode as the response category (`response_episode` returns
+both), as a population median over the IIV ensemble with explicit right-censoring (a
+response that never progresses is a durable, censored responder, not a zero). This is the
+dimension that supplies the *mechanism* of the v0.27 surrogate failure.
+
+![Breadth (ORR) vs durability (DoR), and how durability tracks survival](docs/images/duration_of_response.png)
+
+The headline is that **breadth and durability dissociate**: for NSCLC the model with the
+**highest ORR (1.00) has the shortest DoR (~32 wk)** — its responses are universal but
+brief (a deep early shrink, then a fast resistant regrowth). That durability deficit is
+exactly why it has the worst tail-driven OS: sorted by survival, the *broadest* responder
+is the *worst* survivor, while the longest-lived model's responses are the most durable.
+This is the immunotherapy lesson made computable — a modest-ORR/durable drug can beat a
+high-ORR/brief one on survival — and the quantitative core of "high response, no survival
+benefit." Onkos does not claim DoR is a *better* surrogate (it sees only responders and
+carries censoring); it shows ORR and DoR are orthogonal and the ORR-surrogate failures are
+durability failures.
+
+```python
+rr = onkos.objective_response_rate(ds, "resistance.nsclc_first_line.two_population", context=ctx)
+rr.orr                                  # 1.00 — breadth
+rr.median_dor_weeks                     # ~32  — durability (the highest ORR, the shortest DoR)
+rr.dor_censored_fraction, rr.n_responders   # honest censoring of durable responders
+# onkos response --durability    ->    the breadth-vs-durability table across models
+```
+
+Landmark-tested (`tests/test_duration.py`): episode consistency (`best_response ==
+response_episode[0]`), the closed-form DoR, censoring of durable responses, the depth ≠
+durability dissociation, and that the k_g-discordant (highest-ORR) model is the
+short-DoR one — durability tracks survival where breadth inverts it. Population/trial level
+only, no individual duration, no therapy ranking.
+
 ### Line of therapy — and line-aware survival matching
 
 The context library is indexed by tumor type **and line of therapy**. NSCLC now
@@ -722,7 +758,7 @@ onkos.combine_effects(0.6, 0.6, model="greco", psi=0.5)   # the pure interaction
 | `onkos simulate --compare [--json --include-curves]` | virtual-trial divergence across eligible models (text or JSON) |
 | `onkos compare --average [--weights --decompose --json]` | model-averaged forecast + within/between variance decomposition |
 | `onkos budget [--tumor-type --line --endpoint --json]` | model-selection budget — variance split across the structural choices |
-| `onkos response <id> [--survival-link --surrogate --json]` | RECIST best response / ORR, and the ORR → OS surrogate discordance |
+| `onkos response <id> [--survival-link --surrogate --durability --json]` | RECIST best response / ORR / DoR, the ORR → OS surrogate, and breadth-vs-durability |
 | `onkos uncertainty <id> [--n --seed]` | Monte-Carlo parameter-uncertainty bands (propagates IIV CV) |
 | `onkos sensitivity <id> [--target --n]` | rank parameters by how much their IIV drives a target metric |
 | `onkos identify <id> [--schedule --sigma-prop]` | predicted RSE vs stored CV — can a realistic trial design estimate the parameters? |
@@ -1214,6 +1250,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | Linked data is validated by RDF expansion, not just emitted | A JSON file with `onkos:` keys is not automatically valid JSON-LD. Shipping a single `@context`, typing `isDescribedBy` as `@id`, and having CI expand the output with rdflib to check the triples means the machine-readability claim is enforced rather than assumed. |
 | OS and PFS share one mechanism (a tagged survival link), not two code paths | Both endpoints are Weibull-PH links on the same week-8 TGI metric, distinguished only by a `structure.endpoint` tag and their scale. `simulate` returns a curve per endpoint found for the context, so adding PFS needed data, not new kernels — and every analysis (divergence, uncertainty, sensitivity) works on either endpoint for free. |
 | The Cox link is non-default and opt-in, not an auto-selected competitor | Auto-discovery assumes one link per (context, endpoint). The Cox alternative carries `structure.default: false`, so it's reachable only via explicit `survival_link=` — turning "Weibull vs Cox" into a deliberate survival-model-choice comparison instead of a silent collision. Its tabulated baseline rides along in the vt-json / JSON-LD exports. |
+| Duration of response is read from the same RECIST episode as the response category, so breadth and durability can't drift apart | `response_episode(t, v)` returns both the best-response category and the DoR from one observed-baseline trajectory, so ORR (breadth) and DoR (durability) are mutually consistent by construction. That consistency is what lets the dataset show the durability *mechanism* behind the v0.27 surrogate failure — the highest-ORR model is the shortest-DoR one — and durable responders are right-censored (a lower-bound median with the censored fraction surfaced), never silently dropped to zero. |
 | ORR is a population rate read off the same trial as OS, so its surrogacy is measured not assumed | The response endpoint reads the tumor trajectory directly (RECIST best response over the IIV ensemble); pairing each model's ORR with the OS from the *same* simulated trial turns the contested ORR → OS surrogate into a discordant-pair count. The honest punchline — ORR is faithful under a shrinkage-based survival model and inverts under a tail-driven one — falls out only because both endpoints share one trial, and it explains *why* high-ORR drugs fail confirmatory OS trials without Onkos ever ranking a treatment. |
 | The structural uncertainties are accounted on one ledger, not just scored in isolation | Each model-selection axis (TGI model, survival metric/structure) was first surfaced alone; `onkos.budget` is the capstone that decomposes total forecast variance across all of them at once via a balanced two-way ANOVA, so their *relative* weights — and their interaction — are visible. It names the dominant axis (where standardization has the most leverage) instead of leaving "it depends on your assumptions" as a slogan, and it strictly generalizes the v0.21 within/between split (collapse one factor to recover it). The headline distinction — parameter (reducible by data) vs structural (not) — is the honest opposite of false precision. |
 | The metric that bridges tumor dynamics to survival is a declared field, not a hidden constant | Every survival link consumed the week-8 change by default; making it `structure.link_metric` (default unchanged) exposes the most consequential surrogate choice in early oncology. Shipping a tail-sensitive `k_g` link beside it shows the choice can *invert* which model looks better — so Onkos surfaces the surrogate-endpoint debate rather than silently picking a side. An undefined metric (e.g. `k_g` with no regrowth) maps to the no-effect covariate (baseline hazard), never a fabricated or nan curve. |
@@ -1294,6 +1331,7 @@ own thesis rather than adding breadth:
 | **Survival-metric choice** | `structure.link_metric` makes the on-treatment metric that drives a survival link a declared, swappable field (default unchanged); a non-default growth-rate-constant (`k_g`) OS link is added. Completes v0.24: the metric choice **inverts** the resistance-model ranking (two-pop > Claret under week-8; Claret > two-pop under `k_g`) and re-ranks a complete responder from last to first — making the surrogate-endpoint debate computable. Near-zero code; landmark-tested; the default is sacred. | ✅ v0.25 |
 | **Model-selection budget** (capstone) | `onkos.budget`: a balanced two-way variance-component decomposition (ANOVA / first-order Sobol over the structural factors) puts every structural choice on one ledger — `Var(Q) = WITHIN(parameter) + V_model + V_link + V_inter` — naming the dominant axis (where standardization buys the most). Strict generalization of the v0.21 split (collapse factor B to recover it); landmark-proven. Capstone finding: ~68% of the NSCLC OS forecast is irreducible structural risk and the model×link interaction dominates. Report ranks contexts by structure- vs parameter-dominance. | ✅ v0.26 |
 | **RECIST response & ORR surrogacy** | `onkos.response`: RECIST 1.1 best response (`CR/PR/SD/PD`) → population ORR / DCR over the IIV ensemble — the dominant phase-2 endpoint, previously absent. `response_vs_survival` reads ORR and OS off the same trial and counts discordant model pairs, showing the ORR → OS surrogate is **conditional on the survival mechanism**: faithful under the week-8 link (0/6), inverted under the `k_g` link (4/6, the high-responder has the shortest OS). Pure post-processing; landmark-tested; population level, no therapy ranking. | ✅ v0.27 |
+| **Duration of response** | `response_episode` returns best response *and* DoR from one trajectory; ORR (breadth) gains median DoR (durability) over the ensemble with honest right-censoring. Depth ≠ durability: the highest-ORR NSCLC model has the *shortest* DoR, the mechanism of the v0.27 surrogate failure (broad but brief responses → worst tail-driven OS). Pure post-processing; landmark-tested; population level. | ✅ v0.28 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

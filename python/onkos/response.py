@@ -39,6 +39,7 @@ from .uncertainty import ensemble_samples
 
 __all__ = [
     "RECIST_CATEGORIES",
+    "response_episode",
     "best_response",
     "ResponseRates",
     "objective_response_rate",
@@ -50,25 +51,49 @@ RECIST_CATEGORIES = ("CR", "PR", "SD", "PD")
 _CR_SHRINK = 0.95  # (near-)complete disappearance on a continuous SLD trajectory
 
 
-def best_response(t, v) -> str:
-    """RECIST 1.1-style best overall response from a tumor-size trajectory ``v``,
-    measured from the observed baseline ``v[0]`` (CR > PR > PD > SD)."""
+def response_episode(t, v) -> tuple:
+    """RECIST best overall response *and* duration of response from one tumor-size
+    trajectory, both measured from the observed baseline ``v[0]`` so they are mutually
+    consistent. Returns ``(category, dor_weeks)``:
+
+    * ``category`` ∈ {CR, PR, SD, PD} (CR > PR > PD > SD precedence);
+    * ``dor_weeks`` — for a responder (CR/PR), the time from the onset of partial
+      response (first SLD ≤ 70% of baseline) to progression (first post-nadir SLD ≥ 120%
+      of nadir); ``nan`` if the response never progressed within the horizon (censored)
+      or for a non-responder.
+    """
+    t = np.asarray(t, dtype=float)
     v = np.asarray(v, dtype=float)
     base = float(v[0])
     if base <= 0:
-        return "SD"
+        return "SD", float("nan")
     i = int(np.argmin(v))
     nadir = float(v[i])
     depth = (base - nadir) / base  # fractional shrinkage from baseline at nadir
+
     if depth >= _CR_SHRINK:
-        return "CR"
-    if depth >= _PR_SHRINK:
-        return "PR"
-    # No objective response: progressive disease if it regrew >= 20% above the nadir.
-    post_nadir_max = float(v[i:].max())
-    if nadir > 0 and post_nadir_max >= (1.0 + _PD_GROWTH) * nadir:
-        return "PD"
-    return "SD"
+        category = "CR"
+    elif depth >= _PR_SHRINK:
+        category = "PR"
+    else:
+        post_nadir_max = float(v[i:].max())
+        category = "PD" if (nadir > 0 and post_nadir_max >= (1.0 + _PD_GROWTH) * nadir) else "SD"
+
+    dor = float("nan")
+    if category in ("CR", "PR"):
+        pr_level = (1.0 - _PR_SHRINK) * base       # 70% of baseline
+        pd_level = (1.0 + _PD_GROWTH) * nadir      # 120% of nadir
+        onset = next((float(t[k]) for k in range(len(t)) if v[k] <= pr_level), None)
+        prog = next((float(t[k]) for k in range(i, len(t)) if v[k] >= pd_level), None)
+        if onset is not None and prog is not None and prog > onset:
+            dor = prog - onset
+    return category, dor
+
+
+def best_response(t, v) -> str:
+    """RECIST 1.1-style best overall response from a tumor-size trajectory ``v``,
+    measured from the observed baseline ``v[0]`` (CR > PR > PD > SD)."""
+    return response_episode(t, v)[0]
 
 
 # --------------------------------------------------------------------------- #
@@ -82,10 +107,14 @@ class ResponseRates:
     context: dict
     n: int
     tier: str
-    orr: float  # P(CR or PR) — the objective response rate
+    orr: float  # P(CR or PR) — the objective response rate (breadth: how many respond)
     dcr: float  # P(CR, PR, or SD) — the disease-control rate
     distribution: dict  # CR/PR/SD/PD -> fraction (sums to 1)
     median_os_weeks: float | None  # read off the SAME trial, for the surrogate question
+    # Durability: how *long* responses last — what ORR cannot see.
+    n_responders: int = 0  # samples achieving CR/PR (the DoR denominator)
+    median_dor_weeks: float | None = None  # median observed DoR among responders
+    dor_censored_fraction: float = 0.0  # responders without observed progression (right-censored)
     warnings: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -100,6 +129,9 @@ class ResponseRates:
             "dcr": self.dcr,
             "distribution": self.distribution,
             "median_os_weeks": self.median_os_weeks,
+            "n_responders": self.n_responders,
+            "median_dor_weeks": self.median_dor_weeks,
+            "dor_censored_fraction": self.dor_censored_fraction,
             "warnings": list(self.warnings),
         }
 
@@ -131,11 +163,28 @@ def objective_response_rate(
         ds, record_id, context=context, drug_effect=drug_effect, exposure=exposure,
         exposure_response=exposure_response, survival_link=survival_link, t=t, n=n, seed=seed,
     )
-    cats = [best_response(s.t, s.tumor[i]) for i in range(s.n)]
+    episodes = [response_episode(s.t, s.tumor[i]) for i in range(s.n)]
+    cats = [e[0] for e in episodes]
     counts = Counter(cats)
     dist = {c: counts.get(c, 0) / s.n for c in RECIST_CATEGORIES}
     orr = dist["CR"] + dist["PR"]
     dcr = orr + dist["SD"]
+
+    # Durability: DoR over the responders (CR/PR). A responder whose DoR is nan never
+    # progressed within the horizon — right-censored, so the observed median is a lower
+    # bound and high censoring is flagged.
+    responder_dors = [e[1] for e in episodes if e[0] in ("CR", "PR")]
+    n_responders = len(responder_dors)
+    observed = [d for d in responder_dors if np.isfinite(d)]
+    median_dor = float(np.median(observed)) if observed else None
+    censored_frac = (n_responders - len(observed)) / n_responders if n_responders else 0.0
+
+    warnings = list(s.warnings)
+    if n_responders and censored_frac >= 0.5:
+        warnings.append(
+            f"dor_heavily_censored: {censored_frac:.0%} of responders had no progression over "
+            "the horizon; median DoR is a lower bound"
+        )
 
     os_samples = s.median.get("OS")
     median_os = None
@@ -152,7 +201,10 @@ def objective_response_rate(
         dcr=dcr,
         distribution=dist,
         median_os_weeks=median_os,
-        warnings=list(s.warnings),
+        n_responders=n_responders,
+        median_dor_weeks=median_dor,
+        dor_censored_fraction=censored_frac,
+        warnings=warnings,
     )
 
 
@@ -231,8 +283,10 @@ def response_vs_survival(
         rows.append({
             "record_id": tr.record_id,
             "tier": rr.tier,
-            "orr": rr.orr,
+            "orr": rr.orr,                       # breadth: how many respond
             "dcr": rr.dcr,
+            "median_dor_weeks": rr.median_dor_weeks,   # durability: how long responses last
+            "dor_censored_fraction": rr.dor_censored_fraction,
             "median_os_weeks": rr.median_os_weeks,
         })
 
