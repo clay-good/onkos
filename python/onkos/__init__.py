@@ -18,6 +18,11 @@ from .dose_response import (
     calibrated_er,
     compare_er_extrapolation,
 )
+from .early_surrogate import (
+    SurrogateTiming,
+    landmark_response,
+    surrogate_timing_fidelity,
+)
 from .filter import filter_records
 from .identify import Identifiability, identifiability
 from .interaction import (
@@ -102,6 +107,9 @@ __all__ = [
     "calibrated_er",
     "compare_er_extrapolation",
     "ExtrapolationComparison",
+    "landmark_response",
+    "surrogate_timing_fidelity",
+    "SurrogateTiming",
     "compare",
     "filter_records",
     "validate_dataset",

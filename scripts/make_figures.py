@@ -1510,6 +1510,66 @@ def burden_auc_figure() -> None:
     plt.close(fig)
 
 
+def early_surrogate_timing_figure() -> None:
+    """Readout TIMING is a model-selection axis. Left: the relative tumor-burden trajectories
+    (the early-surrogate readout over time) — the deep-but-doomed resistance models are deepest
+    EARLY then regrow, so an early landmark flatters them. Right: the discordance between the
+    early-landmark model ranking and the tail-aware durable-benefit ranking falls monotonically
+    as the landmark moves later; the ctDNA-era week-2-4 window is where it is worst."""
+    from onkos.early_surrogate import surrogate_timing_fidelity
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    t = np.linspace(0.0, 260.0, 521)
+    models = [
+        ("resistance.claret_2009.tgi", "Claret (phenom.)", "#c05621"),
+        ("resistance.nsclc_first_line.two_population", "two-population", "#2f855a"),
+        ("drug_effect.norton_simon.nsclc", "Norton-Simon (complete resp.)", "#2b6cb0"),
+        ("resistance.nsclc_first_line.acquired", "acquired resistance", "#b7791f"),
+    ]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.5))
+
+    # Left: relative-burden trajectories with the early window shaded.
+    for rid, label, color in models:
+        tr = onkos.simulate(ds, rid, context=ctx, drug_effect=1.0, t=t)
+        rel = (tr.tumor_size - tr.tumor_size[0]) / tr.tumor_size[0]
+        ax1.plot(t, rel, color=color, lw=1.7, label=label)
+    ax1.axvspan(2, 4, color="#c53030", alpha=0.12)
+    ax1.text(5, 0.5, "ctDNA-era\nreadout (wk 2-4)", fontsize=7, color="#c53030")
+    ax1.axvline(8, ls=":", color="grey", lw=1)
+    ax1.text(9, -0.95, "RECIST wk 8", fontsize=7, color="grey")
+    ax1.axhline(0.0, ls="-", color="black", lw=0.5)
+    ax1.set_title("the deep-but-doomed models are deepest EARLY, then regrow", fontsize=9)
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("relative tumor-burden change (the readout)")
+    ax1.set_ylim(-1.05, 1.2)
+    ax1.set_xlim(0, 120)
+    ax1.legend(fontsize=7, loc="upper right")
+
+    # Right: discordance vs landmark week.
+    st = surrogate_timing_fidelity(ds, context=ctx, landmark_weeks=(2, 4, 6, 8, 12, 16, 24, 36, 52), t=t)
+    xs = [r["week"] for r in st.rows]
+    ys = [r["discordant_pairs"] for r in st.rows]
+    ax2.plot(xs, ys, "-o", color="#6b46c1", lw=1.9, ms=5)
+    ax2.axvspan(2, 4, color="#c53030", alpha=0.12)
+    ax2.set_title("earlier readout ⇒ worse fidelity to durable benefit", fontsize=9)
+    ax2.set_xlabel("surrogate landmark week")
+    ax2.set_ylabel(f"model-pair discordance vs durable benefit (/{st.total_pairs})")
+    ax2.set_ylim(0, st.total_pairs + 0.5)
+    for x, y in zip(xs, ys):
+        ax2.annotate(f"{y}", (x, y), xytext=(0, 6), textcoords="offset points", fontsize=7, ha="center")
+
+    fig.suptitle(
+        "Early-surrogate readout timing is a model-selection axis: the earlier you read (the ctDNA push to "
+        "week 2-4), the more the ranking over-rewards deep-but-doomed early responders",
+        fontsize=9.0,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "early_surrogate_timing.png", dpi=120)
+    plt.close(fig)
+
+
 def dose_response_extrapolation_figure() -> None:
     """The exposure-response model choice as a dose-extrapolation axis. Left: three ER shapes
     re-anchored to agree at the studied dose (they cross there) but diverging away from it.
@@ -1716,4 +1776,5 @@ if __name__ == "__main__":
     joint_survival_figure()
     loewe_additivity_figure()
     dose_response_extrapolation_figure()
+    early_surrogate_timing_figure()
     print(f"Wrote figures to {OUT}")

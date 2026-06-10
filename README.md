@@ -544,6 +544,45 @@ ranking inversion, and the inherited tier/transport guardrails. `α` and the bas
 illustrative parameters — never fitted; a joint analysis never moves a tier and emits no individual
 prediction.
 
+### Early-surrogate readout timing — *when* you read it is its own axis
+
+The bridge-metric work asked *which* quantity predicts survival. The ctDNA era forces the
+orthogonal question — *when* do you read it? The field pushes the readout ever earlier
+(circulating-tumor-DNA "molecular response" at week 2–4, before a reliable RECIST size change
+at week 8). `onkos.early_surrogate` models ctDNA molecular response as proportional to tumor
+burden (the standard first-order shedding assumption), so the modeled distinction from a
+size readout is purely the **landmark time** — which isolates the timing question. (Genomic
+ctDNA content is out of scope, §2; the reduction is the honest scope, not a hidden limitation.)
+
+![Earlier readout trades fidelity to durable benefit](docs/images/early_surrogate_timing.png)
+
+`landmark_response(t, v, week)` generalizes the week-8 covariate to any landmark (recovering
+`week8_relative_change` exactly at week 8), and `surrogate_timing_fidelity` ranks a context's
+models by their early-surrogate response at each landmark and counts how many model pairs that
+ranking orders *oppositely* to a tail-aware **durable-benefit** reference (median OS under the
+k_g link). The finding is a clean monotone trade-off — **earliness trades against fidelity**:
+
+- For NSCLC the discordance against durable benefit falls monotonically with the landmark —
+  **9/10 pairs wrong at week 2** (the ctDNA-era readout, almost fully inverted), 8/10 at week 8,
+  down to 3/10 at week 52. An earlier landmark sits at or before the nadir, before the resistant
+  regrowth, so it cannot see the tail that decides durable benefit.
+- The bias has a **direction**: early landmarks rank the mechanistic-resistance models (acquired,
+  two-population — deep, fast-regrowing, doomed) on *top*, the exact models the durable-benefit
+  reference ranks *last*. Shifting the readout earlier maximizes the depth-vs-durability surrogate
+  failure, localized in time. It reproduces across breast, CRC, HCC, and melanoma.
+
+```python
+from onkos.early_surrogate import landmark_response, surrogate_timing_fidelity
+landmark_response(tr.t, tr.tumor_size, 4.0)   # the ctDNA-era (week-4) molecular-response readout
+st = onkos.surrogate_timing_fidelity(ds, context=ctx)
+st.discordance_at(2.0), st.discordance_at(52.0)   # earliest vs latest — the trade-off
+```
+
+Landmark-tested (`tests/test_early_surrogate.py`): the week-8 recovery, the monotone
+earliness-fidelity trade-off, the over-rewards-deep-but-doomed direction, and cross-context
+reproduction. Pure post-processing over the existing trajectories and the k_g link; population
+level, no individual molecular-response prediction and no go/no-go recommendation.
+
 ### RECIST response & ORR — the phase-2 endpoint and its contested OS surrogacy
 
 The objective response rate (**ORR**) is the dominant phase-2 go/no-go endpoint, and a
@@ -1062,6 +1101,7 @@ onkos.combine_effects(0.6, 0.6, model="greco", psi=0.5)   # the pure interaction
 | `onkos loewe <id> [--dose-a --dose-b --er-a --er-b]` | dose-level additivity references (HSA / Bliss / Loewe) as a model-selection axis |
 | `onkos joint [--tumor-type --line --alpha]` | joint (current-value) vs two-stage survival — the non-proportional-hazard axis |
 | `onkos dose-response <id> [--c-ref --e-ref]` | exposure-response model choice as a dose-extrapolation model-selection axis |
+| `onkos early-surrogate [--tumor-type --line --reference-link]` | early-surrogate readout timing — landmark week vs durable-benefit fidelity |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
 
 Export formats: `nonmem`, `sbml`, `pharmml`, `so` (PharmML Standard Output),
@@ -1680,6 +1720,7 @@ own thesis rather than adding breadth:
 | **Joint longitudinal–survival** | `onkos.joint`: the current-value link makes the instantaneous hazard track the current tumor size (`λ(t)=λ₀(t)·exp(α·log(v/y0))`) — the rigorous, two-stage-free survival model. A strict generalization of proportional hazards (a constant HR recovers the two-stage Weibull-PH curve exactly). The hazard ratio is **time-varying** (rises 10×–255× as a resistant clone regrows; falls for a complete responder) — a non-proportional hazard the two-stage links can't encode — and it **inverts** the week-8 resistance-model ranking (two-pop > Claret under week-8; Claret > two-pop under the joint link). So survival-link *structure* (two-stage PH vs joint) is a model-selection axis. Pure post-processing, no record/kernel/export change; `α` declared not fitted; landmark-tested; population level, no therapy ranking. | ✅ v0.34 |
 | **Dose-level Loewe additivity** | `onkos.interaction` extension: combines two *doses* through the dose-response curves via the isobole `d_A/D_A(E)+d_B/D_B(E)=1`, beside the v0.23 effect-level nulls. The "no-interaction" **reference** is itself a model-selection axis — Loewe is the only one satisfying the sham-combination identity (a drug with itself is exactly additive), Bliss overstates (can exceed either drug's max effect), HSA understates. The same dose pair gives combined effect 0.90/1.07/1.60 and median OS 88/92/101 wk across HSA/Loewe/Bliss; the gap grows with dose. Pure post-processing over the curated ER curves (analytic inverses), no new record/kernel/export; reference declared not fitted; landmark-tested (sham identity exact); population level, no dose/therapy ranking. | ✅ v0.35 |
 | **ER-model dose-extrapolation** | `onkos.dose_response`: the upstream exposure-response model choice (Emax / power / sigmoid-Emax) as a model-selection axis. Re-anchors the shapes to agree at the studied dose, then quantifies how their effect — and OS — diverge off it: **0 at the studied dose** (control), ≈19 wk at quarter-dose, sharpest on **de-escalation** (the dose-finding question). The transportability thesis with the *dose* as the context. Pure post-processing over the curated ER shapes, no new record/kernel/export; shapes re-anchored not refit; landmark-tested; population level, no dose recommendation. | ✅ v0.36 |
+| **Early-surrogate timing** | `onkos.early_surrogate`: *when* the surrogate is read (the ctDNA push to week 2–4 vs RECIST week 8) as a model-selection axis orthogonal to *which* metric. ctDNA modeled as burden-proportional, so the axis is readout time. Discordance against a tail-aware durable-benefit ranking falls monotonically with the landmark (NSCLC **9/10 at week 2 → 3/10 at week 52**); early landmarks over-reward the deep-but-doomed resistance models the durable-benefit ranking puts last. Reproduces across 5 contexts. Pure post-processing, no new record/kernel/export; landmark grid declared; landmark-tested; population level, no go/no-go. | ✅ v0.37 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

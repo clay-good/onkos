@@ -535,6 +535,32 @@ def _cmd_interactions(args) -> int:
     return 0
 
 
+def _cmd_early_surrogate(args) -> int:
+    from .early_surrogate import surrogate_timing_fidelity
+
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    st = surrogate_timing_fidelity(ds, context=ctx, reference_link=args.reference_link)
+    if args.json:
+        print(st.to_json())
+        return 0
+    ref = [r.split(".")[-1] for r in st.reference_ranking]
+    print(
+        f"tier={st.tier}  ({ctx})  durable-benefit reference: {st.reference_link.split('.')[-1]}\n"
+        f"  tail-aware ranking (best->worst): {' > '.join(ref)}\n"
+    )
+    print(f"  {'landmark wk':>11} | {'discordant pairs vs durable benefit':>36}")
+    for r in st.rows:
+        bar = "#" * r["discordant_pairs"]
+        print(f"  {r['week']:>11.0f} | {r['discordant_pairs']:>2}/{st.total_pairs}  {bar}")
+    print(
+        f"\n  >> earliest readout = {st.earliest_discordance}/{st.total_pairs} discordant, "
+        f"latest = {st.latest_discordance}/{st.total_pairs}: reading the surrogate earlier "
+        "over-rewards deep-but-doomed responders (the ctDNA-timing bias)"
+    )
+    return 0
+
+
 def _cmd_dose_response(args) -> int:
     from .dose_response import compare_er_extrapolation
 
@@ -867,6 +893,17 @@ def build_parser() -> argparse.ArgumentParser:
     drp.add_argument("--e-ref", type=float, default=1.0, help="effect the shapes share at C_ref")
     drp.add_argument("--json", action="store_true", help="emit the result as JSON")
     drp.set_defaults(func=_cmd_dose_response)
+
+    esp = sub.add_parser(
+        "early-surrogate",
+        help="early-surrogate readout timing: how landmark week trades against durable-benefit fidelity",
+    )
+    esp.add_argument("--tumor-type", default="NSCLC")
+    esp.add_argument("--line", default="first")
+    esp.add_argument("--reference-link", default=None,
+                     help="durable-benefit reference link (default: the context's k_g OS link)")
+    esp.add_argument("--json", action="store_true", help="emit the result as JSON")
+    esp.set_defaults(func=_cmd_early_surrogate)
 
     ep = sub.add_parser("export", help="generate export artifacts")
     ep.add_argument(

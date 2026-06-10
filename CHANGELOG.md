@@ -4,6 +4,40 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.37.0] — Early-surrogate readout timing: *when* you read the surrogate is a model-selection axis
+
+Implements the research-track spec `docs/specs/research/early-surrogate-timing.md`. The metric-choice work
+(v0.25/v0.33) asked *which* on-treatment quantity predicts survival; the ctDNA era forces the orthogonal
+question — *when* do you read it? The field pushes the readout ever earlier (ctDNA molecular response at
+week 2-4, before a reliable RECIST size change at week 8). This makes the readout **landmark time** an
+explicit model-selection axis and shows earliness trades against fidelity.
+
+- **New module `onkos.early_surrogate`** (pure post-processing — no new record, kernel, schema, or export;
+  every default artifact byte-identical). `landmark_response(t, v, week)` generalizes the fixed week-8
+  covariate to an arbitrary landmark (the relative tumor-burden change), which — under the standard
+  first-order ctDNA-∝-burden assumption — is also the modeled ctDNA molecular response at that week; it
+  recovers `week8_relative_change` exactly at week 8. Genomic ctDNA content is deliberately out of scope
+  (spec §2), which is what isolates the timing question.
+- **`surrogate_timing_fidelity`** ranks a context's models by their early-surrogate response at each
+  landmark week and counts how many model pairs that ranking orders oppositely to a tail-aware
+  **durable-benefit reference** (median OS under the k_g survival link). `discordant_pairs` is the
+  reusable Kendall-style ranking distance.
+- **The finding — earliness trades against fidelity.** For NSCLC the discordance against durable benefit
+  falls monotonically as the landmark moves later: **9/10 at week 2** (the ctDNA-era readout, almost fully
+  inverted) → 8/10 at week 8 → 3/10 at week 52. The bias has a direction: early landmarks put the
+  mechanistic-resistance models (acquired, two-population — deep, fast-regrowing, doomed) on **top**, the
+  exact models the durable-benefit reference ranks **last**. Shifting the readout earlier maximizes the
+  depth-vs-durability surrogate failure (v0.27/v0.28), localized in *time*. Reproduces across breast, CRC,
+  HCC, melanoma (each has a two-population model + k_g link since v0.29) — not an NSCLC artifact.
+- **10 landmarks** (`tests/test_early_surrogate.py`): the week-8 recovery, the deepens-then-recovers
+  trajectory behavior, the inversion-counting helper, fidelity-improves-with-a-later-landmark, weak
+  monotonicity, the over-rewards-deep-but-doomed direction, cross-context reproduction, and the
+  tier/clinical-use guardrails.
+- **CLI `onkos early-surrogate`** (a discordance-by-landmark ASCII bar chart); a trajectories +
+  discordance-curve figure (`docs/images/early_surrogate_timing.png`); a CI-executed notebook
+  (`notebooks/30_early_surrogate_timing.ipynb`); README section; public-API surface + contract test
+  extended. No new dataset records. 394 tests, 56 records.
+
 ## [0.36.0] — Exposure-response model choice: the dose-extrapolation model-selection axis
 
 Implements the research-track spec `docs/specs/research/exposure-response-extrapolation.md`. Every chain
