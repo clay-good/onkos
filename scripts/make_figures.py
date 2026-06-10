@@ -1241,6 +1241,80 @@ def kill_mechanism_figure() -> None:
     plt.close(fig)
 
 
+def pfs_routes_figure() -> None:
+    """PFS has two routes — the statistical week-8-keyed hazard link and the mechanistic
+    RECIST time-to-progression — and they invert the model ranking for resistance dynamics,
+    in every solid-tumor context. The week-8 link is blind to the regrowth tail."""
+    from onkos.response import pfs_route_divergence, progression_free_survival
+
+    ds = onkos.load()
+    nsclc = {"tumor_type": "NSCLC", "line": "first"}
+    names = {
+        "resistance.claret_2009.tgi": "Claret",
+        "drug_effect.norton_simon.nsclc": "Norton-Simon",
+        "resistance.nsclc_first_line.two_population": "two-population",
+        "tgi_metrics.wang_2009.biexponential": "Wang biexp",
+    }
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11.2, 4.4))
+
+    # Left: NSCLC two-route bars per model, sorted by mechanistic TTP. The two-population
+    # model is shortest mechanically yet longest statistically — the route inversion.
+    div = pfs_route_divergence(ds, context=nsclc, n=300)
+    rows = sorted(div.rows, key=lambda r: -(r["median_ttp_weeks"] or 0))
+    labels = [names.get(r["record_id"], r["record_id"].split(".")[1]) for r in rows]
+    x = np.arange(len(rows))
+    mech = [r["median_ttp_weeks"] for r in rows]
+    stat = [r["median_pfs_link_weeks"] for r in rows]
+    ax1.bar(x - 0.2, mech, 0.4, color="#2f855a", label="mechanistic (RECIST TTP)")
+    ax1.bar(x + 0.2, stat, 0.4, color="#c05621", label="statistical (week-8 link)")
+    tp = next(i for i, r in enumerate(rows)
+              if r["record_id"] == "resistance.nsclc_first_line.two_population")
+    ax1.annotate("route inverts\nthis model's rank", (tp, stat[tp]),
+                 textcoords="offset points", xytext=(0, 16), fontsize=7, ha="center",
+                 color="#c53030", arrowprops=dict(arrowstyle="->", color="#c53030", lw=1))
+    ax1.set_xticks(x, labels, fontsize=8)
+    ax1.set_ylabel("median PFS (weeks)")
+    ax1.set_title(f"NSCLC 1L: the two routes disagree "
+                  f"({div.discordant_pairs}/{div.total_pairs} pairs inverted)", fontsize=9)
+    ax1.legend(fontsize=7, loc="upper right")
+
+    # Right: across all contexts, the Claret-vs-two-population route inversion. Mechanistic
+    # ranks Claret >> two-pop; statistical ranks them level/reversed — everywhere.
+    contexts = [("NSCLC", "first"), ("breast", "first"), ("CRC", "first"),
+                ("HCC", "first"), ("melanoma", "first")]
+    clab = [c[0] for c in contexts]
+    cm, tm, cs, ts = [], [], [], []
+    for tt, ln in contexts:
+        ctx = {"tumor_type": tt, "line": ln}
+        cl = progression_free_survival(ds, "resistance.claret_2009.tgi", context=ctx, n=300)
+        tp_id = next(r.id for r in ds if r.id.endswith("two_population")
+                     and r.derivation_context and r.derivation_context.tumor_type == tt)
+        twp = progression_free_survival(ds, tp_id, context=ctx, n=300)
+        cm.append(cl.median_ttp_weeks)
+        tm.append(twp.median_ttp_weeks)
+        cs.append(cl.median_pfs_link_weeks)
+        ts.append(twp.median_pfs_link_weeks)
+    xc = np.arange(len(contexts))
+    ax2.plot(xc, cm, "o-", color="#2f855a", label="Claret — mechanistic")
+    ax2.plot(xc, tm, "o--", color="#2f855a", alpha=0.5, label="two-pop — mechanistic")
+    ax2.plot(xc, cs, "s-", color="#c05621", label="Claret — statistical")
+    ax2.plot(xc, ts, "s--", color="#c05621", alpha=0.5, label="two-pop — statistical")
+    ax2.set_xticks(xc, clab, fontsize=8)
+    ax2.set_ylabel("median PFS (weeks)")
+    ax2.set_title("Mechanistic ranks Claret ≫ two-pop; statistical levels them — every context",
+                  fontsize=8.5)
+    ax2.legend(fontsize=6.5, ncol=2, loc="upper right")
+
+    fig.suptitle(
+        "PFS endpoint — the route is a model-selection axis: the week-8 hazard link is blind "
+        "to the resistant-clone regrowth the mechanism sees, so the two routes invert",
+        fontsize=9.5,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "pfs_routes.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
@@ -1266,4 +1340,5 @@ if __name__ == "__main__":
     response_orr_figure()
     duration_of_response_figure()
     cross_context_generalization_figure()
+    pfs_routes_figure()
     print(f"Wrote figures to {OUT}")

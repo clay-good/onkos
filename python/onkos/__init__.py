@@ -23,9 +23,13 @@ from .interaction import (
 from .load import DATASET_VERSION, Dataset, load
 from .report import build_report
 from .response import (
+    PFSRouteDivergence,
+    ProgressionFreeSurvival,
     ResponseRates,
     ResponseSurvival,
     objective_response_rate,
+    pfs_route_divergence,
+    progression_free_survival,
     response_vs_survival,
 )
 from .sensitivity import SensitivityResult, sensitivity
@@ -51,6 +55,10 @@ __all__ = [
     "ResponseSurvival",
     "objective_response_rate",
     "response_vs_survival",
+    "ProgressionFreeSurvival",
+    "PFSRouteDivergence",
+    "progression_free_survival",
+    "pfs_route_divergence",
     "load",
     "simulate",
     "simulate_ensemble",

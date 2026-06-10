@@ -351,6 +351,55 @@ def _cmd_response(args) -> int:
     return 0
 
 
+def _cmd_pfs(args) -> int:
+    from .response import pfs_route_divergence, progression_free_survival
+
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+
+    if args.routes:
+        div = pfs_route_divergence(ds, context=ctx, drug_effect=args.drug_effect,
+                                   landmark_weeks=args.landmark, n=args.n, seed=args.seed)
+        if args.json:
+            print(div.to_json())
+            return 0
+        print(f"PFS two routes — {ctx}  (mechanistic RECIST TTP vs statistical week-8 link)\n")
+        print(f"  {'model':<48} {'mech TTP':>9} {'stat PFS':>9} {'ratio':>6}")
+        for r in sorted(div.rows, key=lambda x: -(x["median_ttp_weeks"] or 0)):
+            mech = "n/r" if r["median_ttp_weeks"] is None else f"{r['median_ttp_weeks']:.0f}"
+            stat = "n/r" if r["median_pfs_link_weeks"] is None else f"{r['median_pfs_link_weeks']:.0f}"
+            ratio = "—" if r["route_ratio"] is None else f"{r['route_ratio']:.2f}"
+            print(f"  [{r['tier']}] {r['record_id']:<44} {mech:>9} {stat:>9} {ratio:>6}")
+        verdict = "the routes agree" if div.routes_agree else "the PFS ROUTE inverts the ranking"
+        print(
+            f"\n  >> route-discordant model pairs = {div.discordant_pairs}/{div.total_pairs} "
+            f"(fraction {div.discordant_fraction:.2f})  ->  {verdict}"
+        )
+        return 0
+
+    if not args.record:
+        print("error: provide a RECORD id (or --routes)", file=sys.stderr)
+        return 2
+    pf = progression_free_survival(ds, args.record, context=ctx, drug_effect=args.drug_effect,
+                                   landmark_weeks=args.landmark, n=args.n, seed=args.seed)
+    if args.json:
+        print(pf.to_json())
+        return 0
+    print(f"{args.record}  tier={pf.tier}  ({ctx}, n={pf.n})\n")
+    mech = "n/r" if pf.median_ttp_weeks is None else f"{pf.median_ttp_weeks:.0f} wk"
+    cens = f"  ({pf.ttp_censored_fraction:.0%} censored)" if pf.ttp_censored_fraction else ""
+    print(f"  mechanistic PFS (RECIST TTP)  = {mech}{cens}")
+    print(f"  progression-free @ {pf.landmark_weeks:.0f} wk    = {pf.mechanistic_pfs_rate:.2f}")
+    if pf.has_pfs_link and pf.median_pfs_link_weeks is not None:
+        print(f"  statistical PFS (week-8 link) = {pf.median_pfs_link_weeks:.0f} wk")
+    if pf.route_ratio is not None:
+        agree = "routes agree" if 0.85 <= pf.route_ratio <= 1.18 else "routes disagree"
+        print(f"  route ratio (mech / stat)     = {pf.route_ratio:.2f}  ({agree})")
+    for w in pf.warnings:
+        print(f"  ! {w}")
+    return 0
+
+
 def _cmd_budget(args) -> int:
     from .budget import _AXIS_LABELS, model_selection_budget
 
@@ -585,6 +634,23 @@ def build_parser() -> argparse.ArgumentParser:
     rsp.add_argument("--seed", type=int, default=0)
     rsp.add_argument("--json", action="store_true", help="emit the result as JSON")
     rsp.set_defaults(func=_cmd_response)
+
+    pp = sub.add_parser(
+        "pfs",
+        help="progression-free survival two ways: mechanistic RECIST TTP vs the statistical link",
+    )
+    pp.add_argument("record", nargs="?", help="record id (omit with --routes)")
+    pp.add_argument("--tumor-type", default="NSCLC")
+    pp.add_argument("--line", default="first")
+    pp.add_argument("--drug-effect", type=float, default=1.0)
+    pp.add_argument("--landmark", type=float, default=24.0,
+                    help="landmark horizon (weeks) for the progression-free rate")
+    pp.add_argument("--routes", action="store_true",
+                    help="two-route PFS table + route-discordance across the in-context models")
+    pp.add_argument("--n", type=int, default=300, help="ensemble depth")
+    pp.add_argument("--seed", type=int, default=0)
+    pp.add_argument("--json", action="store_true", help="emit the result as JSON")
+    pp.set_defaults(func=_cmd_pfs)
 
     bp = sub.add_parser(
         "budget",

@@ -4,6 +4,46 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.30.0] — The PFS endpoint: two routes to progression-free survival
+
+Implements the research-track spec `docs/specs/research/pfs-endpoint.md`. PFS is the
+endpoint that gates accelerated and conditional approvals, and Onkos can compute it two
+legitimate ways that need not agree. This opens the *mechanistic* route beside the existing
+*statistical* one and shows the **route choice is a model-selection axis** — the model-
+selection thesis now lives *inside a single endpoint*.
+
+- **Mechanistic PFS** — `time_to_progression(t, v)` reads the RECIST 1.1 progression time
+  directly off a tumor-size trajectory: the first time the SLD rises ≥20% above its
+  *running nadir* (baseline included), `nan` if it never progresses within the horizon
+  (right-censored). The progression arithmetic already lived inside DoR (v0.28); this
+  promotes it to a first-class endpoint. No new kernel or record — pure post-processing.
+- **Both routes, same trial** — `progression_free_survival(...)` returns, over the IIV
+  ensemble, the mechanistic median TTP, a censoring-robust **landmark progression-free rate**
+  (default 24 wk ≈ 6 months), the censored fraction, *and* the statistical median PFS from
+  the context's parametric PFS link, plus their `route_ratio`. A `ttp_heavily_censored`
+  warning fires above 50%, mirroring DoR.
+- **The route is a model-selection axis** — `pfs_route_divergence(...)` counts the in-context
+  model pairs whose mechanistic-PFS ranking contradicts their statistical-PFS ranking. The
+  two-population (mechanistic resistance) model is the consistent culprit: **shortest or
+  near-shortest mechanistic PFS, yet among the longest statistical PFS**, because at week 8
+  it is deeply shrunk and the week-8-keyed hazard link reads that as durable benefit — blind
+  to the resistant-clone regrowth the mechanism sees. The PFS endpoint's verdict on which
+  model looks better depends on which route computes it (NSCLC 1L: 2/6 route-discordant
+  pairs).
+- **Dataset-wide on day one** — every solid-tumor context already has both a PFS link (v0.12)
+  and a two-population model (v0.29), so the route inversion reproduces in all five contexts
+  (NSCLC, breast, CRC, HCC, melanoma: ≥1 route-discordant pair each) — not an NSCLC artifact,
+  unlike the v0.27 ORR surrogate which needed the `k_g` link.
+- **Guardrails unchanged** — both routes carry the propagated tier (worst-input-wins; out-of-
+  context transport floors to D), are trial-level only, never rank therapies, and surface
+  censoring explicitly. Neither route is privileged; Onkos reports the *disagreement*.
+- **Surfaces** — `onkos pfs <id>` (mechanistic TTP, landmark rate, statistical PFS, ratio)
+  and `onkos pfs --routes` (the two-route table + route-discordance count); a `pfs_routes`
+  figure; `notebooks/23_pfs_endpoint.ipynb` (executed in CI); 11 closed-form/relational
+  landmarks in `tests/test_pfs_routes.py`; `progression_free_survival` and
+  `pfs_route_divergence` added to the public-API contract. No new dataset record, kernel, or
+  export. Version 0.30.0 (54 records).
+
 ## [0.29.0] — Cross-context generalization: the findings are not NSCLC artifacts
 
 Implements the research-track spec `docs/specs/research/cross-context-generalization.md`,

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "onkos"
-version = "0.29.0"
+version = "0.30.0"
 description = "Curated, citation-backed, tier-annotated dataset of tumor-growth-inhibition (TGI) and TGI→survival models for oncology drug development."
 readme = "README.md"
 requires-python = ">=3.9"

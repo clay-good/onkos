@@ -528,6 +528,56 @@ surrogacy, the depth-vs-durability dissociation, and the budget's survival-link 
 **dataset-wide**, not an NSCLC demo. The new records are illustrative and tier C — this
 generalizes the *structural findings*, not validated per-tumor parameters.
 
+### PFS endpoint — two routes to progression-free survival, and they disagree
+
+PFS is the endpoint that gates accelerated and conditional approvals — the one a sponsor
+reaches for when OS is immature. Onkos computes it **two legitimate ways that need not
+agree**, and shows the route choice is itself a model-selection axis (v0.30):
+
+- **statistical** — the parametric PFS survival link, a hazard model keyed on the *week-8*
+  tumor change (the standard route, fit because an early read is what a trial affords);
+- **mechanistic** — the RECIST 1.1 time-to-progression read directly off the simulated tumor
+  trajectory (first time the SLD rises +20% above its *running nadir*).
+
+![PFS two routes — the route is a model-selection axis](docs/images/pfs_routes.png)
+
+The week-8 link is blind to a regrowth tail it never sampled; the mechanism watches the SLD
+cross progression. For shrink-then-regrow resistance dynamics the two routes **invert the
+model ranking**. The two-population (mechanistic resistance) model is the consistent culprit:
+its resistant subclone regrows fast, so it has the **shortest** mechanistic PFS — yet at week
+8 it is deeply shrunk, so the week-8 hazard link gives it among the **longest** statistical
+PFS. For NSCLC 1L the mechanistic route ranks Claret far above the two-population model (60 vs
+34 wk) while the statistical route ranks them level or reversed (34 vs 35 wk) — 2 of 6 model
+pairs are route-discordant. Because every solid-tumor context already has both a PFS link
+(v0.12) and a two-population model (v0.29), this reproduces in all five contexts on day one —
+not an NSCLC artifact:
+
+| Context (1L) | mech. TTP: Claret / two-pop | stat. PFS: Claret / two-pop | route-discordant pairs |
+| --- | --- | --- | --- |
+| NSCLC | 60 / 34 | 34 / 35 | 2/6 |
+| breast | 78 / 39 | 65 / 67 | 1/3 |
+| CRC | 67 / 32 | 53 / 55 | 1/3 |
+| HCC | 48 / 27 | 30 / 31 | 1/3 |
+| melanoma | 62 / 28 | 45 / 46 | 1/3 |
+
+```python
+pf = onkos.progression_free_survival(ds, "resistance.nsclc_first_line.two_population", context=ctx)
+pf.median_ttp_weeks            # 34 — mechanistic: RECIST progression off the trajectory
+pf.median_pfs_link_weeks       # 35 — statistical: the week-8-keyed PFS hazard link, same trial
+pf.mechanistic_pfs_rate        # P(progression-free at 24 wk ≈ 6 mo), censoring-robust
+pf.route_ratio                 # mechanistic / statistical median
+div = onkos.pfs_route_divergence(ds, context=ctx)   # route-discordance across the in-context models
+# onkos pfs <id>  /  onkos pfs --routes   ->   the two-route table + the route-discordance count
+```
+
+Onkos privileges **neither** route — the statistical link carries trial-fit hazard
+information the mechanism lacks; the mechanism assumes the tumor model is true. It reports the
+*disagreement*: PFS is not one number but two that diverge for exactly the resistance dynamics
+that matter. Landmark-tested (`tests/test_pfs_routes.py`): the closed-form TTP, the
+running-nadir rule, censoring of durable non-progressors, the NSCLC route inversion, and
+dataset-wide route discordance. Population/trial level only; tier floors to D out of context;
+no therapy ranking.
+
 ### Line of therapy — and line-aware survival matching
 
 The context library is indexed by tumor type **and line of therapy**. NSCLC now
@@ -749,6 +799,13 @@ rr.orr, rr.dcr, rr.distribution            # population ORR/DCR; CR/PR/SD/PD dis
 rs = onkos.response_vs_survival(ds, context=ctx)   # ORR->OS discordance across models
 rs.discordant_fraction, rs.orr_predicts_os         # is ORR a faithful OS surrogate here?
 
+# PFS two ways — the statistical week-8 link vs the mechanistic RECIST progression time
+pf = onkos.progression_free_survival(ds, "resistance.nsclc_first_line.two_population", context=ctx)
+pf.median_ttp_weeks, pf.median_pfs_link_weeks      # mechanistic vs statistical PFS (same trial)
+pf.mechanistic_pfs_rate, pf.route_ratio            # landmark PFS rate; route disagreement
+div = onkos.pfs_route_divergence(ds, context=ctx)  # route-discordance across the in-context models
+div.discordant_pairs, div.routes_agree             # is PFS one number here, or two that disagree?
+
 # Parameter uncertainty — propagate the stored IIV CVs (Monte-Carlo bands)
 ens = onkos.simulate_ensemble(ds, "resistance.claret_2009.tgi", context=ctx, n=400, seed=0)
 ens.tumor_size.median, ens.tumor_size.lo, ens.tumor_size.hi   # 5–95% band arrays
@@ -790,6 +847,7 @@ onkos.combine_effects(0.6, 0.6, model="greco", psi=0.5)   # the pure interaction
 | `onkos compare --average [--weights --decompose --json]` | model-averaged forecast + within/between variance decomposition |
 | `onkos budget [--tumor-type --line --endpoint --json]` | model-selection budget — variance split across the structural choices |
 | `onkos response <id> [--survival-link --surrogate --durability --json]` | RECIST best response / ORR / DoR, the ORR → OS surrogate, and breadth-vs-durability |
+| `onkos pfs <id> [--routes --landmark --json]` | PFS two ways — mechanistic RECIST TTP vs the statistical week-8 link; the route-discordance across models |
 | `onkos uncertainty <id> [--n --seed]` | Monte-Carlo parameter-uncertainty bands (propagates IIV CV) |
 | `onkos sensitivity <id> [--target --n]` | rank parameters by how much their IIV drives a target metric |
 | `onkos identify <id> [--schedule --sigma-prop]` | predicted RSE vs stored CV — can a realistic trial design estimate the parameters? |
@@ -1162,7 +1220,7 @@ flowchart TD
         CLI["onkos CLI"]
         DASH["Streamlit dashboard"]
         REP["health report + tier audit"]
-        NB["13 CI-executed notebooks"]
+        NB["23 CI-executed notebooks"]
     end
     DS --> LOAD --> REG --> REF
     LOAD --> VAL & TIER
@@ -1286,6 +1344,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | The Cox link is non-default and opt-in, not an auto-selected competitor | Auto-discovery assumes one link per (context, endpoint). The Cox alternative carries `structure.default: false`, so it's reachable only via explicit `survival_link=` — turning "Weibull vs Cox" into a deliberate survival-model-choice comparison instead of a silent collision. Its tabulated baseline rides along in the vt-json / JSON-LD exports. |
 | Duration of response is read from the same RECIST episode as the response category, so breadth and durability can't drift apart | `response_episode(t, v)` returns both the best-response category and the DoR from one observed-baseline trajectory, so ORR (breadth) and DoR (durability) are mutually consistent by construction. That consistency is what lets the dataset show the durability *mechanism* behind the v0.27 surrogate failure — the highest-ORR model is the shortest-DoR one — and durable responders are right-censored (a lower-bound median with the censored fraction surfaced), never silently dropped to zero. |
 | ORR is a population rate read off the same trial as OS, so its surrogacy is measured not assumed | The response endpoint reads the tumor trajectory directly (RECIST best response over the IIV ensemble); pairing each model's ORR with the OS from the *same* simulated trial turns the contested ORR → OS surrogate into a discordant-pair count. The honest punchline — ORR is faithful under a shrinkage-based survival model and inverts under a tail-driven one — falls out only because both endpoints share one trial, and it explains *why* high-ORR drugs fail confirmatory OS trials without Onkos ever ranking a treatment. |
+| PFS is computed two ways and Onkos privileges neither — the *disagreement* is the quantity | The mechanistic route (`time_to_progression`, RECIST progression off the trajectory) and the statistical route (the week-8-keyed PFS link) are both legitimate and calibrated from different data, so the route is a model-selection axis *inside one endpoint*. For shrink-then-regrow resistance the routes invert the model ranking in every context (the week-8 link can't see the regrowth tail the mechanism does). Reporting both with their ratio — rather than picking one — is the same honesty stance as the OS-metric choice, applied to the endpoint that gates accelerated approvals; the censoring-robust landmark rate keeps the durable non-progressors from biasing the mechanistic median. |
 | The structural uncertainties are accounted on one ledger, not just scored in isolation | Each model-selection axis (TGI model, survival metric/structure) was first surfaced alone; `onkos.budget` is the capstone that decomposes total forecast variance across all of them at once via a balanced two-way ANOVA, so their *relative* weights — and their interaction — are visible. It names the dominant axis (where standardization has the most leverage) instead of leaving "it depends on your assumptions" as a slogan, and it strictly generalizes the v0.21 within/between split (collapse one factor to recover it). The headline distinction — parameter (reducible by data) vs structural (not) — is the honest opposite of false precision. |
 | The metric that bridges tumor dynamics to survival is a declared field, not a hidden constant | Every survival link consumed the week-8 change by default; making it `structure.link_metric` (default unchanged) exposes the most consequential surrogate choice in early oncology. Shipping a tail-sensitive `k_g` link beside it shows the choice can *invert* which model looks better — so Onkos surfaces the surrogate-endpoint debate rather than silently picking a side. An undefined metric (e.g. `k_g` with no regrowth) maps to the no-effect covariate (baseline hazard), never a fabricated or nan curve. |
 | The dashboard owns no logic — it renders a tested, serializable result | The virtual-trial result is a `Comparison.to_dict()/to_json()` the package builds and tests; the Streamlit file only draws it. That keeps the headline view honest (the same numbers everywhere), lets external simulators ingest the JSON, and means CI catches UI/API drift by lint + compile, not by screenshots. |
@@ -1367,6 +1426,7 @@ own thesis rather than adding breadth:
 | **RECIST response & ORR surrogacy** | `onkos.response`: RECIST 1.1 best response (`CR/PR/SD/PD`) → population ORR / DCR over the IIV ensemble — the dominant phase-2 endpoint, previously absent. `response_vs_survival` reads ORR and OS off the same trial and counts discordant model pairs, showing the ORR → OS surrogate is **conditional on the survival mechanism**: faithful under the week-8 link (0/6), inverted under the `k_g` link (4/6, the high-responder has the shortest OS). Pure post-processing; landmark-tested; population level, no therapy ranking. | ✅ v0.27 |
 | **Duration of response** | `response_episode` returns best response *and* DoR from one trajectory; ORR (breadth) gains median DoR (durability) over the ensemble with honest right-censoring. Depth ≠ durability: the highest-ORR NSCLC model has the *shortest* DoR, the mechanism of the v0.27 surrogate failure (broad but brief responses → worst tail-driven OS). Pure post-processing; landmark-tested; population level. | ✅ v0.28 |
 | **Cross-context generalization** (breadth) | A mechanistic two-population model + a tail-sensitive `k_g` OS link added to breast, CRC, HCC, melanoma (8 records). The resistance-mechanism divergence, the budget's survival-link axis, the conditional ORR→OS surrogacy, and depth≠durability all **reproduce across five solid-tumor contexts** — CI-enforced (`tests/test_response.py`, `tests/test_budget.py`). 5/6 contexts now structure-dominated. Turns four single-context demos into a dataset-wide claim. | ✅ v0.29 |
+| **PFS endpoint — two routes** | `progression_free_survival` / `pfs_route_divergence`: PFS computed both ways — the statistical week-8-keyed survival link and the mechanistic RECIST time-to-progression off the trajectory (`time_to_progression`) — over the same trial. The **route is a model-selection axis**: the two-population model is shortest mechanically yet longest statistically (the week-8 link is blind to the resistant-clone regrowth), inverting the model ranking in **all five contexts** (NSCLC 2/6, others 1/3). Pure post-processing; landmark-tested; neither route privileged; population level, no therapy ranking. | ✅ v0.30 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

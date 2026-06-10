@@ -45,6 +45,11 @@ __all__ = [
     "objective_response_rate",
     "ResponseSurvival",
     "response_vs_survival",
+    "time_to_progression",
+    "ProgressionFreeSurvival",
+    "progression_free_survival",
+    "PFSRouteDivergence",
+    "pfs_route_divergence",
 ]
 
 RECIST_CATEGORIES = ("CR", "PR", "SD", "PD")
@@ -308,6 +313,253 @@ def response_vs_survival(
     return ResponseSurvival(
         context=context,
         endpoint="OS",
+        rows=rows,
+        discordant_pairs=discordant,
+        total_pairs=total,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Progression-free survival — the second endpoint, computed two ways.          #
+#                                                                              #
+# A PFS number has two legitimate routes that need not agree: the *statistical* #
+# parametric PFS survival link (a week-8-keyed hazard model) and the           #
+# *mechanistic* RECIST time-to-progression read directly off the tumor         #
+# trajectory. The week-8 link is blind to a regrowth tail it never sampled;    #
+# the mechanism watches the SLD cross +20% of its nadir. For shrink-then-regrow #
+# resistance dynamics the two routes invert — making the PFS *route* a         #
+# model-selection axis, exactly like the v0.25 OS-metric choice.               #
+# --------------------------------------------------------------------------- #
+
+
+def time_to_progression(t, v) -> float:
+    """RECIST 1.1 mechanistic time-to-progression (progression-free survival) from one
+    tumor-size trajectory: the first time after baseline that the SLD rises to >= 120% of
+    its *running nadir* (the smallest SLD recorded up to that time, baseline included).
+
+    Returns the progression time in the units of ``t`` (weeks), or ``nan`` if the SLD never
+    crosses +20% of its running nadir within the horizon (a durable non-progressor —
+    right-censored)."""
+    t = np.asarray(t, dtype=float)
+    v = np.asarray(v, dtype=float)
+    if v.size == 0:
+        return float("nan")
+    running_nadir = np.minimum.accumulate(v)
+    progressed = v >= (1.0 + _PD_GROWTH) * running_nadir
+    progressed[0] = False  # baseline is the first nadir; it cannot be a progression event
+    idx = np.flatnonzero(progressed)
+    return float(t[idx[0]]) if idx.size else float("nan")
+
+
+@dataclass
+class ProgressionFreeSurvival:
+    record_id: str
+    context: dict
+    n: int
+    tier: str
+    landmark_weeks: float
+    # Mechanistic route — RECIST progression read off the tumor trajectory.
+    median_ttp_weeks: float | None        # median observed (uncensored) TTP; lower bound if censored
+    ttp_censored_fraction: float          # samples with no progression over the horizon
+    mechanistic_pfs_rate: float           # P(progression-free at the landmark) — censoring-robust
+    # Statistical route — the context's parametric PFS survival link, same trial.
+    median_pfs_link_weeks: float | None
+    has_pfs_link: bool
+    route_ratio: float | None             # mechanistic / statistical median (1.0 = routes agree)
+    warnings: list = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "onkos:clinicalUse": CLINICAL_USE,
+            "NOT_FOR_CLINICAL_USE": True,
+            "record_id": self.record_id,
+            "context": self.context,
+            "n": self.n,
+            "tier": self.tier,
+            "landmark_weeks": self.landmark_weeks,
+            "median_ttp_weeks": self.median_ttp_weeks,
+            "ttp_censored_fraction": self.ttp_censored_fraction,
+            "mechanistic_pfs_rate": self.mechanistic_pfs_rate,
+            "median_pfs_link_weeks": self.median_pfs_link_weeks,
+            "has_pfs_link": self.has_pfs_link,
+            "route_ratio": self.route_ratio,
+            "warnings": list(self.warnings),
+        }
+
+    def to_json(self, *, indent: int = 2) -> str:
+        import json
+
+        return json.dumps(self.to_dict(), indent=indent)
+
+
+def progression_free_survival(
+    ds: Dataset,
+    record_id: str,
+    *,
+    context: dict | None = None,
+    drug_effect: float | None = 1.0,
+    exposure=None,
+    exposure_response: str | None = None,
+    landmark_weeks: float = 24.0,
+    t: np.ndarray | None = None,
+    n: int = 300,
+    seed: int = 0,
+) -> ProgressionFreeSurvival:
+    """Population progression-free survival for ``record_id`` computed two ways over its
+    stored IIV ensemble: the *mechanistic* RECIST time-to-progression read off each simulated
+    tumor trajectory, and the *statistical* parametric PFS survival link (the context default),
+    read off the same trial. The two need not agree — their disagreement is the quantity.
+    Trial-level only; never an individual's progression-free time."""
+    if t is None:
+        t = np.linspace(0.0, 156.0, 313)
+    s = ensemble_samples(
+        ds, record_id, context=context, drug_effect=drug_effect, exposure=exposure,
+        exposure_response=exposure_response, t=t, n=n, seed=seed,
+    )
+    # Mechanistic route: RECIST progression off each trajectory.
+    ttps = np.array([time_to_progression(s.t, s.tumor[i]) for i in range(s.n)])
+    observed = ttps[np.isfinite(ttps)]
+    median_ttp = float(np.median(observed)) if observed.size else None
+    censored_frac = (s.n - observed.size) / s.n if s.n else 0.0
+    # Landmark rate is censoring-robust: progression-free = censored (never progressed) OR
+    # progression after the landmark.
+    progression_free_at_landmark = np.isnan(ttps) | (ttps > landmark_weeks)
+    mech_rate = float(np.mean(progression_free_at_landmark)) if s.n else 0.0
+
+    # Statistical route: the context's default PFS survival link, same trial.
+    pfs_samples = s.median.get("PFS")
+    median_pfs_link = None
+    has_pfs_link = pfs_samples is not None
+    if has_pfs_link:
+        finite = pfs_samples[np.isfinite(pfs_samples)]
+        median_pfs_link = float(np.median(finite)) if finite.size else None
+
+    route_ratio = None
+    if median_ttp is not None and median_pfs_link not in (None, 0.0):
+        route_ratio = median_ttp / median_pfs_link
+
+    warnings = list(s.warnings)
+    if censored_frac >= 0.5:
+        warnings.append(
+            f"ttp_heavily_censored: {censored_frac:.0%} of samples had no progression over the "
+            "horizon; median TTP is a lower bound (use the landmark rate)"
+        )
+    if not has_pfs_link:
+        warnings.append("no_pfs_link: this context has no parametric PFS link; statistical route unavailable")
+
+    return ProgressionFreeSurvival(
+        record_id=record_id,
+        context=context or {},
+        n=s.n,
+        tier=s.tier,
+        landmark_weeks=landmark_weeks,
+        median_ttp_weeks=median_ttp,
+        ttp_censored_fraction=censored_frac,
+        mechanistic_pfs_rate=mech_rate,
+        median_pfs_link_weeks=median_pfs_link,
+        has_pfs_link=has_pfs_link,
+        route_ratio=route_ratio,
+        warnings=warnings,
+    )
+
+
+@dataclass
+class PFSRouteDivergence:
+    context: dict
+    landmark_weeks: float
+    rows: list  # per-model {record_id, tier, median_ttp_weeks, median_pfs_link_weeks, route_ratio}
+    discordant_pairs: int  # model pairs whose mechanistic-PFS order contradicts their statistical-PFS order
+    total_pairs: int
+    warnings: list = field(default_factory=list)
+
+    @property
+    def discordant_fraction(self) -> float:
+        """Fraction of model pairs whose mechanistic-PFS ranking contradicts their
+        statistical-PFS ranking — a nonzero value is direct evidence the PFS *route* is a
+        model-selection axis here."""
+        return self.discordant_pairs / self.total_pairs if self.total_pairs else 0.0
+
+    @property
+    def routes_agree(self) -> bool:
+        return self.discordant_pairs == 0
+
+    def to_dict(self) -> dict:
+        return {
+            "onkos:clinicalUse": CLINICAL_USE,
+            "NOT_FOR_CLINICAL_USE": True,
+            "context": self.context,
+            "landmark_weeks": self.landmark_weeks,
+            "rows": self.rows,
+            "discordant_pairs": self.discordant_pairs,
+            "total_pairs": self.total_pairs,
+            "discordant_fraction": self.discordant_fraction,
+            "routes_agree": self.routes_agree,
+            "warnings": list(self.warnings),
+        }
+
+    def to_json(self, *, indent: int = 2) -> str:
+        import json
+
+        return json.dumps(self.to_dict(), indent=indent)
+
+
+def pfs_route_divergence(
+    ds: Dataset,
+    *,
+    context: dict,
+    drug_effect: float = 1.0,
+    landmark_weeks: float = 24.0,
+    t: np.ndarray | None = None,
+    n: int = 300,
+    seed: int = 0,
+) -> PFSRouteDivergence:
+    """For every in-context TGI model, compute PFS by both routes (mechanistic RECIST TTP and
+    the statistical PFS link) from the same trial, and count the model pairs whose mechanistic
+    ranking *contradicts* their statistical ranking — making "PFS is one number" a testably
+    false claim. A discordant pair is one model that has a longer PFS than another by one route
+    yet a shorter PFS by the other (the failure mode of a week-8 link blind to the regrowth
+    tail). Statement about *models under this context*, never a therapy ranking."""
+    from .compare import compare
+
+    if t is None:
+        t = np.linspace(0.0, 156.0, 313)
+    cmp = compare(ds, purpose="tgi", context=context, drug_effect=drug_effect, t=t)
+    rows = []
+    for tr in cmp.included:
+        pf = progression_free_survival(
+            ds, tr.record_id, context=context, drug_effect=drug_effect,
+            landmark_weeks=landmark_weeks, t=t, n=n, seed=seed,
+        )
+        rows.append({
+            "record_id": tr.record_id,
+            "tier": pf.tier,
+            "median_ttp_weeks": pf.median_ttp_weeks,          # mechanistic route
+            "median_pfs_link_weeks": pf.median_pfs_link_weeks,  # statistical route
+            "mechanistic_pfs_rate": pf.mechanistic_pfs_rate,
+            "route_ratio": pf.route_ratio,
+        })
+
+    # Count discordant pairs among models with both routes finite.
+    scored = [
+        r for r in rows
+        if r["median_ttp_weeks"] is not None and r["median_pfs_link_weeks"] is not None
+    ]
+    discordant = 0
+    total = 0
+    for i in range(len(scored)):
+        for j in range(i + 1, len(scored)):
+            a, b = scored[i], scored[j]
+            d_mech = a["median_ttp_weeks"] - b["median_ttp_weeks"]
+            d_stat = a["median_pfs_link_weeks"] - b["median_pfs_link_weeks"]
+            if d_mech == 0 or d_stat == 0:
+                continue  # a tie is neither concordant nor discordant
+            total += 1
+            if (d_mech > 0) != (d_stat > 0):  # longer by one route, shorter by the other
+                discordant += 1
+
+    return PFSRouteDivergence(
+        context=context,
+        landmark_weeks=landmark_weeks,
         rows=rows,
         discordant_pairs=discordant,
         total_pairs=total,
