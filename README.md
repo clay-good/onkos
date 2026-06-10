@@ -465,6 +465,44 @@ survival, never a nan curve. Onkos ships *both* metrics and shows they disagree;
 not declare a winner — making the field's surrogate-endpoint debate computable rather
 than rhetorical.
 
+### A third bridge metric: the integrated tumor burden, and why it doesn't settle the debate
+
+The week-8 change reads *one early point* (depth-only, blind to the tail); `k_g` reads
+*one terminal slope* (tail-only, blind to depth). Both throw away most of the trajectory.
+v0.33 adds the natural third option — the **integrated tumor burden** `log_burden_auc`, the
+time-averaged log relative tumor size over the horizon (the AUC of the log-size curve). It is
+the one summary that integrates *both*: depth lowers it, a regrowth tail raises it. Eradication
+is floored at the detection limit so the integral stays finite. Like `k_g` it is a non-default
+link (`default=false`), so the default view and every export are byte-identical.
+
+![A third TGI→OS bridge metric: the integrated tumor burden re-ranks the models a third way](docs/images/burden_auc.png)
+
+The point is that the "comprehensive" metric does **not** dissolve the choice — it produces a
+*third, distinct* ranking of the NSCLC models, and exposes a pathology of the pure-tail metric:
+
+- **Three different rankings.** week-8: `two-pop > acquired > Claret > Norton-Simon > Wang`;
+  `k_g`: `Norton-Simon > Wang > Claret > two-pop > acquired`; burden:
+  `Norton-Simon > Claret > two-pop > acquired > Wang`. Which bridge metric you pick remains a
+  live model-selection axis even when you reach for the one that uses the whole curve.
+- **Burden repairs `k_g`'s depth-blindness.** `k_g` ranks the *minimal* responder Wang (nadir
+  ~75% of baseline — it barely shrinks) **2nd**, because its regrowth slope happens to be slow;
+  the pure-tail metric cannot see that the tumor never got small. The integrated burden weighs
+  depth and ranks Wang **last**, where a clinician would. Tail-sensitivity *without*
+  depth-sensitivity is its own failure mode, and an integrated metric is the honest fix.
+
+```python
+b = onkos.simulate(ds, "tgi_metrics.wang_2009.biexponential", context=ctx,
+                   survival_link="survival_link.nsclc_os_burden_auc")
+b.metrics["log_burden_auc"]    # the covariate, now in every trajectory's metric panel
+b.median_os                    # OS under the integrated-burden link — Wang ranks last here
+```
+
+The change is pure post-processing (one metric in the Stein/Bruno panel) plus one non-default
+record; it is landmark-tested (`tests/test_burden_auc.py`): the closed-form identities
+(baseline⇒0, constant⇒`log c`, floored eradication), tail-sensitivity where week-8 is blind,
+depth-sensitivity where `k_g` is blind, and the third distinct ranking. NSCLC/first now exposes
+**four** eligible OS links (week-8, Cox, `k_g`, burden-AUC) to the model-selection budget.
+
 ### RECIST response & ORR — the phase-2 endpoint and its contested OS surrogacy
 
 The objective response rate (**ORR**) is the dominant phase-2 go/no-go endpoint, and a
@@ -1524,6 +1562,7 @@ own thesis rather than adding breadth:
 | **PFS endpoint — two routes** | `progression_free_survival` / `pfs_route_divergence`: PFS computed both ways — the statistical week-8-keyed survival link and the mechanistic RECIST time-to-progression off the trajectory (`time_to_progression`) — over the same trial. The **route is a model-selection axis**: the two-population model is shortest mechanically yet longest statistically (the week-8 link is blind to the resistant-clone regrowth), inverting the model ranking in **all five contexts** (NSCLC 2/6, others 1/3). Pure post-processing; landmark-tested; neither route privileged; population level, no therapy ranking. | ✅ v0.30 |
 | **D-optimal trial design** | `onkos.design`: the best sampling schedule a fixed budget allows, maximizing `det(M)` over the v0.22 design Fisher information (additive over timepoints → pure linear algebra, no re-simulation). Separates *circumstantial* from *structural* unidentifiability: for Claret NSCLC the optimal design **rescues** the borderline `λ` across the 50% line but the deeply flat `kL` stays unidentifiable under the best schedule (D-efficiency ≈ 1.14); the 2-parameter biexponential is fully identifiable (the control). Pure post-processing over the existing Fisher core; landmark-tested; cannot move a tier; design level, no per-patient schedule. | ✅ v0.31 |
 | **Acquired resistance** | `acquired_resistance` kernel + record: the resistance *origin* (drug-induced switching at rate `α`, resistance generated from `R0=0`) as a model-selection axis one layer below the v0.24 mechanism axis. Matched on `kg`/`kd`/`kgr` to the pre-existing two-population model, the origins agree at week-8 and on the week-8 OS surrogate (92 vs 94 wk) but diverge in the tail (nadir 8.0 vs 2.8 mm, RECIST TTP 26 vs 32 wk) — a silent assumption the surrogate misses, the mechanistic PFS catches. `α=0` recovers the pre-existing model (strict generalization); round-trip validated; landmark-tested; tier C, no therapy ranking. | ✅ v0.32 |
+| **Integrated tumor burden** (third bridge metric) | `log_burden_auc` (the time-averaged log relative tumor size — the AUC of the log-size curve) added to the Stein/Bruno panel + a non-default `survival_link.nsclc_os_burden_auc`. The one metric that integrates *both* depth and tail re-ranks the NSCLC models a **third, distinct** way (vs week-8 and `k_g`), so "which bridge metric" stays a live axis even for a "comprehensive" metric — and it **repairs `k_g`'s depth-blindness** (the pure-tail metric ranks a never-shrinking tumor 2nd; the integrated burden ranks it last). NSCLC/first now has four eligible OS links for the budget. Pure post-processing + one record; default view byte-identical; landmark-tested; population level, no therapy ranking. | ✅ v0.33 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

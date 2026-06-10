@@ -1442,6 +1442,74 @@ def acquired_resistance_figure() -> None:
     plt.close(fig)
 
 
+def burden_auc_figure() -> None:
+    """The integrated tumor burden as a THIRD TGI→OS bridge metric. Left: the log relative
+    tumor-size curve whose time-average the metric integrates (depth lowers it, the tail raises
+    it). Right: median OS across the three bridge metrics — week-8 (depth-only), k_g (tail-only),
+    burden (both) — re-rank the model set THREE distinct ways. The complete responder inverts from
+    mid-pack to first; the minimal responder (Wang) is ranked 2nd by tail-only k_g but last by the
+    depth-aware burden metric."""
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    t = np.linspace(0.0, 260.0, 521)
+    models = [
+        ("resistance.claret_2009.tgi", "Claret (phenom.)", "#c05621"),
+        ("resistance.nsclc_first_line.two_population", "two-population", "#2f855a"),
+        ("drug_effect.norton_simon.nsclc", "Norton-Simon (complete resp.)", "#2b6cb0"),
+        ("tgi_metrics.wang_2009.biexponential", "Wang biexp (minimal resp.)", "#6b46c1"),
+        ("resistance.nsclc_first_line.acquired", "acquired resistance", "#b7791f"),
+    ]
+    links = [
+        ("week-8\n(depth-only)", "survival_link.nsclc_os_week8"),
+        ("k_g\n(tail-only)", "survival_link.nsclc_os_growth_rate"),
+        ("burden\n(depth+tail)", "survival_link.nsclc_os_burden_auc"),
+    ]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.6))
+
+    # Left: the log relative tumor-size curve the burden metric integrates.
+    for rid, label, color in models:
+        tr = onkos.simulate(ds, rid, context=ctx, drug_effect=1.0, t=t)
+        rel = np.maximum(tr.tumor_size / tr.tumor_size[0], 1e-3)
+        b = tr.metrics["log_burden_auc"]
+        ax1.plot(t, np.log(rel), color=color, lw=1.7, label=f"{label}  (burden {b:+.1f})")
+    ax1.axhline(0.0, ls=":", color="grey", lw=1)
+    ax1.text(5, 0.25, "baseline (burden 0)", fontsize=7, color="grey")
+    ax1.set_title("log relative tumor size — the burden metric is its time-average", fontsize=9)
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("log(v / y0)")
+    ax1.set_ylim(-7.2, 5.5)
+    ax1.legend(fontsize=7, loc="upper left")
+
+    # Right: median OS slopegraph across the three bridge metrics.
+    os_by_link = {
+        rid: [onkos.simulate(ds, rid, context=ctx, drug_effect=1.0, t=t, survival_link=link).median_os
+              for _, link in links]
+        for rid, _, _ in models
+    }
+    xs = np.arange(len(links))
+    for rid, label, color in models:
+        ys = [o if o else np.nan for o in os_by_link[rid]]
+        ax2.plot(xs, ys, color=color, lw=1.8, marker="o", ms=5, label=label)
+        ax2.annotate(f"{ys[-1]:.0f}", (xs[-1], ys[-1]), xytext=(6, 0),
+                     textcoords="offset points", fontsize=7, color=color, va="center")
+    ax2.set_xticks(xs)
+    ax2.set_xticklabels([name for name, _ in links], fontsize=8)
+    ax2.set_xlim(-0.3, len(links) - 0.3)
+    ax2.set_ylabel("median OS (weeks)")
+    ax2.set_title("each metric re-ranks the models a different way", fontsize=9)
+    ax2.legend(fontsize=7, loc="upper left")
+
+    fig.suptitle(
+        "The integrated tumor burden is a third TGI→OS bridge metric: it sees both depth and tail, "
+        "so it ranks the models differently from week-8 AND from k_g",
+        fontsize=9.5,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "burden_auc.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
@@ -1470,4 +1538,5 @@ if __name__ == "__main__":
     pfs_routes_figure()
     optimal_design_figure()
     acquired_resistance_figure()
+    burden_auc_figure()
     print(f"Wrote figures to {OUT}")

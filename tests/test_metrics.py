@@ -23,6 +23,7 @@ def test_panel_keys_present():
         "time_to_growth_weeks",
         "duration_of_response_weeks",
         "week8_relative_change",
+        "log_burden_auc",
     ):
         assert k in m
 

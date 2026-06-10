@@ -29,6 +29,12 @@ import numpy as np
 _PR_SHRINK = 0.30  # partial response: ≥30% decrease from baseline
 _PD_GROWTH = 0.20  # progressive disease: ≥20% increase from the nadir
 
+# Lower limit on relative tumor size for the integrated-burden metric: a tumor at
+# 0.1% of baseline is a complete response, clinically indistinguishable from zero.
+# Flooring here keeps log(v/y0) finite under eradication (v → 0) without changing the
+# ranking, so the integral is a stable summary rather than a −∞-dominated one.
+_BURDEN_FLOOR = 1e-3
+
 
 def _loglinear_slope(t: np.ndarray, v: np.ndarray) -> float:
     """d ln(v)/dt by least squares; nan if under-determined or non-positive v."""
@@ -95,4 +101,21 @@ def extract_tgi_metrics(t: np.ndarray, v: np.ndarray, y0: float) -> dict:
     regrew = nadir_i < n - 1 and v[-1] > nadir + 1e-9 and np.isfinite(kg)
     m["time_to_growth_weeks"] = t_nadir if regrew else float("nan")
     m["duration_of_response_weeks"] = _duration_of_response(t, v, y0, nadir, nadir_i)
+
+    # Integrated tumor burden — the time-averaged log relative tumor size over the
+    # observation horizon (the AUC of the log-size curve, i.e. the log geometric-mean
+    # relative burden). Unlike week-8 (one early point, blind to the tail) and unlike
+    # k_g (the terminal regrowth slope, blind to depth), this single number integrates
+    # *both* the depth of response and the regrowth tail. It is therefore a candidate
+    # survival bridge metric that re-ranks models a third way (spec: burden-AUC). The
+    # value is horizon-dependent by construction (it is a cumulative-burden summary).
+    if n >= 2 and np.ptp(t) > 0:
+        rel = np.maximum(v / y0, _BURDEN_FLOOR)
+        logb = np.log(rel)
+        # Trapezoidal integral, version-agnostic (np.trapz is deprecated in numpy 2.x,
+        # np.trapezoid is absent below 2.0); divide by the span to time-average.
+        area = float(np.sum((logb[1:] + logb[:-1]) * 0.5 * np.diff(t)))
+        m["log_burden_auc"] = area / float(np.ptp(t))
+    else:
+        m["log_burden_auc"] = float("nan")
     return m

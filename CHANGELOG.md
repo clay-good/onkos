@@ -4,6 +4,47 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.33.0] — The integrated tumor burden: a third TGI→OS bridge metric
+
+Implements the research-track spec `docs/specs/research/burden-auc-bridge-metric.md`. v0.25 made the
+on-treatment metric that drives a survival link a declared, swappable field (`structure.link_metric`)
+with two values: the default **week-8 relative change** (depth-only, blind to the tail) and the
+**growth-rate constant `k_g`** (tail-only, blind to depth) — and showed the metric choice *inverts*
+the model ranking. This adds the natural third option, the **integrated tumor burden**, the one
+summary that sees *both* depth and tail, and shows it produces a third, distinct ranking — so even a
+"comprehensive" metric is still a consequential choice.
+
+- **New metric `log_burden_auc`** in the model-agnostic Stein/Bruno panel (`extract_tgi_metrics`) —
+  the time-averaged log relative tumor size over the horizon (the AUC of the log-size curve, i.e. the
+  log geometric-mean relative burden). Depth lowers it; a regrowth tail raises it. Eradication is
+  floored at the detection limit (`v/y0 = 1e-3`, a complete response) so the integral is finite and
+  stable, never `−∞`-dominated. Version-agnostic trapezoid (no numpy 2.x `trapezoid`/`trapz`
+  dependency). It is horizon-dependent by construction — a cumulative-burden summary.
+- **New record `survival_link.nsclc_os_burden_auc`** — a non-default (`default=false`) Weibull-PH OS
+  link with `link_metric=log_burden_auc`, calibrated `beta`/`scale`, tier C, primary citation
+  Wang (2009) (the registrational longitudinal-tumor-size→OS family the integrated burden belongs to).
+  Reached only via `survival_link=`, so **every default view and export is byte-identical**.
+- **The finding — a third distinct ranking, and a pathology repaired.** For NSCLC first line the three
+  bridge metrics rank the five eligible models three different ways:
+  - **week-8**: two-pop > acquired > Claret > Norton-Simon > Wang (the complete responder buried 4th;
+    deep *early* shrinkers on top).
+  - **k_g**: Norton-Simon > **Wang** > Claret > two-pop > acquired (the complete responder 1st — but
+    the *minimal* responder Wang ranks 2nd on a slow regrowth slope, blind to the fact it never shrank).
+  - **burden**: Norton-Simon > Claret > two-pop > acquired > **Wang** (the complete responder 1st, the
+    deep-but-doomed resistance models demoted to the middle, and Wang dropped to last).
+  The integrated burden agrees with neither extreme, and it **repairs k_g's depth-blindness**:
+  tail-sensitivity without depth-sensitivity ranks a never-responding tumor second-best; an integrated
+  metric ranks it last, where it belongs.
+- **Budget V_link axis enriched.** NSCLC/first now has **4 eligible OS links** (week-8, Cox, `k_g`,
+  burden-AUC), so the model-selection-budget's survival-link factor samples a fourth alternative.
+- **11 closed-form + dynamics landmarks** (`tests/test_burden_auc.py`): baseline⇒0, constant⇒`log c`,
+  floored eradication, horizon monotonicity, tail-sensitivity (where week-8 is blind), depth-sensitivity
+  (where `k_g` is blind), the third distinct ranking, and the unchanged default view + transport→D.
+- **Surfaces.** A three-metric slopegraph figure (`docs/images/burden_auc.png`), a CI-executed
+  notebook (`notebooks/26_burden_auc_bridge_metric.ipynb`), a README section, and the
+  metric-panel-keys API contract extended. No new module, kernel, or CLI command; pure post-processing
+  over the existing kernels plus one record. 351 tests, 56 records.
+
 ## [0.32.0] — Acquired resistance: the resistance *origin* as a model-selection axis
 
 Implements the research-track spec `docs/specs/research/acquired-resistance.md`. v0.24 made
