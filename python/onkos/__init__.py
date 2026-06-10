@@ -12,6 +12,7 @@ from .audit import audit_tiers, evidence_ceiling
 from .budget import Budget, model_selection_budget
 from .combine import ModelAverage
 from .compare import Comparison, compare
+from .design import OptimalDesign, optimal_schedule
 from .filter import filter_records
 from .identify import Identifiability, identifiability
 from .interaction import (
@@ -48,6 +49,8 @@ __all__ = [
     "ModelAverage",
     "SensitivityResult",
     "Identifiability",
+    "OptimalDesign",
+    "optimal_schedule",
     "InteractionComparison",
     "Budget",
     "model_selection_budget",

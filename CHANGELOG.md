@@ -4,6 +4,48 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [0.31.0] — D-optimal trial design: can a better trial rescue the flat parameter?
+
+Implements the research-track spec `docs/specs/research/optimal-design.md`. v0.22
+(`onkos.identify`) evaluates whether a *given* sampling schedule can estimate a model's
+parameters; this adds the schedule *choice* — the **D-optimal design** under a fixed
+measurement budget — and answers what v0.22 left open: it separates the parameters a
+better-designed trial could rescue (circumstantial flatness) from the parameters no trial
+of this budget can pin down (structural flatness).
+
+- **`onkos.design`** — new module, pure post-processing over the v0.22 Fisher-information
+  core (no new kernel, record, or export). The design information `M = Σᵢ sᵢsᵢᵀ` is
+  additive over timepoints, so the parameter sensitivities are computed once on a dense
+  candidate grid and schedule optimization is pure linear algebra (no re-simulation per
+  candidate).
+- **`d_optimal_rows(scaled_sens, n, seed_rows)`** — the pure, landmark-tested selection
+  core: greedy forward D-optimal row selection (maximize `log det M`), baseline-anchored.
+- **`optimal_schedule(...)`** — binds the core to a record + a measurement budget, scoring
+  the D-optimal schedule against a uniform schedule of the same budget. Reports the
+  per-parameter Cramér-Rao RSE, the collinearity index, the **D-efficiency** over uniform
+  (`(det M_opt / det M_uni)^(1/p)`), and whether the optimal design rescues a parameter
+  uniform could not. The reported optimal is the better of greedy/uniform, so
+  **D-efficiency ≥ 1 by construction**.
+- **The finding** — for the Claret NSCLC model (N=7 over 48 wk) the D-optimal design
+  concentrates samples at the kill phase (≈8–13 wk) and regrowth onset (≈30 wk + tail),
+  improving every parameter (D-efficiency ≈ 1.14, collinearity γ 25→23). The two flat
+  parameters **separate**: the borderline resistance term `λ` (54%) is **rescued** across
+  the 50% identifiability line (48%), while the deeply flat growth rate `kL` (228%→199%) is
+  only tightened — it stays **structurally unidentifiable** under the best possible
+  schedule, so its huge CV is a flat-likelihood artifact, not biological spread. The
+  2-parameter Wang biexponential is the control: both parameters identifiable under the
+  optimal design (D-efficiency ≈ 1.31), proving the `kL` failure is the model's structure,
+  not the optimizer.
+- **Guardrails unchanged** — design analysis carries the record's propagated tier (cannot
+  move it), is design/population-level only (never a per-patient schedule or a dosing/therapy
+  choice), restricted to ODE records (a survival/transform record is not a trajectory to
+  design for), and honest about the greedy heuristic (guaranteed only ≥ uniform).
+- **Surfaces** — `onkos design <id>` (uniform-vs-optimal RSE table, optimal schedule,
+  D-efficiency, structural-flat verdict); an `optimal_design` figure;
+  `notebooks/24_optimal_design.ipynb` (executed in CI); 11 landmarks in
+  `tests/test_design.py`; `optimal_schedule` added to the public-API contract. No new
+  dataset record, kernel, or export. Version 0.31.0 (54 records).
+
 ## [0.30.0] — The PFS endpoint: two routes to progression-free survival
 
 Implements the research-track spec `docs/specs/research/pfs-endpoint.md`. PFS is the

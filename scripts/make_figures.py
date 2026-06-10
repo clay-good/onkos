@@ -1315,6 +1315,65 @@ def pfs_routes_figure() -> None:
     plt.close(fig)
 
 
+def optimal_design_figure() -> None:
+    """D-optimal trial design: the best schedule a fixed budget allows concentrates samples at
+    the kill phase and regrowth onset, rescues the borderline resistance term, but cannot
+    rescue the structurally flat growth rate — separating circumstantial from structural
+    unidentifiability."""
+    from onkos.design import optimal_schedule
+
+    ds = onkos.load()
+    ctx = {"tumor_type": "NSCLC", "line": "first"}
+    od = optimal_schedule(ds, "resistance.claret_2009.tgi", context=ctx, n_samples=7, horizon=48.0)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11.2, 4.4))
+
+    # Left: where the two designs sample, over the tumor trajectory. The optimal design
+    # clusters at the kill phase and the regrowth onset.
+    t = np.linspace(0, 48, 193)
+    traj = onkos.simulate(ds, "resistance.claret_2009.tgi", context=ctx, drug_effect=1.0, t=t)
+    ax1.plot(t, traj.tumor_size, color="#718096", lw=1.6, zorder=1)
+    ax1.scatter(od.uniform.schedule,
+                [np.interp(s, t, traj.tumor_size) for s in od.uniform.schedule],
+                marker="v", s=90, color="#c05621", label="uniform", zorder=3)
+    ax1.scatter(od.optimal.schedule,
+                [np.interp(s, t, traj.tumor_size) for s in od.optimal.schedule],
+                marker="o", s=90, color="#2f855a", edgecolor="black", label="D-optimal", zorder=4)
+    ax1.set_xlabel("weeks")
+    ax1.set_ylabel("tumor size (mm, SLD)")
+    ax1.set_title(f"Where the budget is spent (N={od.n_samples}, D-eff {od.d_efficiency:.2f}x)",
+                  fontsize=9)
+    ax1.legend(fontsize=8, loc="upper right")
+    ax1.annotate("kill phase", (10, np.interp(10, t, traj.tumor_size)),
+                 textcoords="offset points", xytext=(4, -22), fontsize=7, color="#2f855a")
+    ax1.annotate("regrowth onset", (33, np.interp(33, t, traj.tumor_size)),
+                 textcoords="offset points", xytext=(-6, 12), fontsize=7, color="#2f855a")
+
+    # Right: per-parameter RSE, uniform vs D-optimal, with the 50% identifiability line.
+    syms = list(od.uniform.rse_percent)
+    x = np.arange(len(syms))
+    u = [min(od.uniform.rse_percent[s], 260) for s in syms]
+    o = [min(od.optimal.rse_percent[s], 260) for s in syms]
+    ax2.bar(x - 0.2, u, 0.4, color="#c05621", label="uniform")
+    ax2.bar(x + 0.2, o, 0.4, color="#2f855a", label="D-optimal")
+    ax2.axhline(od.rse_ceiling_percent, ls="--", color="#c53030", lw=1)
+    ax2.text(len(syms) - 0.5, od.rse_ceiling_percent + 6, "identifiability line (50%)",
+             fontsize=7, color="#c53030", ha="right")
+    ax2.set_xticks(x, syms, fontsize=9)
+    ax2.set_ylabel("predicted RSE (%)  [capped at 260]")
+    ax2.set_title("λ rescued across the line; kL stays structurally flat", fontsize=9)
+    ax2.legend(fontsize=8, loc="upper center")
+
+    fig.suptitle(
+        "D-optimal trial design — the best schedule a fixed budget allows rescues the "
+        "circumstantially flat λ but cannot rescue the structurally flat kL (v0.22 capstone)",
+        fontsize=9.5,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "optimal_design.png", dpi=120)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     divergence_figure()
     tier_figure()
@@ -1341,4 +1400,5 @@ if __name__ == "__main__":
     duration_of_response_figure()
     cross_context_generalization_figure()
     pfs_routes_figure()
+    optimal_design_figure()
     print(f"Wrote figures to {OUT}")

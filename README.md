@@ -341,6 +341,52 @@ $ onkos identify resistance.claret_2009.tgi
     unidentifiable (RSE 53%) — its variability is partly a flat-likelihood artifact
 ```
 
+### …and could the *best-designed* trial estimate it? D-optimal design
+
+`identify` evaluates a *given* schedule. But a pharmacometrician *chooses* the sampling
+times, so the real question is whether the **best** schedule under a fixed budget is enough.
+`onkos.design` (v0.31) adds that choice: the **D-optimal schedule** of `N` measurements — the
+times that maximize `det(M)`, i.e. minimize the joint confidence-ellipsoid volume — scored
+against a uniform schedule of the same budget. The design Fisher information is *additive over
+timepoints* (`M = Σᵢ sᵢsᵢᵀ`), so the sensitivities are computed once on a dense grid and the
+optimization is pure linear algebra; the reported optimal is the better of greedy/uniform, so
+**D-efficiency ≥ 1 by construction**.
+
+![D-optimal design rescues the circumstantially flat λ but not the structurally flat kL](docs/images/optimal_design.png)
+
+The payload separates two kinds of flatness within one model. For Claret NSCLC (N=7 over 48
+wk) the D-optimal design clusters samples at the **kill phase** (≈8–13 wk) and the **regrowth
+onset** (≈30 wk + tail), improving every parameter (D-efficiency ≈ 1.14):
+
+| Parameter | uniform RSE | D-optimal RSE | verdict |
+| --- | --- | --- | --- |
+| `kD` (kill rate) | 9% | 9% | already pinned |
+| `λ` (resistance) | 54% | **48%** | **rescued** — a better trial crosses the 50% line |
+| `kL` (growth rate) | 228% | 199% | **structurally flat** — best design still fails |
+
+So the borderline resistance term is **rescued** by a better design (its flatness was
+*circumstantial*), while the deeply flat growth rate stays unidentifiable under the *optimal*
+schedule (its flatness is *structural* — no trial of this budget pins it down, so its huge CV
+is a flat-likelihood artifact, not biological spread). The 2-parameter Wang biexponential is
+the control: both parameters identifiable under the optimal design (D-efficiency ≈ 1.31),
+proving the `kL` failure is the model's structure, not the optimizer. Optimal design is what
+separates "badly designed trial" from "structurally unidentifiable parameter."
+
+```python
+od = onkos.optimal_schedule(ds, "resistance.claret_2009.tgi", context=ctx, n_samples=7, horizon=48.0)
+od.optimal.schedule        # D-optimal sampling times (wk), baseline-anchored
+od.d_efficiency            # ~1.14 — how much more informative than uniform
+od.rescues_any             # True — the better design rescued the borderline λ
+od.structurally_flat       # ["kL"] — deeply flat even under the best schedule
+# onkos design <id>   ->   the uniform-vs-D-optimal RSE table + the structural-flat verdict
+```
+
+Landmark-tested (`tests/test_design.py`): the closed-form D-optimal subset on a hand-built
+matrix, information additivity, the `D-efficiency ≥ 1` guarantee, that `kL` stays flat under
+the best design, and that the biexponential is fully identifiable. Pure post-processing over
+the v0.22 Fisher core — no new kernel, record, or export. Design/population level only; cannot
+move a tier; no per-patient schedule, no dosing or therapy choice.
+
 ### Two survival endpoints: OS and PFS
 
 The spec (§2, §6) calls for both **overall survival (OS)** and **progression-free
@@ -825,6 +871,11 @@ idn.collinearity_index                     # γ_K ≈ 22 (confounded combination
 [(p.symbol, round(p.rse_percent), p.iiv_cv_percent) for p in idn.params]  # RSE vs stored CV
 idn.worst.symbol                           # least-identifiable parameter (curation triage)
 
+# D-optimal trial design — the best sampling schedule a fixed budget allows
+od = onkos.optimal_schedule(ds, "resistance.claret_2009.tgi", context=ctx, n_samples=7, horizon=48.0)
+od.optimal.schedule, od.d_efficiency       # D-optimal scan times (wk); ≥1 informativeness vs uniform
+od.rescues_any, od.structurally_flat       # rescued the borderline λ; kL stays structurally flat
+
 # Combination therapy — the interaction model as a model-selection axis
 cmp = onkos.compare_interactions(ds, "resistance.claret_2009.tgi", context=ctx,
                                  effect_a=0.6, effect_b=0.6, psi=0.5)
@@ -851,6 +902,7 @@ onkos.combine_effects(0.6, 0.6, model="greco", psi=0.5)   # the pure interaction
 | `onkos uncertainty <id> [--n --seed]` | Monte-Carlo parameter-uncertainty bands (propagates IIV CV) |
 | `onkos sensitivity <id> [--target --n]` | rank parameters by how much their IIV drives a target metric |
 | `onkos identify <id> [--schedule --sigma-prop]` | predicted RSE vs stored CV — can a realistic trial design estimate the parameters? |
+| `onkos design <id> [--n-samples --horizon --json]` | D-optimal sampling schedule — the best trial a fixed budget allows, vs uniform; the structural-flat verdict |
 | `onkos interactions <id> [--effect-a --effect-b --psi]` | drug-combination divergence — the interaction model as a model-selection axis |
 | `onkos export --format <fmt> --output <dir>` | generate artifacts |
 
@@ -1220,7 +1272,7 @@ flowchart TD
         CLI["onkos CLI"]
         DASH["Streamlit dashboard"]
         REP["health report + tier audit"]
-        NB["23 CI-executed notebooks"]
+        NB["24 CI-executed notebooks"]
     end
     DS --> LOAD --> REG --> REF
     LOAD --> VAL & TIER
@@ -1349,6 +1401,7 @@ g = Graph().parse(data=onkos.export.to_jsonld(ds["resistance.claret_2009.tgi"]),
 | The metric that bridges tumor dynamics to survival is a declared field, not a hidden constant | Every survival link consumed the week-8 change by default; making it `structure.link_metric` (default unchanged) exposes the most consequential surrogate choice in early oncology. Shipping a tail-sensitive `k_g` link beside it shows the choice can *invert* which model looks better — so Onkos surfaces the surrogate-endpoint debate rather than silently picking a side. An undefined metric (e.g. `k_g` with no regrowth) maps to the no-effect covariate (baseline hazard), never a fabricated or nan curve. |
 | The dashboard owns no logic — it renders a tested, serializable result | The virtual-trial result is a `Comparison.to_dict()/to_json()` the package builds and tests; the Streamlit file only draws it. That keeps the headline view honest (the same numbers everywhere), lets external simulators ingest the JSON, and means CI catches UI/API drift by lint + compile, not by screenshots. |
 | Confidence tiers are audited against evidence, not just hand-set | Spec §5 says tiers are "partly numeric." `onkos audit` derives the tier each clinical record's recorded external validation + IIV supports and fails `validate` on any inflation. A hand-set tier can't quietly over-claim — the honesty thesis applied to the honesty field itself. |
+| The design Fisher information is additive over timepoints, so optimal design is row selection — and it can separate circumstantial from structural flatness | `M = Σᵢ sᵢsᵢᵀ` means a schedule's information is the sum of its timepoints' contributions, so `onkos.design` computes the sensitivities once on a dense grid and the D-optimal search is pure linear algebra over row subsets (no re-simulation), reusing the v0.22 Fisher core unchanged. That efficiency is what lets the *best* schedule a budget allows be computed — and the result is sharper than evaluating one schedule: the optimal design rescues the parameter whose flatness was a *design* problem (`λ`) and leaves the one whose flatness is a *model* problem (`kL`), with the biexponential as the control that the failure is structural. The reported optimal is the better of greedy/uniform, so the D-efficiency it claims is never an overstatement. |
 | Survival matching is line-aware; an unsupported line yields no curve, not a borrowed one | The line of therapy is part of the context, so a second-line simulation must use second-line survival — matching only on tumor type would silently transport a 1L model. When no curated link exists for a line, the honest result is no survival curve, mirroring the no-fallback rule for tumor type. |
 | The PK bridge is a thin illustrative adapter, not a PK toolkit (that's Hypnos) | Onkos's scope is exposure → tumor → survival. `onkos.pk` exposes only the standard dose↔exposure relations and a profile-ingestion adapter so the composability chain is runnable self-contained; modelling the PK itself stays in Hypnos, and the generators are clearly labelled illustrative. |
 | Kill mechanism is a separate subsystem, so it can be a divergence axis | Bundling the kill model into each TGI record would hide that two trials might shrink tumors identically yet predict different outcomes because one assumed log-kill and the other Norton-Simon. The `drug_effect` subsystem makes the mechanism an explicit, comparable choice — the same "make the silent assumption visible" move as `transportability`. |
@@ -1427,6 +1480,7 @@ own thesis rather than adding breadth:
 | **Duration of response** | `response_episode` returns best response *and* DoR from one trajectory; ORR (breadth) gains median DoR (durability) over the ensemble with honest right-censoring. Depth ≠ durability: the highest-ORR NSCLC model has the *shortest* DoR, the mechanism of the v0.27 surrogate failure (broad but brief responses → worst tail-driven OS). Pure post-processing; landmark-tested; population level. | ✅ v0.28 |
 | **Cross-context generalization** (breadth) | A mechanistic two-population model + a tail-sensitive `k_g` OS link added to breast, CRC, HCC, melanoma (8 records). The resistance-mechanism divergence, the budget's survival-link axis, the conditional ORR→OS surrogacy, and depth≠durability all **reproduce across five solid-tumor contexts** — CI-enforced (`tests/test_response.py`, `tests/test_budget.py`). 5/6 contexts now structure-dominated. Turns four single-context demos into a dataset-wide claim. | ✅ v0.29 |
 | **PFS endpoint — two routes** | `progression_free_survival` / `pfs_route_divergence`: PFS computed both ways — the statistical week-8-keyed survival link and the mechanistic RECIST time-to-progression off the trajectory (`time_to_progression`) — over the same trial. The **route is a model-selection axis**: the two-population model is shortest mechanically yet longest statistically (the week-8 link is blind to the resistant-clone regrowth), inverting the model ranking in **all five contexts** (NSCLC 2/6, others 1/3). Pure post-processing; landmark-tested; neither route privileged; population level, no therapy ranking. | ✅ v0.30 |
+| **D-optimal trial design** | `onkos.design`: the best sampling schedule a fixed budget allows, maximizing `det(M)` over the v0.22 design Fisher information (additive over timepoints → pure linear algebra, no re-simulation). Separates *circumstantial* from *structural* unidentifiability: for Claret NSCLC the optimal design **rescues** the borderline `λ` across the 50% line but the deeply flat `kL` stays unidentifiable under the best schedule (D-efficiency ≈ 1.14); the 2-parameter biexponential is fully identifiable (the control). Pure post-processing over the existing Fisher core; landmark-tested; cannot move a tier; design level, no per-patient schedule. | ✅ v0.31 |
 
 Remaining work is **breadth and verification**: promoting `unverified` records to
 `verified` from source PDFs, adding more drugs / tumor types / lines, and the

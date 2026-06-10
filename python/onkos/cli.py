@@ -286,6 +286,46 @@ def _cmd_identify(args) -> int:
     return 0
 
 
+def _cmd_design(args) -> int:
+    from .design import optimal_schedule
+
+    ds = load()
+    ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    od = optimal_schedule(
+        ds, args.record, context=ctx, drug_effect=args.drug_effect,
+        n_samples=args.n_samples, horizon=args.horizon,
+        sigma_prop=args.sigma_prop, sigma_add=args.sigma_add,
+    )
+    if args.json:
+        print(od.to_json())
+        return 0
+    print(
+        f"{args.record}  tier={od.tier}  (D-optimal design: {od.n_samples} scans over "
+        f"{od.horizon:g} wk, residual σ={args.sigma_prop:g}·y)\n"
+    )
+    syms = list(od.uniform.rse_percent)
+    print(f"  {'parameter':<12} {'uniform RSE':>12} {'D-opt RSE':>12}  identifiable (D-opt)?")
+    for s in syms:
+        u = od.uniform.rse_percent[s]
+        o = od.optimal.rse_percent[s]
+        us = "  inf" if not math.isfinite(u) else f"{u:>10.0f}%"
+        os_ = "  inf" if not math.isfinite(o) else f"{o:>10.0f}%"
+        mark = "yes" if s in od.optimal.identifiable else "NO"
+        print(f"  {s:<12} {us:>12} {os_:>12}  {mark}")
+    sched = ", ".join(f"{x:g}" for x in od.optimal.schedule)
+    print(f"\n  D-optimal schedule (wk) = [{sched}]")
+    print(f"  D-efficiency over uniform = {od.d_efficiency:.2f}x  "
+          f"(collinearity {od.uniform.collinearity_index:.1f} -> {od.optimal.collinearity_index:.1f})")
+    if od.rescues_any:
+        rescued = sorted(set(od.optimal.identifiable) - set(od.uniform.identifiable))
+        print(f"  >> the better design RESCUED: {', '.join(rescued)} (crossed the identifiability line)")
+    if od.structurally_flat:
+        print(f"  >> STRUCTURALLY FLAT even under the best design: {', '.join(od.structurally_flat)}")
+    for w in od.warnings:
+        print(f"  ! {w}")
+    return 0
+
+
 def _cmd_response(args) -> int:
     from .response import objective_response_rate, response_vs_survival
 
@@ -615,6 +655,22 @@ def build_parser() -> argparse.ArgumentParser:
     ip.add_argument("--sigma-add", type=float, default=0.0, help="additive residual error")
     ip.add_argument("--json", action="store_true", help="emit the result as JSON")
     ip.set_defaults(func=_cmd_identify)
+
+    dp = sub.add_parser(
+        "design",
+        help="D-optimal trial design: the best sampling schedule a fixed budget allows",
+    )
+    dp.add_argument("record", help="record id (a dynamic TGI/growth model)")
+    dp.add_argument("--tumor-type", default="NSCLC")
+    dp.add_argument("--line", default="first")
+    dp.add_argument("--drug-effect", type=float, default=1.0)
+    dp.add_argument("--n-samples", type=int, default=7, help="measurement budget (# scans)")
+    dp.add_argument("--horizon", type=float, default=48.0, help="design horizon in weeks")
+    dp.add_argument("--sigma-prop", type=float, default=0.2,
+                    help="proportional residual error (CV) of the tumor-size assay")
+    dp.add_argument("--sigma-add", type=float, default=0.0, help="additive residual error")
+    dp.add_argument("--json", action="store_true", help="emit the result as JSON")
+    dp.set_defaults(func=_cmd_design)
 
     rsp = sub.add_parser(
         "response",
