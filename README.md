@@ -1834,7 +1834,11 @@ a real patient's tumor measurement and returns a prognosis or a therapy choice.
 
 The phased roadmap (spec §11, Phases A–F) is fully implemented. Work since then
 follows a **research track** (`docs/specs/research/`) that deepens the project's
-own thesis rather than adding breadth:
+own thesis rather than adding breadth. Every spec — the v0.1 design spec and all
+21 research specs — is implemented, tested, and shipped;
+[`docs/specs/STATUS.md`](docs/specs/STATUS.md) is the traceability index, and
+[`tests/test_specs_complete.py`](tests/test_specs_complete.py) enforces the
+spec ↔ implementation mapping so a written-but-unbuilt spec fails CI.
 
 | Research track | Content | Status |
 | --- | --- | --- |
