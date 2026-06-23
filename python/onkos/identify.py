@@ -53,6 +53,20 @@ DEFAULT_SCHEDULE = (0.0, 6.0, 12.0, 18.0, 24.0, 36.0, 48.0)
 RSE_CEILING = 0.50  # a parameter with predicted RSE > 50% is practically unidentifiable
 COLLINEARITY_CEILING = 15.0  # γ_K above this ⇒ a confounded (non-identifiable) combination
 _CV_ARTIFACT_THRESHOLD = 50.0  # an IIV CV at/above this, paired with a failing RSE, is flagged
+_GROSS_RSE_PERCENT = 1000.0  # RSE% (20x the ceiling) above which precision is meaningless;
+# such values come from near-singular designs and are platform/version-unstable.
+
+
+def _worst_first_key(p):
+    """Sort key putting the least-identifiable parameter first, deterministically.
+
+    Grossly-unidentifiable parameters (non-finite or >= _GROSS_RSE_PERCENT) are
+    collapsed to one rank and ordered by symbol, so their platform-unstable raw
+    magnitudes never decide the ordering; the rest sort by descending RSE."""
+    gross = (not np.isfinite(p.rse_percent)) or p.rse_percent >= _GROSS_RSE_PERCENT
+    if gross:
+        return (0, p.symbol)
+    return (1, -p.rse_percent)
 
 
 # --------------------------------------------------------------------------- #
@@ -279,9 +293,15 @@ def identifiability(
         )
         for j in range(len(kparams))
     ]
-    # Worst (least identifiable) first — the triage order.
-    params.sort(key=lambda p: (p.rse_percent if np.isfinite(p.rse_percent) else np.inf),
-                reverse=True)
+    # Worst (least identifiable) first — the triage order. A parameter whose
+    # predicted RSE is non-finite or grossly large comes from a near-singular
+    # design whose exact magnitude — and even whether NumPy's rank test deems the
+    # Fisher matrix invertible — is platform/version-unstable (e.g. an all-`inf`
+    # verdict on one NumPy vs a huge-but-finite one on another). Collapse every
+    # such "grossly unidentifiable" parameter to a single rank and tie-break by
+    # symbol, so `worst` and the dataset-health report stay byte-identical across
+    # NumPy/SciPy versions and BLAS backends (CI runs a 3.9/3.11/3.12 matrix).
+    params.sort(key=_worst_first_key)
 
     warnings: list[str] = []
     if any(not np.isfinite(p.rse_percent) for p in params) or not np.isfinite(gamma):
