@@ -42,6 +42,23 @@ Rules that propagate automatically (do not bypass them):
 - **Surface uncertainty.** Kill and resistance terms carry `iiv_cv_percent`; a
   term known only to ~90% CV must not present as a point estimate.
 
+## The `review_status` lifecycle
+
+A record (and each parameter) carries a `review_status` that states honestly how
+far its values have been checked:
+
+| `review_status` | Meaning | Who may set it |
+| --- | --- | --- |
+| `unverified` | Illustrative placeholder, or an illustrative-by-design composite with no single source. | anyone |
+| `pending_human_review` | Filled from an **identified** literature source by automated review; the source and a confidence are recorded in `source_locator`, but a human has **not** yet confirmed it against the PDF. | automated review / contributors |
+| `verified` | A human has confirmed every value against the source PDF (checklist below). | **human only** |
+| `contested` | The community disagrees with the value or its applicability. | anyone, with rationale |
+
+`pending_human_review` is the bridge state: it lets the dataset carry real,
+sourced numbers (no longer pretending to be precise illustrative placeholders)
+**without** overclaiming human verification. List the queue with `onkos
+review-queue`; the health report (`onkos report`) summarizes it.
+
 ## PDF-verification checklist (to set `review_status: verified`)
 
 Open the source and confirm, field by field:

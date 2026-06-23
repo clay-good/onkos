@@ -4,7 +4,7 @@
   "purpose": "tgi",
   "subsystem": "resistance",
   "name": "Claret 2009 clinical TGI model (exponential decay of drug effect)",
-  "description": "Longitudinal clinical tumor-growth-inhibition model. Tumor size y evolves as dy/dt = kL*y - kD*E*exp(-lambda*t)*y, where E is the (exposure-driven) drug-effect magnitude and the kill term decays exponentially with rate lambda, encoding emergent resistance. Parameter values here are illustrative (dacomitinib/NSCLC-scale) and unverified.",
+  "description": "Longitudinal clinical tumor-growth-inhibition model. Tumor size y evolves as dy/dt = kL*y - kD*E*exp(-lambda*t)*y, where E is the (exposure-driven) drug-effect magnitude and the kill term decays exponentially with rate lambda, encoding emergent resistance. Parameter values here are illustrative (dacomitinib/NSCLC-scale) and unverified. The original Claret 2009 colorectal/capecitabine Table 1 is paywalled and not recoverable from open sources (do NOT use the non-curated BioModels MODEL1708310001 defaults). A genuine dacomitinib NSCLC Claret-form fit exists (Fostvedt 2022, PMC9893889) but uses per-YEAR units and a power-law exposure term (kill proportional to Cavg^0.454), so it does not transcribe into this per-week, dimensionless-effect parameterization; an ALK+ NSCLC biexponential Claret-family fit (PMC10363035) is also available. See docs/verification/workhorse-models.md SS1.",
   "kernel": "claret_tgi",
   "structure": {
     "growth_law": "exponential",

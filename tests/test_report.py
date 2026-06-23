@@ -19,7 +19,12 @@ def test_external_validation_fully_covered():
 def test_stats_shape():
     s = stats(onkos.load())
     assert s["by_tier"]["D"] >= 2  # the hypothesis-tier IO records
-    assert set(s["by_review_status"]) <= {"unverified", "verified", "contested"}
+    assert set(s["by_review_status"]) <= {
+        "unverified",
+        "pending_human_review",
+        "verified",
+        "contested",
+    }
     assert "immuno_oncology" in s["tier_by_subsystem"]
     # IO is entirely tier D
     assert set(s["tier_by_subsystem"]["immuno_oncology"]) == {"D"}

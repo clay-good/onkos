@@ -94,7 +94,56 @@ def _cmd_info(_args) -> int:
         print(f"  {k}  {ds.by_tier().get(k, 0)}")
     print("\nBy review status:")
     for k, v in sorted(ds.by_review_status().items()):
-        print(f"  {k:<12} {v}")
+        print(f"  {k:<20} {v}")
+    return 0
+
+
+def _cmd_review_queue(args) -> int:
+    """List records filled from literature by automated review, awaiting human PDF sign-off."""
+    ds = load()
+    queue = sorted(
+        (r for r in ds if r.review_status == "pending_human_review"), key=lambda r: r.id
+    )
+    if args.json:
+        import json as _json
+
+        payload = [
+            {
+                "id": r.id,
+                "tier": r.tier,
+                "primary_citation": r.primary_citation.key if r.primary_citation else None,
+                "parameters": [
+                    {
+                        "symbol": p.symbol,
+                        "value": p.value.central,
+                        "units": p.value.units,
+                        "iiv_cv_percent": p.iiv_cv_percent,
+                        "review_status": p.extraction.review_status,
+                        "source_locator": p.extraction.source_locator,
+                    }
+                    for p in r.parameters
+                ],
+            }
+            for r in queue
+        ]
+        print(_json.dumps(payload, indent=2))
+        return 0
+
+    if not queue:
+        print("No records are pending human review.")
+        return 0
+    print(
+        f"{len(queue)} record(s) filled from identified literature, awaiting human PDF sign-off.\n"
+        "A human must confirm each value against the source per CONTRIBUTING.md before it is "
+        "promoted to `verified`.\n"
+    )
+    for r in queue:
+        cite = r.primary_citation.key if r.primary_citation else "?"
+        print(f"● {r.id}  (tier {r.tier})  [{cite}]")
+        for p in r.parameters:
+            if p.extraction.review_status == "pending_human_review":
+                print(f"    {p.symbol:<14} {p.value.central:<10g} {p.value.units}")
+                print(f"        ↳ {p.extraction.source_locator}")
     return 0
 
 
@@ -751,6 +800,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("validate", help="JSON-Schema-validate the dataset").set_defaults(func=_cmd_validate)
     sub.add_parser("info", help="counts by subsystem / tier / review status").set_defaults(func=_cmd_info)
     sub.add_parser("audit", help="evidence-based tier audit (flags tier inflation)").set_defaults(func=_cmd_audit)
+    rq = sub.add_parser(
+        "review-queue",
+        help="records filled from literature, awaiting human PDF sign-off (verification queue)",
+    )
+    rq.add_argument("--json", action="store_true", help="machine-readable queue")
+    rq.set_defaults(func=_cmd_review_queue)
 
     rp = sub.add_parser("report", help="dataset health & validation report (Markdown)")
     rp.add_argument("--output", default=None, help="write report to a file instead of stdout")

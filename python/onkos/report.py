@@ -261,6 +261,20 @@ def build_report(ds: Dataset) -> str:
     lines += ["", "## Review status", "", "| status | records |", "| --- | --- |"]
     lines += [f"| {k} | {v} |" for k, v in s["by_review_status"].items()]
 
+    queue = sorted(
+        (r for r in ds if r.review_status == "pending_human_review"), key=lambda r: r.id
+    )
+    lines += ["", "## Human-review queue", ""]
+    if queue:
+        lines.append(
+            f"{len(queue)} record(s) filled from identified literature by automated review, "
+            "awaiting a human PDF sign-off to become `verified` (see `onkos review-queue`):"
+        )
+        lines.append("")
+        lines += [f"- `{r.id}` (tier {r.tier}) — `{r.primary_citation}`" for r in queue]
+    else:
+        lines.append("No records are pending human review.")
+
     missing = [r.id for r in validation_eligible(ds) if not r.predictive_performance]
     lines += ["", "## External-validation backlog", ""]
     if missing:

@@ -20,6 +20,36 @@ lookup, not a re-derivation.
 > illustrative numbers are actively misleading and should be corrected before any
 > promotion.
 
+## The `pending_human_review` state
+
+Records filled from an identified literature source — but not yet PDF-confirmed by
+a human — now carry `review_status: pending_human_review` (per-parameter and at the
+record level). This is the honest bridge between an illustrative placeholder
+(`unverified`) and a human-confirmed value (`verified`), and it lets the dataset
+carry real, sourced numbers without overclaiming verification. **`onkos
+review-queue`** lists every such record and the source behind each parameter, so a
+researcher can open the cited table and promote it; the health report summarizes
+the queue. The lifecycle is defined in [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
+
+### Applied this round
+
+- **`resistance.breast_first_line.claret` → `pending_human_review`.** Growth `kL`
+  (0.012 → **0.00917/week**, IIV 38 → 135%) and resistance-decay `lambda`
+  (0.05 → **0.126/week**, IIV 95 → 63%) grounded in the open-access **Krishnan
+  2021** HER2-negative breast / docetaxel TGI fit (PMID 33818899, same Claret model
+  structure, per-week units). The kill term `kD` was **kept illustrative** because
+  Krishnan's `kDRUG` scales a KPD drug amount, not this record's dimensionless
+  drug-effect `E`. Context updated to docetaxel / HER2-negative breast (n=183).
+- **`preclinical_translation.simeoni_2004.xenograft` → `pending_human_review`**
+  (values grounded last round from the open reproduction PMC5660732).
+- **`immuno_oncology.kuznetsov_1994.tumor_immune` → `pending_human_review`** for its
+  7 dynamics parameters (values match the canonical published set; the illustrative
+  initial condition `eff0` stays `unverified`). Record remains tier D / hypothesis.
+- **`resistance.claret_2009.tgi`** description updated with the dacomitinib-NSCLC
+  finding (Fostvedt 2022, PMC9893889 — real Claret-form fit, but per-year units and
+  a power-law exposure term, so not transcribable into this record); stays
+  `unverified`.
+
 ## How to read the confidence column
 
 - **Structure: confirmed** — the model's equations match the cited paper, verified
@@ -38,10 +68,11 @@ lookup, not a re-derivation.
 
 | Record | Structure | Values | Status / action |
 | --- | --- | --- | --- |
-| `preclinical_translation.simeoni_2004.xenograft` | confirmed | confirmed (open reproduction) | ✅ **Applied** — real paclitaxel/A2780 set adopted; `review_status` stays `unverified` pending PDF (see §3) |
-| `immuno_oncology.kuznetsov_1994.tumor_immune` | confirmed | **confirmed (open)** — already matches the published set | ✅ **Applied** — provenance upgraded; stays tier D / hypothesis (see §5) |
-| `tgi_metrics.wang_2009.biexponential` | biexponential = Stein-Fojo form; Wang's own model was exp-decay + *linear* | not located | ✅ **Applied** — description corrected to fix the attribution (see §2) |
-| `resistance.claret_2009.tgi` | confirmed | illustrative (CRC table not located; NSCLC variant available) | Re-anchor or relabel; C-index is illustrative-by-design, see note in §1 |
+| `resistance.breast_first_line.claret` | confirmed | **confirmed (open)** — Krishnan 2021 breast/docetaxel fit | ✅ **`pending_human_review`** — `kL` + `lambda` grounded with IIV; `kD` kept illustrative (effect-scaling) (see §2) |
+| `preclinical_translation.simeoni_2004.xenograft` | confirmed | confirmed (open reproduction) | ✅ **`pending_human_review`** — real paclitaxel/A2780 set (see §3) |
+| `immuno_oncology.kuznetsov_1994.tumor_immune` | confirmed | **confirmed (open)** — matches the published set | ✅ **`pending_human_review`** (7 dynamics params); stays tier D / hypothesis (see §5) |
+| `tgi_metrics.wang_2009.biexponential` | biexponential = Stein-Fojo form; Wang's own model was exp-decay + *linear* | not located | ✅ **Applied** — description corrected; `kg`/`ks` provenance anchored to Stein 2008 (see §2) |
+| `resistance.claret_2009.tgi` | confirmed | illustrative (CRC table paywalled; dacomitinib fit not transcribable) | ✅ Provenance documented (Fostvedt 2022); stays `unverified`; C-index is illustrative-by-design (see §1) |
 | `tgi_metrics.*.biexp` / `tgi_metrics.bruno_2020.*` | confirmed (biexponential is a real Stein-Fojo form) | illustrative | Ground magnitudes against Stein 2008 ranges (see §2) |
 | `drug_effect.norton_simon.nsclc` | confirmed | illustrative (human Gompertz constants are a distribution) | Ground Vmax / growth constant against Norton 1988 (see §4) |
 
@@ -175,8 +206,30 @@ in any accessible source** — blocked on the paywall.
    they are already in-range and the record is referenced across 9 test files. The
    other in-context `*.biexp` records still carry illustrative magnitudes.
 3. `bruno_2020.breast_biexponential` cites a *review* (Bruno 2020 CCR) for specific
-   values; reviews summarize rather than estimate, so these should stay
-   illustrative or be re-anchored to a primary breast-cancer TGI fit.
+   values; reviews summarize rather than estimate. Note the research confirmed Bruno
+   2020 reports **no** specific breast `KG`/`KS` and **no** C-index, so its
+   illustrative numbers are not supported by that citation. A primary breast TGI fit
+   is available (Krishnan 2021, below) — re-anchor to it or keep explicitly illustrative.
+
+### §2b — Breast Claret-form TGI (Krishnan 2021) — ✅ grounded
+
+**Record:** `resistance.breast_first_line.claret`
+**Source:** Krishnan SM, Laarif SS, Bender BC, Quartino AL, Friberg LE. *CPT
+Pharmacometrics Syst Pharmacol* 2021;10(5):511-521. DOI
+[10.1002/psp4.12629](https://doi.org/10.1002/psp4.12629), PMID 33818899. **Open
+access.** HER2-negative metastatic breast cancer, docetaxel, n=183, organ-specific
+TGI with the same Claret structure (exponential growth + drug-driven kill with
+exponential resistance decay). Table 2:
+
+| Param | Record (was → now) | Krishnan 2021 | IIV CV% | Note |
+| --- | --- | --- | --- | --- |
+| `kL` growth | 0.012 → **0.00917/wk** | kGROW, liver/breast lesions | 135% | fastest organ class; per-week |
+| `lambda` resistance decay | 0.05 → **0.126/wk** | site-independent λ | 63% | per-week |
+| `kD` kill | 0.28 (unchanged) | kDRUG 0.00123/wk | 43% | **not transcribed** — Krishnan's kDRUG scales a KPD drug amount, not this record's dimensionless effect `E` |
+
+`kL` and `lambda` are now `pending_human_review`; `kD` stays `unverified` with that
+reason recorded. This is the cleanest same-structure clinical grounding found — an
+open-access Claret-form breast fit with full IIV.
 
 ---
 
@@ -221,10 +274,10 @@ The implied tumor-static concentration is now `Ct = λ0/k2 ≈ 494 ng/mL`; the
 qualitative tests in `tests/test_preclinical.py` were re-dosed to physical
 concentrations around/above that threshold (the old illustrative doses were matched
 to a potency ~19× too high) and the dataset-health report was regenerated.
-**`review_status` deliberately remains `unverified`:** the source is a high-quality
-*secondary reproduction*, so the `verified` flip still requires a human reading
-Simeoni 2004 Table I directly — the values are high-confidence, the sign-off is not
-an LLM's to give.
+**`review_status` is now `pending_human_review`, not `verified`:** the source is a
+high-quality *secondary reproduction*, so the `verified` flip still requires a human
+reading Simeoni 2004 Table I directly — the values are high-confidence, the sign-off
+is not an LLM's to give.
 
 ---
 
@@ -286,14 +339,15 @@ the canonical **nondimensional** parameter set is reproduced verbatim in
 Scaling (d'Onofrio): `t_true = 9.9·t_nondimensional` days; one nondimensional cell
 unit = 10⁶ cells.
 
-**Action taken:** the `extraction.source_locator` for these seven dynamics
-parameters has been upgraded from "illustrative" to cite the confirming open
-reproductions — **no value changed.** The record correctly **stays tier D /
-hypothesis / non-predictive**: the parameters reproduce immune control, dormancy,
-and escape *qualitatively* (they were fit to BCL₁ B-lymphoma in mouse spleen, and
-the immunotherapy effect `E` is a hypothesis-tier augmentation). Verified parameter
-*values* do not upgrade a model that is non-predictive *by construction* — exactly
-the distinction the tier system exists to make.
+**Action taken:** the seven dynamics parameters are now `pending_human_review`,
+with `source_locator` citing the confirming open reproductions — **no value
+changed** (they already matched). The illustrative initial condition `eff0` stays
+`unverified`. The record correctly **stays tier D / hypothesis / non-predictive**:
+the parameters reproduce immune control, dormancy, and escape *qualitatively* (they
+were fit to BCL₁ B-lymphoma in mouse spleen, and the immunotherapy effect `E` is a
+hypothesis-tier augmentation). Sourced parameter *values* do not upgrade a model
+that is non-predictive *by construction* — exactly the distinction the tier system
+(separate from `review_status`) exists to make.
 
 ---
 

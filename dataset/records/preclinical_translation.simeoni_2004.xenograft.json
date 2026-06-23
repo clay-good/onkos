@@ -20,7 +20,7 @@
       "iiv_cv_percent": null,
       "tier": "B",
       "primary_citation": "simeoni-2004-xenograft",
-      "extraction": { "review_status": "unverified", "source_locator": "Simeoni 2004 paclitaxel/A2780 exp.3, via PMC5660732 Table I; docs/verification/workhorse-models.md SS3; PDF sign-off pending", "tier_rationale": "Established model form; growth rate is cell-line specific." }
+      "extraction": { "review_status": "pending_human_review", "source_locator": "Simeoni 2004 paclitaxel/A2780 exp.3, via PMC5660732 Table I; docs/verification/workhorse-models.md SS3; PDF sign-off pending", "tier_rationale": "Established model form; growth rate is cell-line specific." }
     },
     {
       "symbol": "lambda1",
@@ -29,7 +29,7 @@
       "iiv_cv_percent": null,
       "tier": "B",
       "primary_citation": "simeoni-2004-xenograft",
-      "extraction": { "review_status": "unverified", "source_locator": "Simeoni 2004 paclitaxel/A2780 exp.3, via PMC5660732 Table I; docs/verification/workhorse-models.md SS3; PDF sign-off pending", "tier_rationale": "Established model form; growth rate is cell-line specific." }
+      "extraction": { "review_status": "pending_human_review", "source_locator": "Simeoni 2004 paclitaxel/A2780 exp.3, via PMC5660732 Table I; docs/verification/workhorse-models.md SS3; PDF sign-off pending", "tier_rationale": "Established model form; growth rate is cell-line specific." }
     },
     {
       "symbol": "psi",
@@ -38,7 +38,7 @@
       "iiv_cv_percent": null,
       "tier": "B",
       "primary_citation": "simeoni-2004-xenograft",
-      "extraction": { "review_status": "unverified", "source_locator": "fixed at 20", "tier_rationale": "Conventionally fixed; not estimated." }
+      "extraction": { "review_status": "pending_human_review", "source_locator": "fixed at 20", "tier_rationale": "Conventionally fixed; not estimated." }
     },
     {
       "symbol": "k2",
@@ -47,7 +47,7 @@
       "iiv_cv_percent": 70,
       "tier": "C",
       "primary_citation": "simeoni-2004-xenograft",
-      "extraction": { "review_status": "unverified", "source_locator": "Simeoni 2004 paclitaxel/A2780 (k2=6.29e-4, shared exp.3/4), via PMC5660732 Table I; docs/verification/workhorse-models.md SS3; PDF sign-off pending", "tier_rationale": "Potency is compound/cell-line specific and the key translatable quantity." }
+      "extraction": { "review_status": "pending_human_review", "source_locator": "Simeoni 2004 paclitaxel/A2780 (k2=6.29e-4, shared exp.3/4), via PMC5660732 Table I; docs/verification/workhorse-models.md SS3; PDF sign-off pending", "tier_rationale": "Potency is compound/cell-line specific and the key translatable quantity." }
     },
     {
       "symbol": "k1",
@@ -56,7 +56,7 @@
       "iiv_cv_percent": 45,
       "tier": "C",
       "primary_citation": "simeoni-2004-xenograft",
-      "extraction": { "review_status": "unverified", "source_locator": "Simeoni 2004 paclitaxel/A2780 (k1=0.968, shared exp.3/4), via PMC5660732 Table I; docs/verification/workhorse-models.md SS3; PDF sign-off pending", "tier_rationale": "Sets the cell-death delay; moderately identifiable." }
+      "extraction": { "review_status": "pending_human_review", "source_locator": "Simeoni 2004 paclitaxel/A2780 (k1=0.968, shared exp.3/4), via PMC5660732 Table I; docs/verification/workhorse-models.md SS3; PDF sign-off pending", "tier_rationale": "Sets the cell-death delay; moderately identifiable." }
     }
   ],
   "derivation_context": {
@@ -82,6 +82,6 @@
     }
   ],
   "tier": "C",
-  "review_status": "unverified",
+  "review_status": "pending_human_review",
   "primary_citation": "simeoni-2004-xenograft"
 }

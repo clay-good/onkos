@@ -1701,6 +1701,14 @@ that the Kuznetsov 1994 tumor-immune parameters already match the canonical
 published nondimensional set, while flagging that the Claret record's circulating
 "values" trace to a known-illustrative third-party default and must not be cited.)
 
+Records filled from a real source but not yet PDF-confirmed by a human carry
+`review_status: pending_human_review` — the honest bridge between an illustrative
+placeholder and a human-`verified` value. **`onkos review-queue`** lists exactly
+those records and the source behind each parameter, so a researcher can pick one
+up, open the cited table, and promote it. The `review_status` lifecycle
+(`unverified → pending_human_review → verified`, plus `contested`) is defined in
+[`CONTRIBUTING.md`](CONTRIBUTING.md), and the health report summarizes the queue.
+
 ### Linked data (JSON-LD / RDF)
 
 The curation fields are exported as **JSON-LD** so they become real RDF triples,

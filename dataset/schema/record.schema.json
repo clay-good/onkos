@@ -64,7 +64,7 @@
       "items": { "$ref": "#/definitions/predictive_performance" }
     },
     "tier": { "$ref": "#/definitions/tier" },
-    "review_status": { "type": "string", "enum": ["unverified", "verified", "contested"] },
+    "review_status": { "type": "string", "enum": ["unverified", "pending_human_review", "verified", "contested"] },
     "primary_citation": { "type": "string", "description": "Citation key in dataset/citations/." }
   },
   "definitions": {
@@ -94,7 +94,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "review_status": { "type": "string", "enum": ["unverified", "verified", "contested"] },
+            "review_status": { "type": "string", "enum": ["unverified", "pending_human_review", "verified", "contested"] },
             "source_locator": { "type": "string" },
             "tier_rationale": { "type": "string" }
           }
