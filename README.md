@@ -1415,10 +1415,20 @@ links, so every supported tumor type carries:
 | Context (1L) | baseline SLD | OS scale (wk) | eligible TGI models | OS divergence |
 | --- | --- | --- | --- | --- |
 | NSCLC | 80 mm | 60 | Claret 2009 · Wang biexp · two-population · (+Norton-Simon) | 0.26 |
-| breast | 55 mm | 130 | breast Claret · Bruno biexp · two-population | 0.13 |
-| CRC | 90 mm | 95 | CRC Claret · CRC biexp · two-population | 0.25 |
-| HCC | 110 mm | 48 | HCC Claret · HCC biexp · two-population | 0.35 |
-| melanoma | 60 mm | 85 | melanoma Claret · melanoma biexp · two-population | 0.25 |
+| breast | 69 mm | 130 | breast Claret · Bruno biexp · two-population | 0.13 |
+| CRC | 143 mm | 95 | CRC Claret · CRC biexp · two-population | 0.25 |
+| HCC | 79 mm | 48 | HCC Claret · HCC biexp · two-population | 0.35 |
+| melanoma | 72 mm | 85 | melanoma Claret · melanoma biexp · two-population | 0.25 |
+
+The non-NSCLC baseline SLDs above are now grounded in open-access trial/TGI sources
+(breast: Krishnan 2021; CRC: Machida 2008; HCC: IMbrave150/Salem 2021; melanoma:
+BRIM-3/Mistry 2018) and carry `review_status: pending_human_review` — real median
+baseline burdens awaiting a human sign-off (run `onkos review-queue`). CRC's bulkier
+metastatic burden (143 mm) is the real outlier; the others cluster near 70-80 mm.
+NSCLC-1L is kept at a round 80 mm (within the published range) to hold the flagship
+demo numbers stable while the NSCLC Claret/Wang model values remain paywalled; NSCLC-2L
+is kept illustrative because its sourced figure (OAK ~67 mm) would break the
+2L-more-advanced-than-1L modeling invariant — that conflict is flagged for human review.
 
 ![Tumor-context library](docs/images/context_library.png)
 

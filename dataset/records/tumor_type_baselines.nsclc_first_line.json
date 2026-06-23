@@ -14,7 +14,7 @@
       "iiv_cv_percent": 55,
       "tier": "C",
       "primary_citation": "wang-2009-tgi",
-      "extraction": { "review_status": "unverified", "source_locator": "indication summary; value illustrative", "tier_rationale": "Population baseline varies widely by stage and enrollment." }
+      "extraction": { "review_status": "unverified", "source_locator": "kept at 80 mm (a round mid-upper-range value) to keep the flagship NSCLC divergence demo stable; consistent with the published 1L NSCLC baseline-SLD range (ALK+ TS0 57 mm, PMC10363035; IMpower150 ITT median ~70 mm; bulkier cohorts higher). Not a single specific median, so stays unverified.", "tier_rationale": "Population baseline varies widely by stage and enrollment." }
     },
     {
       "symbol": "kg",

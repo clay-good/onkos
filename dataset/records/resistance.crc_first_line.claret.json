@@ -4,7 +4,7 @@
   "purpose": "tgi",
   "subsystem": "resistance",
   "name": "Claret-form clinical TGI for first-line CRC",
-  "description": "Claret 2009 clinical TGI form (exponential growth + exposure-driven kill with exponential decay of drug effect = emergent resistance) parameterized for first-line metastatic colorectal cancer: dy/dt = kL*y - kD*E*exp(-lambda*t)*y. Values illustrative and unverified.",
+  "description": "Claret 2009 clinical TGI form (exponential growth + exposure-driven kill with exponential decay of drug effect = emergent resistance) parameterized for first-line metastatic colorectal cancer: dy/dt = kL*y - kD*E*exp(-lambda*t)*y. NOTE: CRC/capecitabine is the actual derivation context of Claret 2009, but the paper's Table 1 estimates are paywalled (DOI 10.1200/JCO.2008.21.0807) and not recoverable from any open source, and the circulating BioModels MODEL1708310001 numbers are non-curated defaults — so the values here remain illustrative and unverified pending institutional PDF access. See docs/verification/workhorse-models.md SS1.",
   "kernel": "claret_tgi",
   "structure": {
     "growth_law": "exponential",

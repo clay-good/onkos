@@ -31,7 +31,19 @@ review-queue`** lists every such record and the source behind each parameter, so
 researcher can open the cited table and promote it; the health report summarizes
 the queue. The lifecycle is defined in [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
 
-### Applied this round
+### Applied — baseline round (per-indication baseline SLD)
+
+The `tumor_type_baselines.*` baseline tumor burdens (RECIST sum of longest diameters)
+were grounded in open-access trial/TGI sources and moved to `pending_human_review`
+(see §7): **breast 55 → 69 mm** (Krishnan 2021), **CRC 90 → 143 mm** (Machida 2008),
+**HCC 110 → 79 mm** (Salem 2021 / IMbrave150), **melanoma 60 → 72 mm** (Mistry 2018 /
+BRIM-3). NSCLC-1L is kept at 80 mm (round, in-range) to hold the flagship demo stable;
+NSCLC-2L is kept illustrative (its sourced OAK figure ~67 mm conflicts with the
+2L>1L modeling invariant — flagged for human review). The per-context OS-divergence
+numbers barely moved (baseline scales start size, not model disagreement), so the
+README divergence column is unchanged.
+
+### Applied — model round
 
 - **`resistance.breast_first_line.claret` → `pending_human_review`.** Growth `kL`
   (0.012 → **0.00917/week**, IIV 38 → 135%) and resistance-decay `lambda`
@@ -348,6 +360,42 @@ were fit to BCL₁ B-lymphoma in mouse spleen, and the immunotherapy effect `E` 
 hypothesis-tier augmentation). Sourced parameter *values* do not upgrade a model
 that is non-predictive *by construction* — exactly the distinction the tier system
 (separate from `review_status`) exists to make.
+
+---
+
+## §6 — kD effect-scaling caveat (breast Claret)
+
+Recorded here because it recurs: the dataset's clinical TGI records drive kill from a
+**dimensionless drug-effect `E`** (≈1 at a reference dose), whereas the source fits
+drive kill from a **concentration or KPD drug amount**. Growth (`kL`, `kg`) and
+resistance-decay (`lambda`) constants are independent of that scaling and transfer
+directly; **kill potencies (`kD`, `ks`) do not**. That is why `resistance.breast_first_line.claret`
+grounds `kL` and `lambda` from Krishnan 2021 but keeps `kD` illustrative — the same
+caveat applies to any future kill-term grounding.
+
+---
+
+## §7 — Per-indication baseline tumor burden
+
+**Records:** `tumor_type_baselines.*`. These context baselines supply the starting
+tumor size (RECIST sum of longest diameters, mm) and a reference growth rate for the
+divergence view. Baseline SLD is genuinely trial- and enrollment-dependent, so each is
+anchored to a representative open-access median rather than a universal constant.
+
+| Context | was → now (mm) | Source | Access | `review_status` |
+| --- | --- | --- | --- | --- |
+| breast 1L | 55 → **69** | Krishnan 2021 (PMID 33818899), AVADO docetaxel arm median summed SLD | open | `pending_human_review` |
+| CRC 1L | 90 → **143** | Machida 2008 (PMID 18845522), observed median SLD, mCRC | open | `pending_human_review` |
+| HCC 1L | 110 → **79** | Salem 2021 / IMbrave150 (PMID 34189869), sorafenib-arm median | open | `pending_human_review` |
+| melanoma 1L | 60 → **72** | Mistry 2018 / BRIM-3 (PMID 29222604), vemurafenib cohort median | open | `pending_human_review` |
+| NSCLC 1L | 80 (kept) | round, in published range (ALK+ 57; IMpower150 ITT 70) | open | `unverified` (not a specific median; protects flagship demo) |
+| NSCLC 2L | 100 (kept) | OAK 2L reported ~67 (Shang 2021), but that breaks the 2L>1L invariant | open | `unverified` (conflict flagged for human review) |
+
+**Cross-indication pattern:** published median baseline SLD clusters at ~57–80 mm for
+most solid tumors, with **CRC the conspicuous outlier (143 mm)** — bulkier abdominal/
+hepatic metastatic burden. This real pattern replaced the previous illustrative
+ordering (which had HCC highest); the `test_baseline_drives_context_specific_y0`
+invariant was updated from HCC>NSCLC to **CRC>NSCLC** to match it.
 
 ---
 

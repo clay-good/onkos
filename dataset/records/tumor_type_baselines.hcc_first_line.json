@@ -15,17 +15,17 @@
       "symbol": "baseline_tumor_size",
       "label": "baseline SLD",
       "value": {
-        "central": 110.0,
-        "low": 50.0,
+        "central": 79.0,
+        "low": 40.0,
         "high": 200.0,
         "units": "mm"
       },
       "iiv_cv_percent": 60,
       "tier": "C",
-      "primary_citation": "bruno-2020-review",
+      "primary_citation": "salem-2021-imbrave150-hcc",
       "extraction": {
-        "review_status": "unverified",
-        "source_locator": "indication summary; value illustrative",
+        "review_status": "pending_human_review",
+        "source_locator": "Salem 2021 (PMID 34189869, PMC8366100) IMbrave150 median baseline SLD = 79 mm (sorafenib arm; 69 mm atezo-bev arm); open access; human PDF sign-off pending",
         "tier_rationale": "Population baseline varies widely by stage and enrollment."
       }
     },
@@ -68,6 +68,6 @@
     "out_of_context_action": "tier_down_to_D and warn"
   },
   "tier": "C",
-  "review_status": "unverified",
-  "primary_citation": "bruno-2020-review"
+  "review_status": "pending_human_review",
+  "primary_citation": "salem-2021-imbrave150-hcc"
 }

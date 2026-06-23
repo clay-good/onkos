@@ -4,7 +4,7 @@
   "purpose": "exposure_response",
   "subsystem": "exposure_response",
   "name": "Dacomitinib (EGFR-TKI, NSCLC) Emax exposure-response",
-  "description": "Drug-specific Emax exposure-response for an EGFR-TKI in first-line NSCLC, intended to drive the Claret TGI kill term from a measured average concentration. E = Emax*C/(EC50+C). Validated NSCLC / EGFR_TKI only; applying out of context floors the result to D. Values illustrative and unverified.",
+  "description": "Drug-specific Emax exposure-response for an EGFR-TKI in first-line NSCLC, intended to drive the Claret TGI kill term from a measured average concentration. E = Emax*C/(EC50+C). Validated NSCLC / EGFR_TKI only; applying out of context floors the result to D. Values illustrative and unverified. NOTE: the published dacomitinib NSCLC TGI analysis (Fostvedt 2022, PMC9893889) used a POWER exposure-response (kill proportional to Cavg^0.454), not a saturable Emax, so no literature Emax/EC50 pair exists to import here; the EC50 = 90 ug/L is illustrative but plausible in scale (the FDA Vizimpro label gives steady-state Cavg ~92 ng/mL at 45 mg). See docs/verification/workhorse-models.md SS1.",
   "kernel": "er_emax",
   "structure": { "states": ["effect"] },
   "parameters": [

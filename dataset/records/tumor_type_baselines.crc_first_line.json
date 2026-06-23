@@ -15,17 +15,17 @@
       "symbol": "baseline_tumor_size",
       "label": "baseline SLD",
       "value": {
-        "central": 90.0,
+        "central": 143.0,
         "low": 45.0,
-        "high": 160.0,
+        "high": 300.0,
         "units": "mm"
       },
       "iiv_cv_percent": 52,
       "tier": "C",
-      "primary_citation": "claret-2009-tgi",
+      "primary_citation": "machida-2008-baseline-sld",
       "extraction": {
-        "review_status": "unverified",
-        "source_locator": "indication summary; value illustrative",
+        "review_status": "pending_human_review",
+        "source_locator": "Machida 2008 (PMID 18845522) observed median baseline SLD = 143 mm in metastatic colorectal cancer (n=103); open abstract; human PDF sign-off pending. CRC is the high-burden outlier (vs ~57-80 mm for other solid tumors).",
         "tier_rationale": "Population baseline varies widely by stage and enrollment."
       }
     },
@@ -68,6 +68,6 @@
     "out_of_context_action": "tier_down_to_D and warn"
   },
   "tier": "C",
-  "review_status": "unverified",
-  "primary_citation": "claret-2009-tgi"
+  "review_status": "pending_human_review",
+  "primary_citation": "machida-2008-baseline-sld"
 }

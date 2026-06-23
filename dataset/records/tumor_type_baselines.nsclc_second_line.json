@@ -25,7 +25,7 @@
       "primary_citation": "wang-2009-tgi",
       "extraction": {
         "review_status": "unverified",
-        "source_locator": "indication summary; value illustrative",
+        "source_locator": "kept illustrative at 100 mm to preserve the modeling invariant that 2L baseline burden > 1L (80 mm). NOTE: the OAK second-line atezolizumab NSCLC arm reported a median SLD of ~67 mm (Shang 2021, PMID 34331414) — comparable to, not larger than, 1L — so the 2L>1L assumption is NOT robustly supported by that single trial and is flagged for human review against matched 1L/2L data.",
         "tier_rationale": "Population baseline varies widely by stage and prior therapy."
       }
     },

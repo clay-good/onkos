@@ -55,14 +55,16 @@ def test_each_context_has_measurable_divergence():
 
 def test_baseline_drives_context_specific_y0():
     ds = onkos.load()
-    # HCC baseline SLD (110) differs from NSCLC (80): same model, different start size.
+    # CRC baseline SLD (143, Machida 2008) is the high-burden outlier vs NSCLC (80):
+    # same model family, different start size. (Published medians cluster ~57-80 mm for
+    # most solid tumors; CRC is the conspicuous outlier, so it is the robust contrast.)
     import numpy as np
     t = np.linspace(0, 52, 105)
-    hcc = onkos.simulate(ds, "resistance.hcc_first_line.claret",
-                         context={"tumor_type": "HCC", "line": "first"}, drug_effect=0.0, t=t)
+    crc = onkos.simulate(ds, "resistance.crc_first_line.claret",
+                         context={"tumor_type": "CRC", "line": "first"}, drug_effect=0.0, t=t)
     nsclc = onkos.simulate(ds, "resistance.claret_2009.tgi",
                            context={"tumor_type": "NSCLC", "line": "first"}, drug_effect=0.0, t=t)
-    assert hcc.tumor_size[0] > nsclc.tumor_size[0]
+    assert crc.tumor_size[0] > nsclc.tumor_size[0]
 
 
 def test_tumor_specific_survival_scales_differ():
