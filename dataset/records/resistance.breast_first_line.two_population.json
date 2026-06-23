@@ -16,11 +16,11 @@
     {
       "symbol": "kg",
       "label": "sensitive-clone growth rate constant",
-      "value": { "central": 0.012, "low": null, "high": null, "units": "1/week" },
-      "iiv_cv_percent": 38,
+      "value": { "central": 0.00917, "low": null, "high": null, "units": "1/week" },
+      "iiv_cv_percent": 135,
       "tier": "B",
-      "primary_citation": "foo-michor-2014",
-      "extraction": { "review_status": "unverified", "source_locator": "model form (Goldie-Coldman 1979); value illustrative (matched to breast Claret kL)", "tier_rationale": "Established two-population model form; growth rate is indication-specific." }
+      "primary_citation": "krishnan-2021-breast-tgi",
+      "extraction": { "review_status": "pending_human_review", "source_locator": "Krishnan 2021 (PMID 33818899) kGROW liver/breast = 0.00917/week, IIV CV 135% (same breast/docetaxel growth as resistance.breast_first_line.claret); open access; human PDF sign-off pending", "tier_rationale": "Established two-population model form; growth rate is indication-specific." }
     },
     {
       "symbol": "kd",
@@ -47,7 +47,7 @@
       "iiv_cv_percent": 120,
       "tier": "C",
       "primary_citation": "goldie-coldman-1979",
-      "extraction": { "review_status": "unverified", "source_locator": "model form; value illustrative (~1.5% of a 55 mm baseline)", "tier_rationale": "The resistant fraction is biologically interpretable but practically unidentifiable from a short trial; ~100%+ CV is expected." }
+      "extraction": { "review_status": "unverified", "source_locator": "model form; value illustrative (~1.2% of the 69 mm grounded breast baseline)", "tier_rationale": "The resistant fraction is biologically interpretable but practically unidentifiable from a short trial; ~100%+ CV is expected." }
     }
   ],
   "derivation_context": {
@@ -77,6 +77,6 @@
     { "metric": "OS_C_index_external", "value": 0.61, "population": "independent breast cohort (illustrative)", "citation": "foo-michor-2014" }
   ],
   "tier": "C",
-  "review_status": "unverified",
+  "review_status": "pending_human_review",
   "primary_citation": "foo-michor-2014"
 }

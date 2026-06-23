@@ -19,17 +19,17 @@
       "symbol": "kg",
       "label": "tumor regrowth rate constant",
       "value": {
-        "central": 0.012,
+        "central": 0.00917,
         "low": null,
         "high": null,
         "units": "1/week"
       },
-      "iiv_cv_percent": 50,
+      "iiv_cv_percent": 135,
       "tier": "B",
-      "primary_citation": "bruno-2020-review",
+      "primary_citation": "krishnan-2021-breast-tgi",
       "extraction": {
-        "review_status": "unverified",
-        "source_locator": "review; value illustrative",
+        "review_status": "pending_human_review",
+        "source_locator": "Krishnan 2021 (PMID 33818899) kGROW liver/breast = 0.00917/week, IIV CV 135%; open-access HER2-negative breast/docetaxel fit replaces the unsupported Bruno-2020 illustrative value; human PDF sign-off pending",
         "tier_rationale": "Well-identified growth term in the source context."
       }
     },
@@ -80,6 +80,6 @@
     }
   ],
   "tier": "C",
-  "review_status": "unverified",
+  "review_status": "pending_human_review",
   "primary_citation": "bruno-2020-review"
 }

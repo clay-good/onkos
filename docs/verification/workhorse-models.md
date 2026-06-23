@@ -31,6 +31,35 @@ review-queue`** lists every such record and the source behind each parameter, so
 researcher can open the cited table and promote it; the health report summarizes
 the queue. The lifecycle is defined in [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
 
+### Applied — breast consistency round + the open-data floor
+
+The confirmed breast growth rate (Krishnan 2021, kGROW liver/breast = 0.00917/week,
+IIV 135%) was propagated to the other breast records for internal consistency:
+`resistance.breast_first_line.two_population` (`kg`) and
+`tgi_metrics.bruno_2020.breast_biexponential` (`kg`) → `pending_human_review`. The
+breast context is now consistently grounded across its Claret, two-population,
+biexponential, and baseline records (growth + resistance from Krishnan; kill/kDRUG
+kept illustrative per §6).
+
+**Negative results — recorded so the search is not repeated.** A dedicated pass for
+per-indication on-treatment exponential-per-week growth constants found that the
+remaining indications are *not* cleanly fillable from open sources:
+- **Melanoma** — Mistry 2018 (the open melanoma TGI paper) uses a **piecewise-linear
+  model in mm/day**, not an exponential per-week constant, and its numeric estimates
+  live only in a Supplementary Table S4 whose body is **missing from the open
+  supplementary file**. Not transcribable; stays illustrative.
+- **HCC** — no open on-treatment clinical TGI growth constant exists; the only open
+  anchor is a natural-history volume-doubling-time meta-analysis (TVDT 4.6 mo →
+  ~0.012/week diameter constant), which would **overstate** on-treatment growth.
+  Stays illustrative.
+- **CRC** — no open clinical TGI growth constant; the canonical Claret 2009
+  capecitabine fit remains paywalled. Stays illustrative.
+
+This marks the practical floor of open-source grounding: what remains `unverified` is
+paywalled, non-transcribable (wrong model family or drug-effect-scaling), or
+illustrative-by-design (the survival-link C-index scheme, generic exposure-response
+shapes). Further promotion needs a human with institutional PDF access.
+
 ### Applied — baseline round (per-indication baseline SLD)
 
 The `tumor_type_baselines.*` baseline tumor burdens (RECIST sum of longest diameters)
