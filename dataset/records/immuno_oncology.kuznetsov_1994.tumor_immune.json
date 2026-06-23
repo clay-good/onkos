@@ -30,7 +30,7 @@
       "primary_citation": "kuznetsov-1994-tumor-immune",
       "extraction": {
         "review_status": "unverified",
-        "source_locator": "nondimensional set",
+        "source_locator": "Kuznetsov 1994 nondimensional set; value matches the canonical set reproduced verbatim in d'Onofrio 2008 (arXiv:1309.3337) and Marchant 2020 (arXiv:1909.05203); see docs/verification/workhorse-models.md §5. Human PDF sign-off pending.",
         "tier_rationale": "Hypothesis-tier QSP; no quantitative clinical validation."
       }
     },
@@ -48,7 +48,7 @@
       "primary_citation": "kuznetsov-1994-tumor-immune",
       "extraction": {
         "review_status": "unverified",
-        "source_locator": "nondimensional set",
+        "source_locator": "Kuznetsov 1994 nondimensional set; value matches the canonical set reproduced verbatim in d'Onofrio 2008 (arXiv:1309.3337) and Marchant 2020 (arXiv:1909.05203); see docs/verification/workhorse-models.md §5. Human PDF sign-off pending.",
         "tier_rationale": "Hypothesis-tier QSP; not for prediction."
       }
     },
@@ -66,7 +66,7 @@
       "primary_citation": "kuznetsov-1994-tumor-immune",
       "extraction": {
         "review_status": "unverified",
-        "source_locator": "nondimensional set",
+        "source_locator": "Kuznetsov 1994 nondimensional set; value matches the canonical set reproduced verbatim in d'Onofrio 2008 (arXiv:1309.3337) and Marchant 2020 (arXiv:1909.05203); see docs/verification/workhorse-models.md §5. Human PDF sign-off pending.",
         "tier_rationale": "Hypothesis-tier QSP; not for prediction."
       }
     },
@@ -84,7 +84,7 @@
       "primary_citation": "kuznetsov-1994-tumor-immune",
       "extraction": {
         "review_status": "unverified",
-        "source_locator": "nondimensional set",
+        "source_locator": "Kuznetsov 1994 nondimensional set; value matches the canonical set reproduced verbatim in d'Onofrio 2008 (arXiv:1309.3337) and Marchant 2020 (arXiv:1909.05203); see docs/verification/workhorse-models.md §5. Human PDF sign-off pending.",
         "tier_rationale": "Hypothesis-tier QSP; not for prediction."
       }
     },
@@ -102,7 +102,7 @@
       "primary_citation": "kuznetsov-1994-tumor-immune",
       "extraction": {
         "review_status": "unverified",
-        "source_locator": "nondimensional set",
+        "source_locator": "Kuznetsov 1994 nondimensional set; value matches the canonical set reproduced verbatim in d'Onofrio 2008 (arXiv:1309.3337) and Marchant 2020 (arXiv:1909.05203); see docs/verification/workhorse-models.md §5. Human PDF sign-off pending.",
         "tier_rationale": "Hypothesis-tier QSP; not for prediction."
       }
     },
@@ -120,7 +120,7 @@
       "primary_citation": "kuznetsov-1994-tumor-immune",
       "extraction": {
         "review_status": "unverified",
-        "source_locator": "nondimensional set",
+        "source_locator": "Kuznetsov 1994 nondimensional set; value matches the canonical set reproduced verbatim in d'Onofrio 2008 (arXiv:1309.3337) and Marchant 2020 (arXiv:1909.05203); see docs/verification/workhorse-models.md §5. Human PDF sign-off pending.",
         "tier_rationale": "Hypothesis-tier QSP; not for prediction."
       }
     },
@@ -138,7 +138,7 @@
       "primary_citation": "kuznetsov-1994-tumor-immune",
       "extraction": {
         "review_status": "unverified",
-        "source_locator": "nondimensional set",
+        "source_locator": "Kuznetsov 1994 nondimensional set; value matches the canonical set reproduced verbatim in d'Onofrio 2008 (arXiv:1309.3337) and Marchant 2020 (arXiv:1909.05203); see docs/verification/workhorse-models.md §5. Human PDF sign-off pending.",
         "tier_rationale": "Hypothesis-tier QSP; not for prediction."
       }
     },

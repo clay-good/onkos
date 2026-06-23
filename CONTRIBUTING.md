@@ -55,7 +55,11 @@ Open the source and confirm, field by field:
    was actually checked.
 
 LLMs may assist but never promote a record on their own authority. The verified
-count is reported honestly by `onkos info`.
+count is reported honestly by `onkos info`. The standing evidence dossier for the
+most-used records — confirmed structures, real published values with sources and
+access status, and a per-record action list — lives in
+[`docs/verification/workhorse-models.md`](docs/verification/workhorse-models.md);
+extend it when you research a record, and use it to make the PDF sign-off a lookup.
 
 ## Development
 

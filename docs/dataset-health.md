@@ -81,7 +81,7 @@ Under a realistic RECIST scan cadence (weeks 0, 6, 12, 18, 24, 36, 48; 20% propo
 | model | params | tier | identifiable? | least-identifiable |
 | --- | --- | --- | --- | --- |
 | `drug_effect.norton_simon.nsclc` | 3 | C | **no** | `g` |
-| `preclinical_translation.simeoni_2004.xenograft` | 5 | C | **no** | `psi` |
+| `preclinical_translation.simeoni_2004.xenograft` | 5 | C | **no** | `k1` |
 | `resistance.breast_first_line.claret` | 3 | C | **no** | `kL` |
 | `resistance.breast_first_line.two_population` | 4 | C | **no** | `kg` |
 | `resistance.claret_2009.tgi` | 3 | C | **no** | `kL` |

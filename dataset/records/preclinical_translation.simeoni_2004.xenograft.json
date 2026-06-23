@@ -4,7 +4,7 @@
   "purpose": "tgi",
   "subsystem": "preclinical_translation",
   "name": "Simeoni 2004 preclinical xenograft PK/PD TGI model (transit-chain cell death)",
-  "description": "The canonical preclinical tumor-growth-inhibition model. Proliferating tumor x1 grows exponential-to-linear; drug at concentration E damages proliferating cells at rate k2*E, and damaged cells traverse a signal-distribution transit chain x2->x3->x4 (first-order rate k1) before dying, producing delayed cell death. Observed tumor weight w = x1+x2+x3+x4. Values are illustrative xenograft-scale (mouse, 1/day, grams, concentration in ng/mL) and unverified. PRECLINICAL: applying to humans is the translation gap (see preclinical_translation.ivive_potency) and floors to D.",
+  "description": "The canonical preclinical tumor-growth-inhibition model. Proliferating tumor x1 grows exponential-to-linear; drug at concentration E damages proliferating cells at rate k2*E, and damaged cells traverse a signal-distribution transit chain x2->x3->x4 (first-order rate k1) before dying, producing delayed cell death. Observed tumor weight w = x1+x2+x3+x4. Parameter values are the published paclitaxel / A2780 ovarian-xenograft estimates from Simeoni 2004 (experiment 3), as reproduced in the open-access Stromberg & Hooker 2017 reproduction (PMC5660732, Table I); units mouse-scale (1/day, grams, concentration in ng/mL). The implied tumor-static concentration is Ct = lambda0/k2 ~ 494 ng/mL. review_status remains 'unverified' pending a human read of the original Table (source is a secondary reproduction); see docs/verification/workhorse-models.md SS3. PRECLINICAL: applying to humans is the translation gap (see preclinical_translation.ivive_potency) and floors to D.",
   "kernel": "simeoni_tgi",
   "structure": {
     "growth_law": "exponential_to_linear",
@@ -16,20 +16,20 @@
     {
       "symbol": "lambda0",
       "label": "first-order (exponential-phase) growth rate",
-      "value": { "central": 0.20, "low": null, "high": null, "units": "1/day" },
+      "value": { "central": 0.311, "low": null, "high": null, "units": "1/day" },
       "iiv_cv_percent": null,
       "tier": "B",
       "primary_citation": "simeoni-2004-xenograft",
-      "extraction": { "review_status": "unverified", "source_locator": "Simeoni 2004; value illustrative", "tier_rationale": "Established model form; growth rate is cell-line specific." }
+      "extraction": { "review_status": "unverified", "source_locator": "Simeoni 2004 paclitaxel/A2780 exp.3, via PMC5660732 Table I; docs/verification/workhorse-models.md SS3; PDF sign-off pending", "tier_rationale": "Established model form; growth rate is cell-line specific." }
     },
     {
       "symbol": "lambda1",
       "label": "zero-order (linear-phase) growth rate",
-      "value": { "central": 0.70, "low": null, "high": null, "units": "g/day" },
+      "value": { "central": 0.656, "low": null, "high": null, "units": "g/day" },
       "iiv_cv_percent": null,
       "tier": "B",
       "primary_citation": "simeoni-2004-xenograft",
-      "extraction": { "review_status": "unverified", "source_locator": "Simeoni 2004; value illustrative", "tier_rationale": "Established model form; growth rate is cell-line specific." }
+      "extraction": { "review_status": "unverified", "source_locator": "Simeoni 2004 paclitaxel/A2780 exp.3, via PMC5660732 Table I; docs/verification/workhorse-models.md SS3; PDF sign-off pending", "tier_rationale": "Established model form; growth rate is cell-line specific." }
     },
     {
       "symbol": "psi",
@@ -43,20 +43,20 @@
     {
       "symbol": "k2",
       "label": "drug potency (cell-damage rate per unit concentration)",
-      "value": { "central": 0.012, "low": null, "high": null, "units": "mL/(ng*day)" },
+      "value": { "central": 0.000629, "low": null, "high": null, "units": "mL/(ng*day)" },
       "iiv_cv_percent": 70,
       "tier": "C",
       "primary_citation": "simeoni-2004-xenograft",
-      "extraction": { "review_status": "unverified", "source_locator": "Simeoni 2004; value illustrative", "tier_rationale": "Potency is compound/cell-line specific and the key translatable quantity." }
+      "extraction": { "review_status": "unverified", "source_locator": "Simeoni 2004 paclitaxel/A2780 (k2=6.29e-4, shared exp.3/4), via PMC5660732 Table I; docs/verification/workhorse-models.md SS3; PDF sign-off pending", "tier_rationale": "Potency is compound/cell-line specific and the key translatable quantity." }
     },
     {
       "symbol": "k1",
       "label": "transit (delayed-death) rate",
-      "value": { "central": 0.50, "low": null, "high": null, "units": "1/day" },
+      "value": { "central": 0.968, "low": null, "high": null, "units": "1/day" },
       "iiv_cv_percent": 45,
       "tier": "C",
       "primary_citation": "simeoni-2004-xenograft",
-      "extraction": { "review_status": "unverified", "source_locator": "Simeoni 2004; value illustrative", "tier_rationale": "Sets the cell-death delay; moderately identifiable." }
+      "extraction": { "review_status": "unverified", "source_locator": "Simeoni 2004 paclitaxel/A2780 (k1=0.968, shared exp.3/4), via PMC5660732 Table I; docs/verification/workhorse-models.md SS3; PDF sign-off pending", "tier_rationale": "Sets the cell-death delay; moderately identifiable." }
     }
   ],
   "derivation_context": {

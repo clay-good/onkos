@@ -18,7 +18,7 @@ weakest, least-validated input — so make that a first-class, machine-readable
 field.**
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-&nbsp;v0.19 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
+&nbsp;v0.41 · Code: MIT · Data: CC-BY-4.0 · Python ≥ 3.9
 
 ---
 
@@ -1682,6 +1682,24 @@ simulations": the landmark *is* the published property, derived from the model's
 own equations, so **no digitized data is fabricated**. The two axes are
 complementary — round-trip catches a mis-encoded export; landmarks catch a
 mis-implemented model.
+
+### Parameter-value verification — the dossier behind `review_status`
+
+Round-trip and landmark validation both check *structure*: that the exports match
+the kernel and the kernel is the model it names. Neither checks whether a record's
+**parameter values** match a published estimate — and by design, every value in the
+dataset ships as `review_status: unverified` and labeled *illustrative* until a
+human confirms it against the source PDF. [`docs/verification/workhorse-models.md`](docs/verification/workhorse-models.md)
+is the standing evidence dossier for that third axis: for each workhorse model it
+records the confirmed structure, the real published values (with source, access
+status, and confidence), the discrepancies the current illustrative numbers carry,
+and a maintainer checklist to promote a record to `verified`. Per
+[`CONTRIBUTING.md`](CONTRIBUTING.md), automated review may *assemble* this evidence
+but may never set `verified` on its own authority — the dossier turns that human
+confirmation into a lookup rather than a re-derivation. (For example, it documents
+that the Kuznetsov 1994 tumor-immune parameters already match the canonical
+published nondimensional set, while flagging that the Claret record's circulating
+"values" trace to a known-illustrative third-party default and must not be cited.)
 
 ### Linked data (JSON-LD / RDF)
 

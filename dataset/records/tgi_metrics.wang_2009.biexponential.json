@@ -4,7 +4,7 @@
   "purpose": "tgi",
   "subsystem": "tgi_metrics",
   "name": "Wang/Stein 2009 biexponential clinical TGI model (NSCLC)",
-  "description": "Two-phase (shrink + regrowth) clinical tumor-size model y(t) = y0*(exp(-ks*E*t) + exp(kg*t) - 1), where ks is the drug-driven shrinkage rate scaled by drug effect E and kg the regrowth rate. Yields the Stein growth-rate-constant and the on-treatment tumor-size metrics. Values are illustrative NSCLC-scale and unverified.",
+  "description": "Two-phase (shrink + regrowth) clinical tumor-size model y(t) = y0*(exp(-ks*E*t) + exp(kg*t) - 1), where ks is the drug-driven shrinkage rate scaled by drug effect E and kg the regrowth rate. Yields the Stein growth-rate-constant and the on-treatment tumor-size metrics. ATTRIBUTION: this biexponential form is the Stein-Fojo growth-rate-constant model (Stein 2008, f = exp(-d*t) + exp(g*t) - 1; derived on castration-resistant prostate cancer measured by PSA). Wang 2009's NSCLC registrational analysis used a related but DISTINCT 'mixed exponential-decay + linear-growth' parameterization, not this biexponential; this record borrows the Stein-Fojo structure and cites Wang for the NSCLC tumor-size -> OS context (the week-8 change predictor). Values are illustrative NSCLC-scale and unverified. See docs/verification/workhorse-models.md SS2.",
   "kernel": "biexp_tgi",
   "structure": {
     "growth_law": "exponential_regrowth",
@@ -20,7 +20,7 @@
       "iiv_cv_percent": 45,
       "tier": "B",
       "primary_citation": "wang-2009-tgi",
-      "extraction": { "review_status": "unverified", "source_locator": "model form; value illustrative", "tier_rationale": "Growth-rate constant is the strongly prognostic, well-identified term." }
+      "extraction": { "review_status": "unverified", "source_locator": "magnitude consistent with the Stein-Fojo growth-rate constant g (Stein 2008, open access PMC3313464: median ~0.022/week, ~1500-fold spread); cohort was prostate/PSA, so this is a cross-tumor magnitude anchor for an NSCLC-illustrative context, not a same-context fit; docs/verification/workhorse-models.md SS2; PDF sign-off pending", "tier_rationale": "Growth-rate constant is the strongly prognostic, well-identified term." }
     },
     {
       "symbol": "ks",
@@ -29,7 +29,7 @@
       "iiv_cv_percent": 70,
       "tier": "C",
       "primary_citation": "wang-2009-tgi",
-      "extraction": { "review_status": "unverified", "source_locator": "model form; value illustrative", "tier_rationale": "Shrinkage rate depends on drug/dose; moderate identifiability." }
+      "extraction": { "review_status": "unverified", "source_locator": "magnitude consistent with the Stein-Fojo regression rate constant d (Stein 2008, open access PMC3313464: median ~0.14/week, ~50-fold spread); cross-tumor magnitude anchor (prostate/PSA cohort), not a same-context fit; docs/verification/workhorse-models.md SS2; PDF sign-off pending", "tier_rationale": "Shrinkage rate depends on drug/dose; moderate identifiability." }
     }
   ],
   "derivation_context": {

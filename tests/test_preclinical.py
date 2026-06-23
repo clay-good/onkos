@@ -31,9 +31,12 @@ def test_drug_shrinks_xenograft_and_higher_dose_deeper():
     t = np.linspace(0, 40, 161)
     ctx = {"tumor_type": "ovarian_xenograft"}
     rid = "preclinical_translation.simeoni_2004.xenograft"
+    # Concentrations are in ng/mL. With the published paclitaxel/A2780 potency
+    # (k2 = 6.29e-4), the tumor-static concentration is Ct = lambda0/k2 ~ 494 ng/mL,
+    # so both treated arms are dosed above threshold to produce genuine regression.
     untreated = onkos.simulate(ds, rid, context=ctx, drug_effect=0.0, t=t)
-    low = onkos.simulate(ds, rid, context=ctx, drug_effect=50.0, t=t)
-    high = onkos.simulate(ds, rid, context=ctx, drug_effect=200.0, t=t)
+    low = onkos.simulate(ds, rid, context=ctx, drug_effect=600.0, t=t)
+    high = onkos.simulate(ds, rid, context=ctx, drug_effect=1500.0, t=t)
     assert untreated.tumor_size[-1] > low.tumor_size[-1] > high.tumor_size[-1]
     assert high.metrics["depth_of_response"] > low.metrics["depth_of_response"]
 
@@ -46,7 +49,7 @@ def test_transit_chain_delays_cell_death():
     spec = get_kernel(ds["preclinical_translation.simeoni_2004.xenograft"])
     vals = kernel_values(ds["preclinical_translation.simeoni_2004.xenograft"])
     vals["w0"] = 0.2
-    vals["E"] = 80.0
+    vals["E"] = 1500.0  # ng/mL, above the ~494 ng/mL tumor-static threshold
     from onkos.export.reference import integrate_observable
     w = integrate_observable(spec, t, vals)
     # weight keeps growing for a short period (delay), i.e. nadir is not at t=0
@@ -87,8 +90,9 @@ def test_simeoni_pk_driven_time_varying():
     ctx = {"tumor_type": "ovarian_xenograft"}
     rid = "preclinical_translation.simeoni_2004.xenograft"
     # A raw declining concentration profile drives E(t) directly (no ER record),
-    # integrating the multi-state system numerically.
-    conc = 200.0 * np.exp(-0.1 * t)
+    # integrating the multi-state system numerically. Peak is above the
+    # ~494 ng/mL tumor-static threshold so the exposure genuinely shrinks the tumor.
+    conc = 1500.0 * np.exp(-0.1 * t)
     pk = onkos.simulate(ds, rid, context=ctx, exposure=conc, t=t)
     untreated = onkos.simulate(ds, rid, context=ctx, drug_effect=0.0, t=t)
     assert pk.tumor_size.shape == t.shape
