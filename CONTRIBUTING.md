@@ -19,7 +19,9 @@ regenerate it (`onkos export ...`, `scripts/make_figures.py`).
 2. Conform to `dataset/schema/record.schema.json`. Run `onkos validate`.
 3. The **record-level tier is the worst contributing parameter tier.** A test
    enforces this (`tests/test_dataset.py`).
-4. Every citation key must resolve to a file in `dataset/citations/`.
+4. Every citation key must resolve to a valid JSON file in `dataset/citations/`.
+   The citation filename must equal its internal `key`; `onkos validate` rejects
+   malformed files, mismatched names, and duplicate keys.
 5. If the record binds a reference kernel, set `kernel` to a name in
    `onkos.export.reference.KERNELS`. New dynamics need a new kernel with an
    `analytic` solution, a hand-written `rhs`, and an `rhs_infix` string so the

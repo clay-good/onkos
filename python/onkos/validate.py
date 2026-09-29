@@ -24,7 +24,27 @@ def validate_dataset(path: str | None = None) -> list[str]:
     validator = Draft7Validator(_schema(base))
     errors: list[str] = []
 
-    known_citations = {fp.stem for fp in (base / "citations").glob("*.json")}
+    known_citations: set[str] = set()
+    for fp in sorted((base / "citations").glob("*.json")):
+        try:
+            citation = json.loads(fp.read_text())
+        except json.JSONDecodeError as exc:
+            errors.append(f"{fp.name}: invalid citation JSON ({exc})")
+            continue
+        if not isinstance(citation, dict):
+            errors.append(f"{fp.name}: citation must be a JSON object")
+            continue
+
+        key = citation.get("key")
+        if not isinstance(key, str) or not key:
+            errors.append(f"{fp.name}: citation key must be a non-empty string")
+            continue
+        if fp.stem != key:
+            errors.append(f"{fp.name}: filename does not match citation key '{key}'")
+        if key in known_citations:
+            errors.append(f"{fp.name}: duplicate citation key '{key}'")
+        known_citations.add(key)
+
     seen_ids = set()
 
     # Imported lazily to avoid a hard dependency cycle at module import time.

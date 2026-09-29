@@ -9,6 +9,9 @@ design; the infrastructure is real and tested.
 - Make COMBINE archives reproducible by fixing ZIP timestamps, platform metadata,
   and permissions. Regression tests cover ODE and survival-link archives built
   at different times, including compression and archive integrity.
+- Harden citation integrity validation: `onkos validate` now parses citation
+  files and rejects malformed JSON, filename/internal-key mismatches, and
+  duplicate citation keys before records are loaded.
 
 ## [0.41.0] — Power-law (sub-exponential) growth: the exponential default overestimates
 
