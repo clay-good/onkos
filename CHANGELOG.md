@@ -12,6 +12,9 @@ design; the infrastructure is real and tested.
 - Harden citation integrity validation: `onkos validate` now parses citation
   files and rejects malformed JSON, filename/internal-key mismatches, and
   duplicate citation keys before records are loaded.
+- Report an infinite collinearity index for rank-deficient sensitivity matrices
+  consistently across NumPy versions instead of exposing floating-point
+  eigensolver noise as a very large finite value.
 
 ## [0.41.0] — Power-law (sub-exponential) growth: the exponential default overestimates
 

@@ -121,6 +121,8 @@ def collinearity_index(scaled_sens) -> float:
     if np.any(norms == 0) or not np.all(np.isfinite(s)):
         return float("inf")
     sn = s / norms  # unit-length columns -> Gram matrix has unit diagonal
+    if np.linalg.matrix_rank(sn) < sn.shape[1]:
+        return float("inf")
     eigs = np.linalg.eigvalsh(sn.T @ sn)
     lam_min = float(eigs[0])
     if lam_min <= 0:
