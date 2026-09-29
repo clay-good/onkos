@@ -1185,7 +1185,9 @@ onkos.combine_effects(0.6, 0.6, model="greco", psi=0.5)   # the pure interaction
 Export formats: `nonmem`, `sbml`, `pharmml`, `so` (PharmML Standard Output),
 `rxode2`, `pumas`, `vt-json`, `jsonld` (linked data), `omex`, `csv`, `bibtex`. The
 COMBINE `.omex` bundles SBML + PharmML + the SO + virtual-trial JSON + JSON-LD +
-provenance into one citable archive.
+provenance into one citable archive. ZIP timestamps and permissions are fixed,
+so exporting the same record with the same software and compression library
+produces identical archive bytes regardless of the build time.
 
 ### Dashboard
 

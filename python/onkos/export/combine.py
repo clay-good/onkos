@@ -67,5 +67,11 @@ def build_omex(record: Record, out_path: str, *, tier: str | None = None) -> Pat
     out.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
         for name, content in files.items():
-            zf.writestr(name, content)
+            # Fixed ZIP metadata keeps identical exports independent of the
+            # build clock and host platform. 1980 is the ZIP epoch.
+            entry = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            entry.create_system = 3  # Unix metadata on every platform
+            entry.external_attr = 0o100644 << 16
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            zf.writestr(entry, content)
     return out

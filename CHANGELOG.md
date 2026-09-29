@@ -4,6 +4,12 @@ All notable changes to Onkos are documented here. Versions follow the phased
 roadmap (spec §11). All parameter values are illustrative and `unverified` by
 design; the infrastructure is real and tested.
 
+## [Unreleased]
+
+- Make COMBINE archives reproducible by fixing ZIP timestamps, platform metadata,
+  and permissions. Regression tests cover ODE and survival-link archives built
+  at different times, including compression and archive integrity.
+
 ## [0.41.0] — Power-law (sub-exponential) growth: the exponential default overestimates
 
 Implements the research-track spec `docs/specs/research/power-law-growth.md`. v0.40 completed the
