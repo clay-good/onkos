@@ -264,7 +264,7 @@ def identifiability(
             f"identifiability is defined for dynamic (ODE) TGI/growth records; "
             f"'{record_id}' binds a '{spec.kind}' kernel"
         )
-    t = np.asarray(schedule, dtype=float)
+    t = np.sort(np.asarray(schedule, dtype=float))  # information is order-invariant
     if t.size < 1:
         raise ValueError("schedule must contain at least one observation time")
     if not np.all(np.isfinite(t)) or np.any(t < 0):

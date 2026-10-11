@@ -50,11 +50,13 @@ def landmark_response(t: np.ndarray, v: np.ndarray, week: float) -> float:
 
     Generalizes the fixed week-8 surrogate to an arbitrary landmark; under the
     proportional-shedding assumption this is also the modeled ctDNA molecular response at
-    ``week``. More negative = deeper early response."""
+    ``week``. More negative = deeper early response. ``nan`` if ``week`` lies off the grid."""
     t = np.asarray(t, dtype=float)
     v = np.asarray(v, dtype=float)
     y0 = float(v[0])
-    if y0 == 0.0:
+    # A landmark off the grid is unobserved: np.interp would clamp to the nearest end and
+    # report, say, the week-4 response as the week-8 readout.
+    if y0 == 0.0 or not (t[0] <= week <= t[-1]):
         return float("nan")
     return float((np.interp(week, t, v) - y0) / y0)
 

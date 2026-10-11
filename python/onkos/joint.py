@@ -75,6 +75,10 @@ def current_value_survival(
     proportional-hazards link."""
     t = np.asarray(t, dtype=float)
     hr = np.asarray(hazard_ratio, dtype=float)
+    if shape <= 0 or scale <= 0:
+        raise ValueError("the Weibull baseline needs shape > 0 and scale > 0")
+    if hr.shape != t.shape or np.any(hr < 0):
+        raise ValueError("hazard_ratio must be non-negative and aligned to t")
     h0 = (t / scale) ** shape  # analytic baseline cumulative hazard
     incr = (hr[1:] + hr[:-1]) * 0.5 * np.diff(h0)
     cum = np.concatenate([[0.0], np.cumsum(incr)])

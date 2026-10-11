@@ -57,6 +57,18 @@ design; the infrastructure is real and tested.
 - The Streamlit dashboard now has a headless smoke test (`tests/test_dashboard.py`:
   every tumor type, both lines, the effect-slider extremes, and the no-eligible-model
   path), run in CI; and CI also tests Python 3.14.
+- Week-8 metrics and the survival links they drive no longer misreport on unusual time
+  grids. A grid ending before week 8 used to label its last value "week-8 change" (−0.63
+  instead of −0.82 for the Claret NSCLC model) and one starting later used its first
+  value; both then bent the OS and PFS curves. The week-8 metrics are now `nan` unless
+  week 8 lies on the grid, and a link whose week-8 covariate is unavailable yields no
+  curve plus a warning naming the link. `simulate` also rejects unsorted, empty,
+  non-finite, or multi-dimensional grids, which previously corrupted the metric panel
+  silently (median OS off by weeks, burden AUC sign-flipped).
+  `landmark_response` likewise returns `nan` for a landmark off the grid, `identifiability`
+  is order-invariant in its schedule, `decompose` rejects mismatched lengths instead of
+  broadcasting, and `current_value_survival` rejects negative hazard ratios and a
+  non-positive Weibull shape or scale.
 - The Norton-Simon closed form no longer emits an overflow `RuntimeWarning` deep in the
   net-kill regime (the eradication limit was already exact).
 

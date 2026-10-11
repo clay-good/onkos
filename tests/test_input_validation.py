@@ -68,6 +68,12 @@ def test_identifiability_rejects_negative_scan_times(ds):
         identifiability(ds, CLARET, context=NSCLC, schedule=[-4.0, 0.0, 8.0])
 
 
+def test_identifiability_does_not_depend_on_scan_order(ds):
+    a = identifiability(ds, CLARET, context=NSCLC, schedule=[0, 6, 12, 24, 48])
+    b = identifiability(ds, CLARET, context=NSCLC, schedule=[48, 0, 24, 6, 12])
+    assert [p.rse_percent for p in a.params] == [p.rse_percent for p in b.params]
+
+
 @pytest.mark.parametrize("horizon", [0.0, -5.0, float("inf")])
 def test_optimal_schedule_needs_a_positive_horizon(ds, horizon):
     with pytest.raises(ValueError, match="horizon"):
@@ -86,6 +92,29 @@ def test_valid_boundary_inputs_still_work(ds):
     assert np.isfinite(onkos.simulate(ds, CLARET, context=NSCLC, drug_effect=0.0).tumor_size).all()
     assert onkos.simulate_ensemble(ds, CLARET, context=NSCLC, n=1).n == 1
     assert identifiability(ds, CLARET, context=NSCLC, sigma_prop=0.0, sigma_add=2.0).params
+
+
+def test_pure_cores_reject_malformed_inputs():
+    """The landmark-tested cores are public too: mismatched or out-of-domain arguments
+    must not broadcast or clamp their way to a plausible-looking number."""
+    from onkos.combine import decompose
+    from onkos.early_surrogate import landmark_response
+    from onkos.joint import current_value_survival
+
+    with pytest.raises(ValueError, match="same length"):
+        decompose([60.0, 90.0], [4.0], [0.5, 0.5])  # used to broadcast the lone variance
+
+    t = np.linspace(0.0, 52.0, 53)
+    with pytest.raises(ValueError, match="non-negative and aligned"):
+        current_value_survival(t, -np.ones_like(t), shape=1.3, scale=60.0)
+    with pytest.raises(ValueError, match="non-negative and aligned"):
+        current_value_survival(t, np.ones(3), shape=1.3, scale=60.0)
+    with pytest.raises(ValueError, match="shape > 0"):
+        current_value_survival(t, np.ones_like(t), shape=0.0, scale=60.0)
+
+    short, v = np.linspace(0.0, 4.0, 5), np.array([100.0, 90.0, 80.0, 70.0, 60.0])
+    assert landmark_response(short, v, 4.0) == pytest.approx(-0.4)
+    assert np.isnan(landmark_response(short, v, 8.0))  # off the grid: unobserved, not -0.4
 
 
 # --- CLI ---------------------------------------------------------------------

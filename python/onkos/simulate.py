@@ -175,6 +175,8 @@ def simulate(
     if t is None:
         t = np.linspace(0.0, 104.0, 209)  # two years, weekly-ish
     t = np.asarray(t, dtype=float)
+    if t.ndim != 1 or t.size == 0 or not np.all(np.isfinite(t)) or np.any(np.diff(t) < 0):
+        raise ValueError("t must be a non-empty, finite, non-decreasing 1-D grid of weeks")
 
     record = ds[record_id]
     spec = get_kernel(record)
@@ -221,6 +223,7 @@ def simulate(
 
     # Survival links: one curve per endpoint (OS, PFS) available for the context.
     survival: dict = {}
+    uncovered: list[str] = []
     links: list[Record] = []
     if record.purpose in ("tgi", "metric"):
         links = (
@@ -237,6 +240,14 @@ def simulate(
         # is nan and maps to the no-effect covariate 0 (baseline hazard).
         metric_key = link.structure.get("link_metric", "week8_relative_change")
         x = metrics.get(metric_key, float("nan"))
+        if metric_key.startswith("week8") and not (t[0] <= 8.0 <= t[-1]):
+            # Unlike a regrowth rate that never occurred, a week-8 covariate the grid does
+            # not reach is unknown, not zero: show no curve rather than the baseline hazard.
+            uncovered.append(
+                f"{link.id}: the time grid ({t[0]:g}-{t[-1]:g} wk) does not cover week 8, so "
+                f"its covariate '{metric_key}' is unavailable — no {_endpoint(link)} curve"
+            )
+            continue
         if not np.isfinite(x):
             x = 0.0
         link_vals = _survival_vals(link, x)
@@ -250,7 +261,7 @@ def simulate(
         t=t,
         tumor_size=tumor,
         tier=prop.tier,
-        warnings=prop.warnings,
+        warnings=prop.warnings + uncovered,
         os_curve=os_curve,
         survival=survival,
         metrics=metrics,

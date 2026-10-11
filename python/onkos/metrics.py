@@ -65,7 +65,9 @@ def extract_tgi_metrics(t: np.ndarray, v: np.ndarray, y0: float) -> dict:
     nadir_i = int(np.argmin(v))
     nadir = float(v[nadir_i])
     t_nadir = float(t[nadir_i])
-    week8 = float(np.interp(8.0, t, v))
+    # Week 8 must lie on the grid: np.interp would otherwise clamp to the nearest end and
+    # report a week-4 (or week-12) size under the week-8 name.
+    week8 = float(np.interp(8.0, t, v)) if n and t[0] <= 8.0 <= t[-1] else float("nan")
 
     m = {
         "week8_tumor_size": week8,

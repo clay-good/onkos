@@ -125,6 +125,8 @@ def decompose(means, variances, weights) -> tuple:
     means = np.asarray(means, dtype=float)
     variances = np.asarray(variances, dtype=float)
     w = _normalize(weights)
+    if not (means.shape == variances.shape == w.shape) or means.ndim != 1:
+        raise ValueError("means, variances, and weights must be 1-D and the same length")
     point = float(np.sum(w * means))
     within = float(np.sum(w * variances))
     between = float(np.sum(w * (means - point) ** 2))
