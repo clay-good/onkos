@@ -128,6 +128,8 @@ Onkos checks more than whether code runs:
 - Deterministic metadata makes repeated COMBINE archive exports byte-for-byte reproducible.
 - Tier audits flag confidence claims that exceed their evidence.
 - Out-of-context use produces explicit exclusions, downgrades, and warnings.
+- Invalid input fails with a one-line error rather than a traceback, a table of `nan`, or
+  a conclusion drawn from zero eligible models.
 
 For the validation approach, see [`docs/validation-landmarks.md`](docs/validation-landmarks.md).
 For contribution and record-review rules, see [`CONTRIBUTING.md`](CONTRIBUTING.md).

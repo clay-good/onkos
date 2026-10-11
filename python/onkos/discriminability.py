@@ -64,6 +64,8 @@ def required_events(hazard_ratio: float, *, power: float = 0.8, alpha: float = 0
 
     ``inf`` when ``HR = 1`` (identical curves — never distinguishable). Symmetric in
     ``HR`` and ``1/HR`` (the events depend only on ``|ln HR|``)."""
+    if not (0.0 < power < 1.0 and 0.0 < alpha < 1.0):
+        raise ValueError(f"power and alpha must lie in (0, 1) (got power={power}, alpha={alpha})")
     hr = float(hazard_ratio)
     if not np.isfinite(hr) or hr <= 0.0 or hr == 1.0:
         return float("inf")

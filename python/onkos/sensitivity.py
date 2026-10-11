@@ -89,6 +89,18 @@ def sensitivity(
     names = list(cvs)  # kernel-internal names, fixed order
     rng = np.random.default_rng(seed)
 
+    aliases = ("median_os_weeks", "median_os", "median_pfs_weeks", "median_pfs")
+    if target not in aliases:
+        known = simulate(
+            ds, record_id, context=context, drug_effect=drug_effect, exposure=exposure,
+            exposure_response=exposure_response, t=t,
+        ).metrics
+        if target not in known:
+            raise ValueError(
+                f"unknown target {target!r}; choose median_os_weeks, median_pfs_weeks, "
+                f"or a metric key {sorted(known)}"
+            )
+
     draws = np.zeros((n, len(names)))  # centered log-deviations (the sampled z)
     y = np.zeros(n)
     for i in range(n):

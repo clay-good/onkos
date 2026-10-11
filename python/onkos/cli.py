@@ -35,6 +35,74 @@ _TEXT_EXPORTERS = {
 }
 
 
+def _number(text: str) -> float:
+    try:
+        x = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a number") from None
+    if not math.isfinite(x):
+        raise argparse.ArgumentTypeError(f"{text!r} is not a finite number")
+    return x
+
+
+def _non_negative(text: str) -> float:
+    x = _number(text)
+    if x < 0:
+        raise argparse.ArgumentTypeError(f"{text!r} must be >= 0")
+    return x
+
+
+def _positive(text: str) -> float:
+    x = _number(text)
+    if x <= 0:
+        raise argparse.ArgumentTypeError(f"{text!r} must be > 0")
+    return x
+
+
+def _probability(text: str) -> float:
+    x = _number(text)
+    if not 0 < x < 1:
+        raise argparse.ArgumentTypeError(f"{text!r} must lie strictly between 0 and 1")
+    return x
+
+
+def _positive_int(text: str) -> int:
+    try:
+        n = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not an integer") from None
+    if n < 1:
+        raise argparse.ArgumentTypeError(f"{text!r} must be >= 1")
+    return n
+
+
+def _schedule(text: str) -> list[float]:
+    try:
+        return [_non_negative(x) for x in text.split(",")]
+    except argparse.ArgumentTypeError as e:
+        raise argparse.ArgumentTypeError(
+            f"expected comma-separated scan times in weeks, e.g. 0,6,12 ({e})"
+        ) from None
+
+
+def _require_models(ds, ctx: dict) -> None:
+    """Fail loudly when a context-wide analysis has no eligible model to analyze, instead
+    of printing an empty table and a conclusion drawn from zero model pairs."""
+    if compare(ds, purpose="tgi", context=ctx).included:
+        return
+    known = sorted(
+        f"{r.derivation_context.tumor_type}/{r.derivation_context.line_of_therapy}"
+        for r in ds
+        if r.kind == "context_baseline"
+        and r.derivation_context
+        and r.derivation_context.line_of_therapy  # clinical contexts only
+    )
+    raise ValueError(
+        f"no eligible (in-context) TGI models for --tumor-type {ctx['tumor_type']} "
+        f"--line {ctx['line']}; curated contexts: {', '.join(known)}"
+    )
+
+
 def _cmd_version(_args) -> int:
     print(f"onkos {__version__}")
     return 0
@@ -302,8 +370,7 @@ def _cmd_identify(args) -> int:
 
     ds = load()
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
-    schedule = [float(x) for x in args.schedule.split(",")] if args.schedule else None
-    kw = {"schedule": schedule} if schedule else {}
+    kw = {"schedule": args.schedule} if args.schedule else {}
     res = identifiability(
         ds, args.record, context=ctx, drug_effect=args.drug_effect,
         sigma_prop=args.sigma_prop, sigma_add=args.sigma_add, **kw,
@@ -383,6 +450,7 @@ def _cmd_response(args) -> int:
     link = args.survival_link
 
     if args.surrogate:
+        _require_models(ds, ctx)
         rs = response_vs_survival(ds, context=ctx, survival_link=link, n=args.n, seed=args.seed)
         if args.json:
             print(rs.to_json())
@@ -401,6 +469,7 @@ def _cmd_response(args) -> int:
         return 0
 
     if args.durability:
+        _require_models(ds, ctx)
         rs = response_vs_survival(ds, context=ctx, survival_link=link, n=args.n, seed=args.seed)
         if args.json:
             print(rs.to_json())
@@ -447,6 +516,7 @@ def _cmd_pfs(args) -> int:
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
 
     if args.routes:
+        _require_models(ds, ctx)
         div = pfs_route_divergence(ds, context=ctx, drug_effect=args.drug_effect,
                                    landmark_weeks=args.landmark, n=args.n, seed=args.seed)
         if args.json:
@@ -494,6 +564,7 @@ def _cmd_joint(args) -> int:
 
     ds = load()
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    _require_models(ds, ctx)
     cmp = compare_joint_vs_two_stage(ds, context=ctx, drug_effect=args.drug_effect, alpha=args.alpha)
     print(
         f"Two-stage (week-8, proportional hazards) vs joint (current-value link, alpha={args.alpha}) "
@@ -527,6 +598,7 @@ def _cmd_budget(args) -> int:
 
     ds = load()
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    _require_models(ds, ctx)
     b = model_selection_budget(ds, context=ctx, endpoint=args.endpoint, n=args.n, seed=args.seed)
     if args.json:
         print(b.to_json())
@@ -589,6 +661,7 @@ def _cmd_atlas(args) -> int:
 
     ds = load()
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    _require_models(ds, ctx)
     a = model_selection_atlas(ds, context=ctx)
     if args.json:
         print(a.to_json())
@@ -615,6 +688,7 @@ def _cmd_discriminability(args) -> int:
 
     ds = load()
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    _require_models(ds, ctx)
     md = model_discriminability(ds, context=ctx, survival_link=args.survival_link,
                                 power=args.power, alpha=args.alpha)
     if args.json:
@@ -648,6 +722,7 @@ def _cmd_early_surrogate(args) -> int:
 
     ds = load()
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
+    _require_models(ds, ctx)
     st = surrogate_timing_fidelity(ds, context=ctx, reference_link=args.reference_link)
     if args.json:
         print(st.to_json())
@@ -815,9 +890,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("record", nargs="?", help="record id (omit with --compare)")
     sp.add_argument("--tumor-type", default="NSCLC")
     sp.add_argument("--line", default="first")
-    sp.add_argument("--drug-effect", type=float, default=1.0)
+    sp.add_argument("--drug-effect", type=_non_negative, default=1.0)
     sp.add_argument(
-        "--exposure", type=float, default=None,
+        "--exposure", type=_non_negative, default=None,
         help="PK exposure metric (e.g. C_avg in ug/L); requires --exposure-response",
     )
     sp.add_argument(
@@ -835,8 +910,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     cp.add_argument("--tumor-type", default="NSCLC")
     cp.add_argument("--line", default="first")
-    cp.add_argument("--drug-effect", type=float, default=1.0)
-    cp.add_argument("--exposure", type=float, default=None)
+    cp.add_argument("--drug-effect", type=_non_negative, default=1.0)
+    cp.add_argument("--exposure", type=_non_negative, default=None)
     cp.add_argument("--exposure-response", default=None)
     cp.add_argument("--average", action="store_true",
                     help="model-average the eligible models + decompose the uncertainty")
@@ -846,7 +921,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="target: median_os_weeks | median_pfs_weeks | a metric key")
     cp.add_argument("--endpoint", default="OS", choices=["OS", "PFS"])
     cp.add_argument("--decompose", action="store_true", help="show the per-scheme decomposition")
-    cp.add_argument("--n", type=int, default=200, help="within-model ensemble depth")
+    cp.add_argument("--n", type=_positive_int, default=200, help="within-model ensemble depth")
     cp.add_argument("--seed", type=int, default=0)
     cp.add_argument("--json", action="store_true", help="emit the result as JSON")
     cp.add_argument("--include-curves", action="store_true", help="include curve arrays in --json")
@@ -858,10 +933,10 @@ def build_parser() -> argparse.ArgumentParser:
     up.add_argument("record", help="record id")
     up.add_argument("--tumor-type", default="NSCLC")
     up.add_argument("--line", default="first")
-    up.add_argument("--drug-effect", type=float, default=1.0)
-    up.add_argument("--exposure", type=float, default=None)
+    up.add_argument("--drug-effect", type=_non_negative, default=1.0)
+    up.add_argument("--exposure", type=_non_negative, default=None)
     up.add_argument("--exposure-response", default=None)
-    up.add_argument("--n", type=int, default=200, help="number of Monte-Carlo samples")
+    up.add_argument("--n", type=_positive_int, default=200, help="number of Monte-Carlo samples")
     up.add_argument("--seed", type=int, default=0)
     up.set_defaults(func=_cmd_uncertainty)
 
@@ -872,7 +947,7 @@ def build_parser() -> argparse.ArgumentParser:
     np_.add_argument("--tumor-type", default="NSCLC")
     np_.add_argument("--line", default="first")
     np_.add_argument("--target", default="median_os_weeks", help="metric key or median_os_weeks")
-    np_.add_argument("--n", type=int, default=400, help="number of Monte-Carlo samples")
+    np_.add_argument("--n", type=_positive_int, default=400, help="number of Monte-Carlo samples")
     np_.add_argument("--seed", type=int, default=0)
     np_.set_defaults(func=_cmd_sensitivity)
 
@@ -883,12 +958,12 @@ def build_parser() -> argparse.ArgumentParser:
     ip.add_argument("record", help="record id (a dynamic TGI/growth model)")
     ip.add_argument("--tumor-type", default="NSCLC")
     ip.add_argument("--line", default="first")
-    ip.add_argument("--drug-effect", type=float, default=1.0)
-    ip.add_argument("--schedule", default=None,
+    ip.add_argument("--drug-effect", type=_non_negative, default=1.0)
+    ip.add_argument("--schedule", type=_schedule, default=None,
                     help="comma-separated scan times in weeks (default: 0,6,12,18,24,36,48)")
-    ip.add_argument("--sigma-prop", type=float, default=0.2,
+    ip.add_argument("--sigma-prop", type=_non_negative, default=0.2,
                     help="proportional residual error (CV) of the tumor-size assay")
-    ip.add_argument("--sigma-add", type=float, default=0.0, help="additive residual error")
+    ip.add_argument("--sigma-add", type=_non_negative, default=0.0, help="additive residual error")
     ip.add_argument("--json", action="store_true", help="emit the result as JSON")
     ip.set_defaults(func=_cmd_identify)
 
@@ -899,12 +974,12 @@ def build_parser() -> argparse.ArgumentParser:
     dp.add_argument("record", help="record id (a dynamic TGI/growth model)")
     dp.add_argument("--tumor-type", default="NSCLC")
     dp.add_argument("--line", default="first")
-    dp.add_argument("--drug-effect", type=float, default=1.0)
-    dp.add_argument("--n-samples", type=int, default=7, help="measurement budget (# scans)")
-    dp.add_argument("--horizon", type=float, default=48.0, help="design horizon in weeks")
-    dp.add_argument("--sigma-prop", type=float, default=0.2,
+    dp.add_argument("--drug-effect", type=_non_negative, default=1.0)
+    dp.add_argument("--n-samples", type=_positive_int, default=7, help="measurement budget (# scans)")
+    dp.add_argument("--horizon", type=_positive, default=48.0, help="design horizon in weeks")
+    dp.add_argument("--sigma-prop", type=_non_negative, default=0.2,
                     help="proportional residual error (CV) of the tumor-size assay")
-    dp.add_argument("--sigma-add", type=float, default=0.0, help="additive residual error")
+    dp.add_argument("--sigma-add", type=_non_negative, default=0.0, help="additive residual error")
     dp.add_argument("--json", action="store_true", help="emit the result as JSON")
     dp.set_defaults(func=_cmd_design)
 
@@ -915,14 +990,14 @@ def build_parser() -> argparse.ArgumentParser:
     rsp.add_argument("record", nargs="?", help="record id (omit with --surrogate)")
     rsp.add_argument("--tumor-type", default="NSCLC")
     rsp.add_argument("--line", default="first")
-    rsp.add_argument("--drug-effect", type=float, default=1.0)
+    rsp.add_argument("--drug-effect", type=_non_negative, default=1.0)
     rsp.add_argument("--survival-link", default=None,
                      help="non-default OS link (e.g. survival_link.nsclc_os_growth_rate)")
     rsp.add_argument("--surrogate", action="store_true",
                      help="ORR -> OS discordance across the in-context TGI models")
     rsp.add_argument("--durability", action="store_true",
                      help="breadth (ORR) vs durability (median DoR) table across the models")
-    rsp.add_argument("--n", type=int, default=300, help="ensemble depth")
+    rsp.add_argument("--n", type=_positive_int, default=300, help="ensemble depth")
     rsp.add_argument("--seed", type=int, default=0)
     rsp.add_argument("--json", action="store_true", help="emit the result as JSON")
     rsp.set_defaults(func=_cmd_response)
@@ -934,12 +1009,12 @@ def build_parser() -> argparse.ArgumentParser:
     pp.add_argument("record", nargs="?", help="record id (omit with --routes)")
     pp.add_argument("--tumor-type", default="NSCLC")
     pp.add_argument("--line", default="first")
-    pp.add_argument("--drug-effect", type=float, default=1.0)
-    pp.add_argument("--landmark", type=float, default=24.0,
+    pp.add_argument("--drug-effect", type=_non_negative, default=1.0)
+    pp.add_argument("--landmark", type=_positive, default=24.0,
                     help="landmark horizon (weeks) for the progression-free rate")
     pp.add_argument("--routes", action="store_true",
                     help="two-route PFS table + route-discordance across the in-context models")
-    pp.add_argument("--n", type=int, default=300, help="ensemble depth")
+    pp.add_argument("--n", type=_positive_int, default=300, help="ensemble depth")
     pp.add_argument("--seed", type=int, default=0)
     pp.add_argument("--json", action="store_true", help="emit the result as JSON")
     pp.set_defaults(func=_cmd_pfs)
@@ -950,8 +1025,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     jp.add_argument("--tumor-type", default="NSCLC")
     jp.add_argument("--line", default="first")
-    jp.add_argument("--drug-effect", type=float, default=1.0)
-    jp.add_argument("--alpha", type=float, default=1.0,
+    jp.add_argument("--drug-effect", type=_non_negative, default=1.0)
+    jp.add_argument("--alpha", type=_number, default=1.0,
                     help="association between log tumor size and log hazard (DECLARED, not fitted)")
     jp.set_defaults(func=_cmd_joint)
 
@@ -962,7 +1037,7 @@ def build_parser() -> argparse.ArgumentParser:
     bp.add_argument("--tumor-type", default="NSCLC")
     bp.add_argument("--line", default="first")
     bp.add_argument("--endpoint", default="OS", choices=["OS", "PFS"])
-    bp.add_argument("--n", type=int, default=200, help="within-cell ensemble depth")
+    bp.add_argument("--n", type=_positive_int, default=200, help="within-cell ensemble depth")
     bp.add_argument("--seed", type=int, default=0)
     bp.add_argument("--json", action="store_true", help="emit the result as JSON")
     bp.set_defaults(func=_cmd_budget)
@@ -974,9 +1049,9 @@ def build_parser() -> argparse.ArgumentParser:
     xp.add_argument("record", help="record id (a TGI model driven by a drug effect)")
     xp.add_argument("--tumor-type", default="NSCLC")
     xp.add_argument("--line", default="first")
-    xp.add_argument("--effect-a", type=float, default=0.6, help="single-agent effect of drug A")
-    xp.add_argument("--effect-b", type=float, default=0.6, help="single-agent effect of drug B")
-    xp.add_argument("--psi", type=float, default=0.5,
+    xp.add_argument("--effect-a", type=_non_negative, default=0.6, help="single-agent effect of drug A")
+    xp.add_argument("--effect-b", type=_non_negative, default=0.6, help="single-agent effect of drug B")
+    xp.add_argument("--psi", type=_number, default=0.5,
                     help="synergy/antagonism bracket magnitude (DECLARED assumption, not fitted)")
     xp.add_argument("--json", action="store_true", help="emit the result as JSON")
     xp.set_defaults(func=_cmd_interactions)
@@ -991,8 +1066,8 @@ def build_parser() -> argparse.ArgumentParser:
     lp.add_argument("--er-a", default="exposure_response.emax_generic", help="ER record for drug A")
     lp.add_argument("--er-b", default="exposure_response.dacomitinib_egfr.emax",
                     help="ER record for drug B")
-    lp.add_argument("--dose-a", type=float, default=150.0, help="dose of drug A (exposure units)")
-    lp.add_argument("--dose-b", type=float, default=90.0, help="dose of drug B (exposure units)")
+    lp.add_argument("--dose-a", type=_non_negative, default=150.0, help="dose of drug A (exposure units)")
+    lp.add_argument("--dose-b", type=_non_negative, default=90.0, help="dose of drug B (exposure units)")
     lp.add_argument("--json", action="store_true", help="emit the result as JSON")
     lp.set_defaults(func=_cmd_loewe)
 
@@ -1003,8 +1078,8 @@ def build_parser() -> argparse.ArgumentParser:
     drp.add_argument("record", help="record id (a TGI model driven by a drug effect)")
     drp.add_argument("--tumor-type", default="NSCLC")
     drp.add_argument("--line", default="first")
-    drp.add_argument("--c-ref", type=float, default=150.0, help="reference exposure (the studied dose)")
-    drp.add_argument("--e-ref", type=float, default=1.0, help="effect the shapes share at C_ref")
+    drp.add_argument("--c-ref", type=_positive, default=150.0, help="reference exposure (the studied dose)")
+    drp.add_argument("--e-ref", type=_positive, default=1.0, help="effect the shapes share at C_ref")
     drp.add_argument("--json", action="store_true", help="emit the result as JSON")
     drp.set_defaults(func=_cmd_dose_response)
 
@@ -1026,8 +1101,8 @@ def build_parser() -> argparse.ArgumentParser:
     dcp.add_argument("--tumor-type", default="NSCLC")
     dcp.add_argument("--line", default="first")
     dcp.add_argument("--survival-link", default=None, help="survival link (default: week-8)")
-    dcp.add_argument("--power", type=float, default=0.8)
-    dcp.add_argument("--alpha", type=float, default=0.05)
+    dcp.add_argument("--power", type=_probability, default=0.8)
+    dcp.add_argument("--alpha", type=_probability, default=0.05)
     dcp.add_argument("--json", action="store_true", help="emit the result as JSON")
     dcp.set_defaults(func=_cmd_discriminability)
 
@@ -1053,7 +1128,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except (KeyError, ValueError, OSError) as e:
+        # Bad input (unknown record id, out-of-domain value, unwritable path) is a usage
+        # error, not a crash: one line on stderr, exit status 2, no traceback.
+        msg = e.args[0] if isinstance(e, KeyError) and e.args else e
+        print(f"onkos: error: {msg}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

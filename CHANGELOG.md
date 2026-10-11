@@ -15,6 +15,18 @@ design; the infrastructure is real and tested.
 - Report an infinite collinearity index for rank-deficient sensitivity matrices
   consistently across NumPy versions instead of exposing floating-point
   eigensolver noise as a very large finite value.
+- Bad input now fails loudly and legibly instead of crashing or answering anyway. The
+  library rejects unknown record ids (with close-match suggestions), non-dynamic records
+  passed to `simulate`, non-finite drug effects, empty ensembles (`n < 1`), unknown
+  sensitivity targets, zero or negative residual-error models and negative scan times in
+  `identifiability` / `optimal_schedule`, non-positive design horizons, and `power` /
+  `alpha` outside (0, 1) in `required_events`. The CLI validates numeric options at parse
+  time and reports every such failure as a one-line `onkos: error:` message with exit
+  status 2 — no tracebacks. Context-wide commands (`atlas`, `joint`, `budget`,
+  `discriminability`, `early-surrogate`, `pfs --routes`, `response --surrogate` /
+  `--durability`) now stop with the list of curated contexts when a context has no
+  eligible model, rather than printing an empty table and a conclusion drawn from zero
+  model pairs. Covered by `tests/test_input_validation.py`.
 
 ## [0.41.0] — Power-law (sub-exponential) growth: the exponential default overestimates
 

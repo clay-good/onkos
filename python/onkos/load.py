@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import json
 from collections import Counter
 from collections.abc import Iterator
@@ -84,7 +85,12 @@ class Dataset:
         self.version = version
 
     def __getitem__(self, record_id: str) -> Record:
-        return self._records[record_id]
+        try:
+            return self._records[record_id]
+        except KeyError:
+            close = difflib.get_close_matches(str(record_id), self._records, n=3)
+            hint = f"; did you mean {', '.join(map(repr, close))}?" if close else ""
+            raise KeyError(f"unknown record id {record_id!r}{hint}") from None
 
     def __contains__(self, record_id: str) -> bool:
         return record_id in self._records

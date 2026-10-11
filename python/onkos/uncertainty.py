@@ -108,6 +108,8 @@ def ensemble_samples(
     core shared by :func:`simulate_ensemble` (which summarizes to bands) and
     :mod:`onkos.combine` (which needs the per-model mean/variance of a target).
     """
+    if n < 1:
+        raise ValueError(f"n={n}: the ensemble needs at least one sample")
     if t is None:
         t = np.linspace(0.0, 104.0, 209)
     t = np.asarray(t, dtype=float)

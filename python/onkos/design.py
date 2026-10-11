@@ -35,6 +35,7 @@ from ._const import CLINICAL_USE
 from .export.registry import get_kernel, kernel_values
 from .identify import (
     RSE_CEILING,
+    check_residual_error,
     collinearity_index,
     crlb_rse,
     fisher_information,
@@ -247,6 +248,9 @@ def optimal_schedule(
         )
     if grid_points < n_samples:
         raise ValueError("grid_points must be at least n_samples")
+    if not np.isfinite(horizon) or horizon <= 0:
+        raise ValueError(f"horizon={horizon} must be a positive number of weeks")
+    check_residual_error(sigma_prop, sigma_add)
 
     grid = np.linspace(0.0, float(horizon), int(grid_points))
     central = simulate(ds, record_id, context=context, drug_effect=drug_effect,

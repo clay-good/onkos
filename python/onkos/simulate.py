@@ -178,6 +178,11 @@ def simulate(
 
     record = ds[record_id]
     spec = get_kernel(record)
+    if spec.kind != "ode":
+        raise ValueError(
+            f"simulate is defined for dynamic (ODE) TGI/growth records; "
+            f"'{record_id}' binds a '{spec.kind}' kernel"
+        )
     y0 = float(context.get("y0", _baseline_y0(ds, tumor_type, line)))
 
     contributing: list[Record] = [record]
@@ -189,6 +194,8 @@ def simulate(
         contributing=contributing,
     )
     e_arr = np.atleast_1d(np.asarray(e_value, dtype=float))
+    if not np.all(np.isfinite(e_arr)):
+        raise ValueError("the drug effect / exposure must be finite")
     time_varying = e_arr.size == t.size and e_arr.size > 1
 
     vals = kernel_values(record)

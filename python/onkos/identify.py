@@ -219,6 +219,18 @@ def _tumor_at(ds, record_id, *, context, drug_effect, exposure, exposure_respons
     ).tumor_size
 
 
+def check_residual_error(sigma_prop: float, sigma_add: float) -> None:
+    """A design's precision is only defined under a real residual-error model: both
+    components non-negative and not both zero (zero noise would report every parameter
+    as perfectly estimable)."""
+    ok = np.isfinite(sigma_prop) and np.isfinite(sigma_add) and sigma_prop >= 0 and sigma_add >= 0
+    if not ok or (sigma_prop == 0 and sigma_add == 0):
+        raise ValueError(
+            "residual error must be finite, non-negative, and not all zero "
+            f"(got sigma_prop={sigma_prop}, sigma_add={sigma_add})"
+        )
+
+
 def identifiability(
     ds: Dataset,
     record_id: str,
@@ -255,6 +267,9 @@ def identifiability(
     t = np.asarray(schedule, dtype=float)
     if t.size < 1:
         raise ValueError("schedule must contain at least one observation time")
+    if not np.all(np.isfinite(t)) or np.any(t < 0):
+        raise ValueError("schedule times must be finite and non-negative (weeks)")
+    check_residual_error(sigma_prop, sigma_add)
 
     base = kernel_values(record)
     sim_kw = dict(context=context, drug_effect=drug_effect, exposure=exposure,
