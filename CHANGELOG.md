@@ -69,6 +69,11 @@ design; the infrastructure is real and tested.
   is order-invariant in its schedule, `decompose` rejects mismatched lengths instead of
   broadcasting, and `current_value_survival` rejects negative hazard ratios and a
   non-positive Weibull shape or scale.
+- A context that names a tumor type but no line of therapy is now rejected when that
+  tumor type has more than one curated line (NSCLC). It used to mix lines by file order —
+  the second-line model entered the first-line comparison, simulated on the first-line
+  baseline and survival link at tier C with no warning. Tumor types with a single curated
+  line still accept a line-less context.
 - The Norton-Simon closed form no longer emits an overflow `RuntimeWarning` deep in the
   net-kill regime (the eradication limit was already exact).
 

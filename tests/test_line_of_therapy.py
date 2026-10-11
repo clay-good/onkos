@@ -67,3 +67,25 @@ def test_second_line_baseline_is_more_advanced():
     b1 = ds["tumor_type_baselines.nsclc_first_line"]["baseline_tumor_size"].central
     b2 = ds["tumor_type_baselines.nsclc_second_line"]["baseline_tumor_size"].central
     assert b2 > b1
+
+
+def test_context_without_line_is_rejected_when_the_tumor_type_has_several():
+    """NSCLC has first- and second-line baselines and survival links. A context naming no
+    line used to mix them by file order (the second-line model simulated on the first-line
+    baseline and link, tier C, no warning) — a silent transport across lines."""
+    import pytest
+
+    ds = onkos.load()
+    with pytest.raises(ValueError, match=r"needs a line of therapy.*\['first', 'second'\]"):
+        onkos.simulate(ds, "resistance.claret_2009.tgi", context={"tumor_type": "NSCLC"})
+    with pytest.raises(ValueError, match="needs a line of therapy"):
+        onkos.compare(ds, purpose="tgi", context={"tumor_type": "NSCLC"})
+
+
+def test_context_without_line_is_fine_when_only_one_line_is_curated():
+    ds = onkos.load()
+    implicit = onkos.simulate(ds, "resistance.breast_first_line.claret", context={"tumor_type": "breast"})
+    explicit = onkos.simulate(
+        ds, "resistance.breast_first_line.claret", context={"tumor_type": "breast", "line": "first"}
+    )
+    assert implicit.median_os == explicit.median_os and implicit.tier == explicit.tier

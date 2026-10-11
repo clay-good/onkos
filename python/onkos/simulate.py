@@ -77,6 +77,27 @@ def _baseline_y0(ds: Dataset, tumor_type: str | None, line: str | None) -> float
     return 100.0
 
 
+def _require_unambiguous_line(ds: Dataset, tumor_type: str) -> None:
+    """A context without a line of therapy is only well-defined when the tumor type has one
+    curated line. Otherwise the baseline and survival links of different lines would be
+    mixed by file order — a silent transport across lines."""
+    lines = sorted(
+        {
+            r.derivation_context.line_of_therapy
+            for r in ds
+            if r.kind == "context_baseline"
+            and r.derivation_context
+            and r.derivation_context.tumor_type == tumor_type
+            and r.derivation_context.line_of_therapy
+        }
+    )
+    if len(lines) > 1:
+        raise ValueError(
+            f"context for tumor_type '{tumor_type}' needs a line of therapy: "
+            f"curated lines are {lines}"
+        )
+
+
 def _find_survival_links(
     ds: Dataset, tumor_type: str | None, line: str | None = None
 ) -> list[Record]:
@@ -177,6 +198,9 @@ def simulate(
     t = np.asarray(t, dtype=float)
     if t.ndim != 1 or t.size == 0 or not np.all(np.isfinite(t)) or np.any(np.diff(t) < 0):
         raise ValueError("t must be a non-empty, finite, non-decreasing 1-D grid of weeks")
+
+    if tumor_type and line is None:
+        _require_unambiguous_line(ds, tumor_type)
 
     record = ds[record_id]
     spec = get_kernel(record)
