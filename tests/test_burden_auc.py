@@ -158,3 +158,57 @@ def test_burden_link_is_eligible_and_transports_like_any_link():
                         survival_link=BURDEN_LINK)
     assert tr.tier == "D"
     assert any("outside validated" in w for w in tr.warnings)
+
+
+# ---- cross-context breadth (v0.44): the metric axis beyond NSCLC ------------
+
+import pytest  # noqa: E402
+
+CONTEXTS = [("nsclc", "NSCLC"), ("breast", "breast"), ("crc", "CRC"), ("hcc", "HCC"),
+            ("melanoma", "melanoma")]
+
+
+def _rankings(key, tumor_type):
+    """Model order (longest median OS first) under each of the three bridge metrics."""
+    ds = onkos.load()
+    ctx = {"tumor_type": tumor_type, "line": "first"}
+
+    def order(metric):
+        cmp = onkos.compare(ds, context=ctx, t=T, survival_link=f"survival_link.{key}_os_{metric}")
+        ranked = sorted(
+            cmp.included, key=lambda tr: -(tr.median_os if tr.median_os is not None else 1e9)
+        )
+        return [tr.record_id for tr in ranked]
+
+    return {m: order(m) for m in ("week8", "growth_rate", "burden_auc")}
+
+
+@pytest.mark.parametrize(("key", "tumor_type"), CONTEXTS)
+def test_every_context_has_a_non_default_burden_link(key, tumor_type):
+    link = onkos.load()[f"survival_link.{key}_os_burden_auc"]
+    assert link.structure["link_metric"] == "log_burden_auc"
+    assert link.structure["default"] is False
+    assert link.derivation_context.tumor_type == tumor_type
+
+
+@pytest.mark.parametrize(("key", "tumor_type"), CONTEXTS)
+def test_burden_never_rewards_the_minimal_responder(key, tumor_type):
+    """The depth-blind pathology and its repair hold in every context: the biexponential
+    minimal responder is ranked LAST by integrated burden, while the pure-tail k_g metric
+    never ranks it last (a slow regrowth slope flatters a tumor that never shrank)."""
+    r = _rankings(key, tumor_type)
+    assert "biexp" in r["burden_auc"][-1]
+    assert "biexp" not in r["growth_rate"][-1]
+
+
+def test_third_ranking_reproduces_in_four_of_five_contexts():
+    """Burden gives a ranking distinct from BOTH week-8 and k_g in NSCLC, CRC, HCC, and
+    melanoma. Breast is the honest exception: over this horizon its burden ranking
+    coincides with week-8 (still distinct from k_g) — recorded, not hidden."""
+    distinct = {
+        tumor_type: len({tuple(order) for order in _rankings(key, tumor_type).values()})
+        for key, tumor_type in CONTEXTS
+    }
+    assert distinct == {"NSCLC": 3, "breast": 2, "CRC": 3, "HCC": 3, "melanoma": 3}
+    breast = _rankings("breast", "breast")
+    assert breast["burden_auc"] == breast["week8"] != breast["growth_rate"]

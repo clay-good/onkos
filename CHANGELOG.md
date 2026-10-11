@@ -6,6 +6,25 @@ design; the infrastructure is real and tested.
 
 ## [Unreleased]
 
+## [0.44.0] — The burden-AUC bridge metric in every context
+
+Completes the follow-on named in `docs/specs/research/burden-auc-bridge-metric.md` (§10):
+the integrated-burden OS link was NSCLC-only.
+
+- **Four new records** — `survival_link.{breast,crc,hcc,melanoma}_os_burden_auc`
+  (non-default, tier C, illustrative and `unverified`; same shape and burden coefficient as
+  the NSCLC link, scale set to each context's OS scale). 62 records total. All three bridge
+  metrics (week-8, k_g, integrated burden) now exist in every first-line context.
+- **The repair generalizes.** In all five contexts integrated burden ranks the minimal
+  responder last, where the pure-tail k_g metric never does.
+- **The third ranking mostly generalizes — and the exception is recorded.** CRC, HCC, and
+  melanoma show three distinct model rankings, as NSCLC does. Breast does not: its burden
+  ranking equals week-8 over the 260-week horizon. A landmark test pins both facts.
+- **Budget side effect.** These contexts now have three OS links, so their variance
+  budgets changed. HCC's structural share drops to about 0.45 and it becomes
+  parameter-dominated: 4 of 6 contexts are structure-dominated, down from 5. The health
+  report and the count- and budget-driven figures are regenerated.
+
 ## [0.43.0] — Machine-readable everywhere, and records you can find
 
 - **`--json` on every command that produces a result.** `simulate RECORD`, `uncertainty`,

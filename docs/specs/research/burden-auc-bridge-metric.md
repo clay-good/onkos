@@ -224,3 +224,34 @@ the early-shrinkage and growth-rate metrics. Step 3 is the payload: showing that
 the whole trajectory produces a *third* model ranking — and that the pure-tail metric's apparent
 comprehensiveness hides a depth-blind pathology an integrated metric repairs — is the quantitative core
 of this spec, shipped as a tested artifact.
+
+---
+
+## 10. Cross-context breadth (v0.44)
+
+The v0.33 link was NSCLC-only. v0.44 adds a sibling burden link for breast, CRC, HCC, and
+melanoma (`survival_link.{context}_os_burden_auc`: same shape and burden coefficient, scale
+set to each context's OS scale; non-default, illustrative, `unverified`), so all three
+bridge metrics exist in every first-line context.
+
+| Context | Distinct rankings across week-8 / k_g / burden | Minimal responder under burden |
+| --- | --- | --- |
+| NSCLC | 3 | last |
+| CRC | 3 | last |
+| HCC | 3 | last |
+| melanoma | 3 | last |
+| breast | 2 (burden = week-8, both ≠ k_g) | last |
+
+Two results, stated at their real strength:
+
+- **The repair generalizes.** In all five contexts integrated burden ranks the minimal
+  responder last, where k_g never does. The depth-blind pathology is not an NSCLC artifact.
+- **The third ranking mostly generalizes.** Four of five contexts show three distinct
+  rankings. Breast does not: its slower kinetics leave the burden ranking equal to week-8
+  over the 260-week horizon. This is reported as an exception, not tuned away.
+
+Side effect on the model-selection budget (v0.26): each of these contexts now has three OS
+links instead of two. HCC's structural share falls from above to below one half (≈0.45),
+because its third link largely agrees with the other two — so 4 of 6 contexts are now
+structure-dominated, down from 5.
+

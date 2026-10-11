@@ -10,7 +10,7 @@ The goal is not to produce one confident number. It is to show when equally defe
 modeling choices produce different answers.
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-v0.43 · Python 3.9+ · Code: MIT · Data: CC BY 4.0
+v0.44 · Python 3.9+ · Code: MIT · Data: CC BY 4.0
 
 ![Onkos compares eligible models and makes their disagreement visible](docs/images/divergence.png)
 
