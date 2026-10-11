@@ -171,6 +171,17 @@ def test_clinical_use_in_every_export():
         assert CLINICAL_USE in to_nonmem(r)
 
 
+def test_provenance_annotation_has_no_python_none():
+    """A missing derivation field reads "unspecified" in the exported provenance comment —
+    never Python's ``None`` leaking into a NONMEM / R / Julia / PharmML artifact."""
+    from onkos.export import to_pharmml, to_pharmml_so, to_pumas, to_rxode2
+
+    r = onkos.load()["resistance.melanoma_first_line.claret"]  # drug and class unrecorded
+    for text in (to_pharmml(r), to_pharmml_so(r), to_nonmem(r), to_rxode2(r), to_pumas(r)):
+        line = next(ln for ln in text.splitlines() if "onkos:derivationContext" in ln)
+        assert "drug=unspecified; class=unspecified; tumor=melanoma; line=first" in line
+
+
 def test_omex_bundles_pharmml_so():
     import zipfile
 

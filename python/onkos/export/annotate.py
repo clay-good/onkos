@@ -54,9 +54,13 @@ def annotations_block(
         lines.append(f"bqbiol:isDescribedBy <{uri}>")
     dc = record.derivation_context
     if dc:
+        # Missing fields read "unspecified" in every target language, not Python's None.
+        drug, drug_class, tumor, line = (
+            x or "unspecified"
+            for x in (dc.drug, dc.drug_class, dc.tumor_type, dc.line_of_therapy)
+        )
         lines.append(
-            "onkos:derivationContext "
-            f"drug={dc.drug}; class={dc.drug_class}; tumor={dc.tumor_type}; line={dc.line_of_therapy}"
+            f"onkos:derivationContext drug={drug}; class={drug_class}; tumor={tumor}; line={line}"
         )
     tp = record.transportability
     if tp:

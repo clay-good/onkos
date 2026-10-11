@@ -52,6 +52,8 @@ design; the infrastructure is real and tested.
   own transportability envelope, unknown `link_metric` names, malformed Cox baseline
   tables, more than one default survival link per context and endpoint, and missing,
   non-positive, or duplicated context baselines. The shipped dataset passes unchanged.
+- Export provenance comments write a missing derivation field as `unspecified` instead
+  of leaking Python's `None` (`drug=None`) into NONMEM, R, Julia, and XML artifacts.
 - The Norton-Simon closed form no longer emits an overflow `RuntimeWarning` deep in the
   net-kill regime (the eradication limit was already exact).
 
