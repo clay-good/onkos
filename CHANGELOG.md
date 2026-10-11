@@ -54,6 +54,9 @@ design; the infrastructure is real and tested.
   non-positive, or duplicated context baselines. The shipped dataset passes unchanged.
 - Export provenance comments write a missing derivation field as `unspecified` instead
   of leaking Python's `None` (`drug=None`) into NONMEM, R, Julia, and XML artifacts.
+- The Streamlit dashboard now has a headless smoke test (`tests/test_dashboard.py`:
+  every tumor type, both lines, the effect-slider extremes, and the no-eligible-model
+  path), run in CI; and CI also tests Python 3.14.
 - The Norton-Simon closed form no longer emits an overflow `RuntimeWarning` deep in the
   net-kill regime (the eradication limit was already exact).
 

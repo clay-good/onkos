@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.11", "3.12"]
+        python-version: ["3.9", "3.11", "3.12", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -51,7 +51,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e ".[dev]"
+      - run: pip install -e ".[dev,dashboard]"
+      - name: Dashboard smoke test (needs the dashboard extra)
+        run: pytest tests/test_dashboard.py -rs
       - name: Regenerate all exports (must not error)
         run: |
           for fmt in nonmem sbml pharmml so rxode2 pumas vt-json jsonld omex csv bibtex; do
