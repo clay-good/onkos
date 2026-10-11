@@ -146,9 +146,9 @@ class Comparison:
         return d
 
     def to_json(self, *, include_curves: bool = False, model_average=None, indent: int = 2) -> str:
-        import json
+        from ._serialize import to_strict_json
 
-        return json.dumps(
+        return to_strict_json(
             self.to_dict(include_curves=include_curves, model_average=model_average), indent=indent
         )
 

@@ -217,9 +217,9 @@ class ModelAverage:
         return d
 
     def to_json(self, *, include_curves: bool = False, indent: int = 2) -> str:
-        import json
+        from ._serialize import to_strict_json
 
-        return json.dumps(self.to_dict(include_curves=include_curves), indent=indent)
+        return to_strict_json(self.to_dict(include_curves=include_curves), indent=indent)
 
 
 # --------------------------------------------------------------------------- #

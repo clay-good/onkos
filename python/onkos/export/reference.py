@@ -114,23 +114,40 @@ def integrate_observable(
 ) -> np.ndarray:
     """Integrate a (possibly multi-state) ODE system and return the observable.
 
+    ``t`` is absolute time since baseline (the initial condition holds at ``t = 0``),
+    exactly as in the closed-form kernels — so a grid that starts late, is unsorted, or
+    repeats a time yields the same values a closed form would.
+
     ``e_series`` may be None (E taken from ``vals``), a scalar, or an array
     aligned to ``t`` (a time-varying drug effect / PK profile)."""
-    y0 = init_vector(spec, vals)
+    t = np.asarray(t, dtype=float)
+    y0 = np.asarray(init_vector(spec, vals), dtype=float)
     e_arr = None if e_series is None else np.atleast_1d(np.asarray(e_series, dtype=float))
     time_varying = e_arr is not None and e_arr.size == t.size and e_arr.size > 1
+    tu, inverse = np.unique(t, return_inverse=True)  # sorted, de-duplicated grid
+    if tu[0] < 0:
+        raise ValueError("ODE kernels integrate forward from baseline; times must be >= 0")
+    if time_varying:
+        order = np.argsort(t, kind="stable")
+        t_e, e_e = t[order], e_arr[order]
 
     def rhs(tt, yy):
         v = vals
         if e_arr is not None:
             v = dict(vals)
-            v["E"] = float(np.interp(tt, t, e_arr)) if time_varying else float(e_arr.reshape(-1)[0])
+            v["E"] = float(np.interp(tt, t_e, e_e)) if time_varying else float(e_arr.reshape(-1)[0])
         return spec.rhs(tt, yy, v)
 
-    sol = solve_ivp(
-        rhs, (float(t[0]), float(t[-1])), y0, t_eval=t, rtol=1e-8, atol=1e-10, method="LSODA"
-    )
-    return observe(spec, sol.y)
+    if tu[-1] == 0.0:  # baseline only: nothing to integrate
+        states = y0[:, None]
+    else:
+        sol = solve_ivp(
+            rhs, (0.0, float(tu[-1])), y0, t_eval=tu, rtol=1e-8, atol=1e-10, method="LSODA"
+        )
+        if not sol.success:
+            raise RuntimeError(f"ODE integration failed for kernel '{spec.name}': {sol.message}")
+        states = sol.y
+    return observe(spec, states[:, inverse])
 
 
 # ----------------------------------------------------------------------------
@@ -217,7 +234,10 @@ def _claret_rhs(t, y, v):
 # ----------------------------------------------------------------------------
 def _norton_simon_analytic(t, v):
     g, Vmax, k, E, V0 = v["g"], v["Vmax"], v["k"], v["E"], v["V0"]
-    return Vmax * np.exp(np.log(V0 / Vmax) * np.exp(-(g - k * E) * t))
+    # A net-kill regime (k*E > g) drives the inner exponent to +inf at long horizons; the
+    # limit (complete eradication, V -> 0) is exact, so the overflow is not an error.
+    with np.errstate(over="ignore"):
+        return Vmax * np.exp(np.log(V0 / Vmax) * np.exp(-(g - k * E) * t))
 
 
 def _norton_simon_rhs(t, y, v):

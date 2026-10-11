@@ -65,3 +65,18 @@ def test_higher_effect_deeper_response():
     high = onkos.simulate(ds, RID, context=NSCLC, drug_effect=1.5)
     assert high.metrics["depth_of_response"] >= low.metrics["depth_of_response"] - 1e-9
     assert high.metrics["week8_relative_change"] < low.metrics["week8_relative_change"]
+
+
+def test_strong_kill_long_horizon_eradicates_without_numeric_warnings():
+    """Deep in the net-kill regime the closed form's inner exponent overflows; the limit is
+    exact eradication and must be reached silently (no RuntimeWarning under -W error)."""
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        tr = onkos.simulate(
+            onkos.load(), "drug_effect.norton_simon.nsclc",
+            context={"tumor_type": "NSCLC", "line": "first"},
+            drug_effect=50.0, t=np.linspace(0.0, 520.0, 1041),
+        )
+    assert np.isfinite(tr.tumor_size).all() and tr.tumor_size[-1] == 0.0

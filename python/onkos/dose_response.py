@@ -151,9 +151,9 @@ class ExtrapolationComparison:
         }
 
     def to_json(self, *, indent: int = 2) -> str:
-        import json
+        from ._serialize import to_strict_json
 
-        return json.dumps(self.to_dict(), indent=indent)
+        return to_strict_json(self.to_dict(), indent=indent)
 
 
 def compare_er_extrapolation(

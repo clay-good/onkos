@@ -27,6 +27,22 @@ design; the infrastructure is real and tested.
   `--durability`) now stop with the list of curated contexts when a context has no
   eligible model, rather than printing an empty table and a conclusion drawn from zero
   model pairs. Covered by `tests/test_input_validation.py`.
+- Fix the time origin of numerically integrated (multi-state) models — Simeoni,
+  two-population and acquired resistance, tumor-immune. A time grid that did not start at
+  week 0 was integrated as if its first point were baseline, silently shifting the
+  trajectory (`t=[4, 8]` returned the week-0 and week-4 values) while closed-form models
+  treated `t` as absolute time. Every kernel now reads `t` as weeks since baseline, so
+  late-starting, unsorted, and repeated grids agree with the reference grid; a
+  baseline-only grid no longer crashes, negative times are rejected, and a failed ODE
+  integration raises instead of returning a truncated trajectory. Default grids start at
+  week 0, so published figures and the health report are unchanged.
+- Every `--json` output and `to_json()` result is now strictly valid JSON. Non-finite
+  results (a regrowth rate that never occurred, an inestimable parameter's infinite RSE)
+  were written as the bare tokens `NaN` / `Infinity`, which `jq` and JavaScript's
+  `JSON.parse` reject — including in the default `onkos simulate --compare --json`. They
+  are now `null`, matching what `discriminability` already did. `to_dict()` is unchanged.
+- The Norton-Simon closed form no longer emits an overflow `RuntimeWarning` deep in the
+  net-kill regime (the eradication limit was already exact).
 
 ## [0.41.0] — Power-law (sub-exponential) growth: the exponential default overestimates
 

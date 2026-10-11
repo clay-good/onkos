@@ -146,9 +146,9 @@ class ResponseRates:
         }
 
     def to_json(self, *, indent: int = 2) -> str:
-        import json
+        from ._serialize import to_strict_json
 
-        return json.dumps(self.to_dict(), indent=indent)
+        return to_strict_json(self.to_dict(), indent=indent)
 
 
 def objective_response_rate(
@@ -257,9 +257,9 @@ class ResponseSurvival:
         }
 
     def to_json(self, *, indent: int = 2) -> str:
-        import json
+        from ._serialize import to_strict_json
 
-        return json.dumps(self.to_dict(), indent=indent)
+        return to_strict_json(self.to_dict(), indent=indent)
 
 
 def response_vs_survival(
@@ -397,9 +397,9 @@ class ProgressionFreeSurvival:
         }
 
     def to_json(self, *, indent: int = 2) -> str:
-        import json
+        from ._serialize import to_strict_json
 
-        return json.dumps(self.to_dict(), indent=indent)
+        return to_strict_json(self.to_dict(), indent=indent)
 
 
 def progression_free_survival(
@@ -508,9 +508,9 @@ class PFSRouteDivergence:
         }
 
     def to_json(self, *, indent: int = 2) -> str:
-        import json
+        from ._serialize import to_strict_json
 
-        return json.dumps(self.to_dict(), indent=indent)
+        return to_strict_json(self.to_dict(), indent=indent)
 
 
 def pfs_route_divergence(
