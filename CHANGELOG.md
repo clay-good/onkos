@@ -6,6 +6,15 @@ design; the infrastructure is real and tested.
 
 ## [Unreleased]
 
+## [0.42.0] — Hardening: bad input, odd time grids, and broken records fail loudly
+
+No new models or analyses. Every spec was already implemented (see
+`docs/specs/STATUS.md`); this release closes the gap between "the happy path is tested"
+and "the tool cannot quietly mislead you." Four probes drove it — a CLI fuzz, a
+record × context × time-grid invariant sweep, a strict-JSON check of every `--json`
+output, and a mutation test of the dataset validator — and each finding below now has a
+regression test.
+
 - Make COMBINE archives reproducible by fixing ZIP timestamps, platform metadata,
   and permissions. Regression tests cover ODE and survival-link archives built
   at different times, including compression and archive integrity.
@@ -32,7 +41,7 @@ design; the infrastructure is real and tested.
   week 0 was integrated as if its first point were baseline, silently shifting the
   trajectory (`t=[4, 8]` returned the week-0 and week-4 values) while closed-form models
   treated `t` as absolute time. Every kernel now reads `t` as weeks since baseline, so
-  late-starting, unsorted, and repeated grids agree with the reference grid; a
+  late-starting and repeated grids agree with the reference grid; a
   baseline-only grid no longer crashes, negative times are rejected, and a failed ODE
   integration raises instead of returning a truncated trajectory. Default grids start at
   week 0, so published figures and the health report are unchanged.

@@ -62,6 +62,15 @@ All 21 shipped. Each row is enforced by `SPEC_INDEX` in `test_specs_complete.py`
 | von-bertalanffy-growth | v0.40 | kernel `growth_von_bertalanffy` | `test_landmarks.py` |
 | power-law-growth | v0.41 | kernel `growth_power_law` | `test_landmarks.py` |
 
+## Hardening (v0.42)
+
+With the specs complete, v0.42 hardened what they built: input validation across the
+library and CLI, strictly valid JSON output, a consistent time origin for every kernel,
+week-8 metrics that refuse to guess, and semantic integrity checks in `onkos validate`.
+The regression suites are `tests/test_input_validation.py`, `tests/test_json_strict.py`,
+`tests/test_dataset_semantics.py`, `tests/test_dashboard.py`, and the time-grid tests in
+`tests/test_simulate.py`. See the [changelog](../../CHANGELOG.md).
+
 ## Out of scope (declared, not pending)
 
 Per spec §2/§10 these are **deliberate exclusions**, not unfinished specs:
