@@ -49,6 +49,35 @@ class Ensemble:
     def median_os(self):
         return self.metrics.get("median_os_weeks")
 
+    def to_dict(self, *, include_curves: bool = False) -> dict:
+        """A JSON-serializable summary: per-metric median and percentile band; with
+        ``include_curves`` also the tumor-size and OS bands over ``t``."""
+        from ._const import CLINICAL_USE
+
+        d = {
+            "onkos:clinicalUse": CLINICAL_USE,
+            "NOT_FOR_CLINICAL_USE": True,
+            "record_id": self.record_id,
+            "tier": self.tier,
+            "n": self.n,
+            "ci_percent": list(self.ci),
+            "metrics": {k: dict(v) for k, v in self.metrics.items()},
+            "warnings": list(self.warnings),
+        }
+        if include_curves:
+            def band(b: Band) -> dict:
+                return {"median": b.median.tolist(), "lo": b.lo.tolist(), "hi": b.hi.tolist()}
+
+            d["t"] = self.t.tolist()
+            d["tumor_size"] = band(self.tumor_size)
+            d["os_curve"] = band(self.os_curve) if self.os_curve is not None else None
+        return d
+
+    def to_json(self, *, include_curves: bool = False, indent: int = 2) -> str:
+        from ._serialize import to_strict_json
+
+        return to_strict_json(self.to_dict(include_curves=include_curves), indent=indent)
+
 
 @dataclass
 class EnsembleSamples:

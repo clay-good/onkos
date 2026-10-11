@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from . import __version__, compare, load, sensitivity, simulate, simulate_ensemble
+from ._serialize import to_strict_json
 from .combine import SCHEMES, WEIGHTS_ARE_COMBINATION_NOT_POSTERIOR
 from .export.combine import build_omex
 from .export.jsonld import to_jsonld
@@ -108,8 +109,11 @@ def _cmd_version(_args) -> int:
     return 0
 
 
-def _cmd_validate(_args) -> int:
+def _cmd_validate(args) -> int:
     errors = validate_dataset()
+    if args.json:
+        print(to_strict_json({"valid": not errors, "n_errors": len(errors), "errors": errors}))
+        return 1 if errors else 0
     if errors:
         for e in errors:
             print(f"FAIL: {e}", file=sys.stderr)
@@ -120,12 +124,21 @@ def _cmd_validate(_args) -> int:
     return 0
 
 
-def _cmd_audit(_args) -> int:
+def _cmd_audit(args) -> int:
+    from dataclasses import asdict
+
     from .audit import audit_tiers
 
     findings = audit_tiers(load())
     inflated = [f for f in findings if f.status == "inflated"]
     conservative = [f for f in findings if f.status == "conservative"]
+    if args.json:
+        print(to_strict_json({
+            "n_inflated": len(inflated),
+            "n_conservative": len(conservative),
+            "findings": [asdict(f) for f in findings],
+        }))
+        return 1 if inflated else 0
     print(f"Evidence-based tier audit — {len(findings)} clinical TGI/survival records\n")
     print(f"  {'record':<44} {'tier':>4} {'ceiling':>8} {'status':>13}")
     for f in findings:
@@ -151,8 +164,17 @@ def _cmd_report(args) -> int:
     return 0
 
 
-def _cmd_info(_args) -> int:
+def _cmd_info(args) -> int:
     ds = load()
+    if args.json:
+        print(to_strict_json({
+            "dataset_version": ds.version,
+            "n_records": len(ds),
+            "by_subsystem": dict(sorted(ds.by_subsystem().items())),
+            "by_tier": {k: ds.by_tier().get(k, 0) for k in ("A", "B", "C", "D")},
+            "by_review_status": dict(sorted(ds.by_review_status().items())),
+        }))
+        return 0
     print(f"Onkos dataset version {ds.version} — {len(ds)} records\n")
     print("By subsystem:")
     for k, v in sorted(ds.by_subsystem().items()):
@@ -164,6 +186,62 @@ def _cmd_info(_args) -> int:
     for k, v in sorted(ds.by_review_status().items()):
         print(f"  {k:<20} {v}")
     return 0
+
+
+def _cmd_list(args) -> int:
+    """List record ids (the handles every other command takes), optionally filtered."""
+    from .filter import filter_records
+
+    records = sorted(
+        filter_records(
+            load(), subsystem=args.subsystem, purpose=args.purpose, tier=args.tier,
+            tumor_type=args.tumor_type, review_status=args.review_status,
+        ),
+        key=lambda r: r.id,
+    )
+
+    def context(r) -> str:
+        dc = r.derivation_context
+        if not dc or not dc.tumor_type:
+            return "-"
+        return f"{dc.tumor_type}/{dc.line_of_therapy}" if dc.line_of_therapy else dc.tumor_type
+
+    if args.json:
+        print(to_strict_json([
+            {
+                "id": r.id,
+                "name": r.name,
+                "purpose": r.purpose,
+                "subsystem": r.subsystem,
+                "kernel": r.kernel,
+                "tier": r.tier,
+                "review_status": r.review_status,
+                "tumor_type": r.derivation_context.tumor_type if r.derivation_context else None,
+                "line_of_therapy": (
+                    r.derivation_context.line_of_therapy if r.derivation_context else None
+                ),
+            }
+            for r in records
+        ]))
+        return 0
+    if not records:
+        print("No records match.", file=sys.stderr)
+        return 1
+    print(f"  {'id':<50} {'purpose':<18} {'context':<16} {'tier':<4} review")
+    for r in records:
+        print(f"  {r.id:<50} {r.purpose:<18} {context(r):<16} {r.tier:<4} {r.review_status}")
+    print(f"\n  {len(records)} record(s)")
+    return 0
+
+
+def _source_links(citation) -> list[str]:
+    """Resolvable links a reviewer can open to check a record against its source."""
+    if citation is None:
+        return []
+    links = [f"https://doi.org/{citation.doi}"] if citation.doi else []
+    if citation.pmid:
+        links.append(f"https://pubmed.ncbi.nlm.nih.gov/{citation.pmid}/")
+    return links
 
 
 def _cmd_review_queue(args) -> int:
@@ -180,6 +258,7 @@ def _cmd_review_queue(args) -> int:
                 "id": r.id,
                 "tier": r.tier,
                 "primary_citation": r.primary_citation.key if r.primary_citation else None,
+                "source_links": _source_links(r.primary_citation),
                 "parameters": [
                     {
                         "symbol": p.symbol,
@@ -208,6 +287,8 @@ def _cmd_review_queue(args) -> int:
     for r in queue:
         cite = r.primary_citation.key if r.primary_citation else "?"
         print(f"● {r.id}  (tier {r.tier})  [{cite}]")
+        for link in _source_links(r.primary_citation):
+            print(f"    source: {link}")
         for p in r.parameters:
             if p.extraction.review_status == "pending_human_review":
                 print(f"    {p.symbol:<14} {p.value.central:<10g} {p.value.units}")
@@ -254,6 +335,9 @@ def _cmd_simulate(args) -> int:
         ds, args.record, context=ctx, drug_effect=drug_effect,
         exposure=exposure, exposure_response=er,
     )
+    if args.json:
+        print(tr.to_json(include_curves=args.include_curves))
+        return 0
     print(f"{args.record}  tier={tr.tier}  ({effect_desc})")
     for k, v in tr.metrics.items():
         print(f"  {k:<24} {v:.4f}")
@@ -337,6 +421,9 @@ def _cmd_uncertainty(args) -> int:
         ds, args.record, context=ctx, drug_effect=drug_effect, exposure=exposure,
         exposure_response=er, n=args.n, seed=args.seed,
     )
+    if args.json:
+        print(ens.to_json(include_curves=args.include_curves))
+        return 0
     lo, hi = ens.ci
     print(f"{args.record}  tier={ens.tier}  (n={ens.n}, {lo:g}-{hi:g}% bands)\n")
     print(f"  {'metric':<24} {'median':>10} {'lo':>10} {'hi':>10}")
@@ -351,6 +438,9 @@ def _cmd_sensitivity(args) -> int:
     ds = load()
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
     res = sensitivity(ds, args.record, context=ctx, target=args.target, n=args.n, seed=args.seed)
+    if args.json:
+        print(res.to_json())
+        return 0
     print(
         f"{args.record}  target={res.target}  "
         f"(n={res.n_used}/{res.n}, first-order R^2={res.r_squared:.2f})\n"
@@ -566,6 +656,9 @@ def _cmd_joint(args) -> int:
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
     _require_models(ds, ctx)
     cmp = compare_joint_vs_two_stage(ds, context=ctx, drug_effect=args.drug_effect, alpha=args.alpha)
+    if args.json:
+        print(cmp.to_json())
+        return 0
     print(
         f"Two-stage (week-8, proportional hazards) vs joint (current-value link, alpha={args.alpha}) "
         f"— {ctx}\n"
@@ -872,9 +965,24 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="command", required=True)
 
     sub.add_parser("version", help="print version").set_defaults(func=_cmd_version)
-    sub.add_parser("validate", help="JSON-Schema-validate the dataset").set_defaults(func=_cmd_validate)
-    sub.add_parser("info", help="counts by subsystem / tier / review status").set_defaults(func=_cmd_info)
-    sub.add_parser("audit", help="evidence-based tier audit (flags tier inflation)").set_defaults(func=_cmd_audit)
+    for name, func, text in (
+        ("validate", _cmd_validate, "validate the dataset (schema, references, semantics)"),
+        ("info", _cmd_info, "counts by subsystem / tier / review status"),
+        ("audit", _cmd_audit, "evidence-based tier audit (flags tier inflation)"),
+    ):
+        cmd = sub.add_parser(name, help=text)
+        cmd.add_argument("--json", action="store_true", help="emit the result as JSON")
+        cmd.set_defaults(func=func)
+    ls = sub.add_parser("list", help="list record ids, optionally filtered")
+    ls.add_argument("--purpose", default=None, help="e.g. tgi, survival_link, growth")
+    ls.add_argument("--subsystem", default=None, help="e.g. resistance, growth_laws")
+    ls.add_argument("--tumor-type", default=None, help="derivation tumor type, e.g. NSCLC")
+    ls.add_argument("--tier", default=None, choices=["A", "B", "C", "D"])
+    ls.add_argument("--review-status", default=None,
+                    choices=["unverified", "pending_human_review", "verified", "contested"])
+    ls.add_argument("--json", action="store_true", help="emit the result as JSON")
+    ls.set_defaults(func=_cmd_list)
+
     rq = sub.add_parser(
         "review-queue",
         help="records filled from literature, awaiting human PDF sign-off (verification queue)",
@@ -900,7 +1008,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="exposure-response record id mapping exposure -> drug effect E",
     )
     sp.add_argument("--compare", action="store_true", help="virtual-trial divergence across models")
-    sp.add_argument("--json", action="store_true", help="emit the comparison as JSON (with --compare)")
+    sp.add_argument("--json", action="store_true", help="emit the result as JSON")
     sp.add_argument("--include-curves", action="store_true", help="include tumor/OS/PFS arrays in --json")
     sp.set_defaults(func=_cmd_simulate)
 
@@ -938,6 +1046,8 @@ def build_parser() -> argparse.ArgumentParser:
     up.add_argument("--exposure-response", default=None)
     up.add_argument("--n", type=_positive_int, default=200, help="number of Monte-Carlo samples")
     up.add_argument("--seed", type=int, default=0)
+    up.add_argument("--json", action="store_true", help="emit the result as JSON")
+    up.add_argument("--include-curves", action="store_true", help="include band arrays in --json")
     up.set_defaults(func=_cmd_uncertainty)
 
     np_ = sub.add_parser(
@@ -949,6 +1059,7 @@ def build_parser() -> argparse.ArgumentParser:
     np_.add_argument("--target", default="median_os_weeks", help="metric key or median_os_weeks")
     np_.add_argument("--n", type=_positive_int, default=400, help="number of Monte-Carlo samples")
     np_.add_argument("--seed", type=int, default=0)
+    np_.add_argument("--json", action="store_true", help="emit the result as JSON")
     np_.set_defaults(func=_cmd_sensitivity)
 
     ip = sub.add_parser(
@@ -1028,6 +1139,7 @@ def build_parser() -> argparse.ArgumentParser:
     jp.add_argument("--drug-effect", type=_non_negative, default=1.0)
     jp.add_argument("--alpha", type=_number, default=1.0,
                     help="association between log tumor size and log hazard (DECLARED, not fitted)")
+    jp.add_argument("--json", action="store_true", help="emit the result as JSON")
     jp.set_defaults(func=_cmd_joint)
 
     bp = sub.add_parser(

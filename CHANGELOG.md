@@ -6,6 +6,22 @@ design; the infrastructure is real and tested.
 
 ## [Unreleased]
 
+## [0.43.0] — Machine-readable everywhere, and records you can find
+
+- **`--json` on every command that produces a result.** `simulate RECORD`, `uncertainty`,
+  `sensitivity`, `joint`, `info`, `audit`, and `validate` join the analysis commands that
+  already had it; only `version`, `report` (Markdown), and `export` (files) do not, and a
+  test pins that set. `--include-curves` adds the arrays for `simulate` and `uncertainty`.
+- **`to_dict()` / `to_json()` on the remaining result objects** — `Trajectory`, `Ensemble`,
+  `SensitivityResult`, and `JointComparison` — in the same shape as the others (clinical-use
+  marker, tier, warnings; non-finite values as `null`).
+- **New `onkos list`** — the record ids every other command takes, with their purpose,
+  context, tier, and review status; filter with `--purpose`, `--subsystem`,
+  `--tumor-type`, `--tier`, `--review-status`. Previously the only way to discover an id
+  was to browse `dataset/records/`.
+- **`onkos review-queue` links each record to its source** (DOI and PubMed URLs, in text
+  and JSON), so a human verifier can open the paper directly.
+
 ## [0.42.0] — Hardening: bad input, odd time grids, and broken records fail loudly
 
 No new models or analyses. Every spec was already implemented (see

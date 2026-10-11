@@ -50,6 +50,30 @@ class Trajectory:
         c = self.pfs_curve
         return median_survival(self.t, c) if c is not None else None
 
+    def to_dict(self, *, include_curves: bool = False) -> dict:
+        """A JSON-serializable summary: tier, warnings, the TGI-metric panel, and median
+        OS/PFS; with ``include_curves`` also the tumor-size and survival arrays."""
+        d = {
+            "onkos:clinicalUse": self.clinical_use,
+            "NOT_FOR_CLINICAL_USE": True,
+            "record_id": self.record_id,
+            "tier": self.tier,
+            "median_os_weeks": self.median_os,
+            "median_pfs_weeks": self.median_pfs,
+            "metrics": dict(self.metrics),
+            "warnings": list(self.warnings),
+        }
+        if include_curves:
+            d["t"] = self.t.tolist()
+            d["tumor_size"] = self.tumor_size.tolist()
+            d["survival"] = {k: v.tolist() for k, v in self.survival.items()}
+        return d
+
+    def to_json(self, *, include_curves: bool = False, indent: int = 2) -> str:
+        from ._serialize import to_strict_json
+
+        return to_strict_json(self.to_dict(include_curves=include_curves), indent=indent)
+
 
 def median_survival(t: np.ndarray, s: np.ndarray) -> float | None:
     """First time the survival fraction crosses 0.5 (linear interpolation)."""

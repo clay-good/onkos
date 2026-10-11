@@ -229,6 +229,22 @@ class JointComparison:
         vals = [r["ph_violation"] for r in self.rows if np.isfinite(r["ph_violation"])]
         return max(vals) if vals else float("nan")
 
+    def to_dict(self) -> dict:
+        return {
+            "onkos:clinicalUse": self.clinical_use,
+            "NOT_FOR_CLINICAL_USE": True,
+            "context": self.context,
+            "alpha": self.alpha,
+            "rank_discordant_pairs": self.rank_discordant_pairs,
+            "max_ph_violation": self.max_ph_violation,
+            "rows": [dict(r) for r in self.rows],
+        }
+
+    def to_json(self, *, indent: int = 2) -> str:
+        from ._serialize import to_strict_json
+
+        return to_strict_json(self.to_dict(), indent=indent)
+
 
 def compare_joint_vs_two_stage(
     ds: Dataset,

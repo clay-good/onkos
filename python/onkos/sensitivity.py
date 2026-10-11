@@ -48,6 +48,34 @@ class SensitivityResult:
     def dominant(self) -> ParamSensitivity | None:
         return self.indices[0] if self.indices else None
 
+    def to_dict(self) -> dict:
+        from ._const import CLINICAL_USE
+
+        return {
+            "onkos:clinicalUse": CLINICAL_USE,
+            "NOT_FOR_CLINICAL_USE": True,
+            "record_id": self.record_id,
+            "target": self.target,
+            "n": self.n,
+            "n_used": self.n_used,
+            "r_squared": self.r_squared,
+            "dominant": self.dominant.symbol if self.dominant else None,
+            "parameters": [
+                {
+                    "symbol": p.symbol,
+                    "iiv_cv_percent": p.iiv_cv_percent,
+                    "src": p.src,
+                    "contribution": p.contribution,
+                }
+                for p in self.indices
+            ],
+        }
+
+    def to_json(self, *, indent: int = 2) -> str:
+        from ._serialize import to_strict_json
+
+        return to_strict_json(self.to_dict(), indent=indent)
+
 
 def _target_value(traj, target: str) -> float:
     if target in ("median_os_weeks", "median_os"):

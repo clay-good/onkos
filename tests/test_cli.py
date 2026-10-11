@@ -110,3 +110,40 @@ def test_export_jsonld(tmp_path):
 
     doc = json.loads(f.read_text())
     assert "@context" in doc and doc["@id"].endswith("resistance.claret_2009.tgi")
+
+
+def test_list_shows_record_ids_and_filters(capsys):
+    assert main(["list"]) == 0
+    everything = capsys.readouterr().out
+    assert "resistance.claret_2009.tgi" in everything and "growth_laws.gompertz" in everything
+
+    assert main(["list", "--tumor-type", "NSCLC", "--purpose", "tgi"]) == 0
+    filtered = capsys.readouterr().out
+    assert "resistance.claret_2009.tgi" in filtered and "NSCLC/second" in filtered
+    assert "breast" not in filtered and "growth_laws" not in filtered
+
+
+def test_list_json_matches_the_dataset(capsys):
+    import json
+
+    import onkos
+
+    assert main(["list", "--json"]) == 0
+    rows = json.loads(capsys.readouterr().out)
+    assert [r["id"] for r in rows] == onkos.load().ids()
+    assert {"purpose", "kernel", "tier", "review_status", "tumor_type"} <= set(rows[0])
+
+
+def test_list_with_no_match_exits_nonzero(capsys):
+    assert main(["list", "--tier", "A"]) == 1  # nothing is externally validated yet
+    assert "No records match" in capsys.readouterr().err
+
+
+def test_review_queue_links_each_record_to_its_source(capsys):
+    import json
+
+    assert main(["review-queue"]) == 0
+    assert "source: https://doi.org/" in capsys.readouterr().out
+    assert main(["review-queue", "--json"]) == 0
+    queue = json.loads(capsys.readouterr().out)
+    assert queue and all(r["source_links"] for r in queue)
