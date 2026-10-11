@@ -41,6 +41,17 @@ design; the infrastructure is real and tested.
   were written as the bare tokens `NaN` / `Infinity`, which `jq` and JavaScript's
   `JSON.parse` reject — including in the default `onkos simulate --compare --json`. They
   are now `null`, matching what `discriminability` already did. `to_dict()` is unchanged.
+- `onkos validate` now checks semantic integrity, not just shape. A mutation test showed
+  the schema-only validator accepted all of 27 corrupted-but-well-formed records — some
+  crashed at simulation time, others silently changed results (a typo'd `link_metric`
+  fell back to the baseline hazard and halved median OS). The validator now rejects:
+  parameters that do not match the bound kernel (missing, unexpected, duplicated), model
+  records without a kernel, negative values, a central value outside `[low, high]`,
+  non-positive IIV CVs, empty units, records that do not compute at their central values
+  (trajectory, survival function, or effect), a derivation context outside the record's
+  own transportability envelope, unknown `link_metric` names, malformed Cox baseline
+  tables, more than one default survival link per context and endpoint, and missing,
+  non-positive, or duplicated context baselines. The shipped dataset passes unchanged.
 - The Norton-Simon closed form no longer emits an overflow `RuntimeWarning` deep in the
   net-kill regime (the eradication limit was already exact).
 

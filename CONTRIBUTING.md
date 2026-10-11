@@ -26,6 +26,20 @@ regenerate it (`onkos export ...`, `scripts/make_figures.py`).
    `onkos.export.reference.KERNELS`. New dynamics need a new kernel with an
    `analytic` solution, a hand-written `rhs`, and an `rhs_infix` string so the
    round-trip tests can validate exports.
+6. `onkos validate` also checks what the schema cannot (see
+   `tests/test_dataset_semantics.py`). A record must:
+   - declare exactly the parameters its kernel uses, each once, with units, a
+     non-negative central value inside any `[low, high]` range, and a positive
+     `iiv_cv_percent` (or `null` when not reported);
+   - compute at its central values — a finite, non-negative trajectory, a valid
+     survival function, or a finite effect;
+   - list its own derivation tumor type and line in its `transportability` envelope.
+
+   Survival links additionally need a `link_metric` that names a real TGI metric, a
+   well-formed `baseline_survival` table for Cox links, and at most one default link
+   per tumor type, line, and endpoint (mark alternatives `"default": false`). Each
+   tumor type and line gets one `context_baseline` record with a positive
+   `baseline_tumor_size`.
 
 ## Confidence tiers (A/B/C/D)
 

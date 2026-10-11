@@ -120,7 +120,8 @@ machine-readable instead of burying it in a footnote.
 
 Onkos checks more than whether code runs:
 
-- JSON Schema and referential-integrity validation protect the dataset.
+- JSON Schema, referential-integrity, and semantic validation protect the dataset: every
+  record must match its kernel, stay inside its declared ranges, and actually compute.
 - Scientific landmark tests verify that each kernel reproduces the defining behavior of
   the published model.
 - Round-trip tests check that exported equations and parameters still match the Python
