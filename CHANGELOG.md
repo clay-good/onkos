@@ -6,6 +6,22 @@ design; the infrastructure is real and tested.
 
 ## [Unreleased]
 
+## [0.47.0] — The exposure-response shape joins the variance budget
+
+Completes the follow-on named in `docs/specs/research/exposure-response-extrapolation.md` (§7).
+
+- **`model_selection_budget(..., er_dose=d, c_ref=150)` / `onkos budget --er-dose d`** adds the
+  exposure-response shape (Emax, power, sigmoid-Emax, anchored to agree at the studied dose
+  `c_ref`) as a third structural factor. Opt-in: the default budget and report are unchanged.
+- **`anova_components`** — a functional-ANOVA decomposition for any number of factors (main
+  effects plus every interaction, orthogonal on a balanced grid). It reproduces the two-factor
+  split exactly; `Budget.er_total_fraction` reports the ER shape's total-order share.
+- **Finding.** At the studied dose the ER share is exactly zero (landmark-tested). Off it, on
+  the full first-line ledger, the ER shape takes at most ~8% of the OS variance even at 0.25×
+  or 4× the dose; the TGI-model and survival-link choices dominate. Where the ledger is thin
+  (NSCLC second line, one survival link) it reaches ~20% at 0.25×. Every context's share is
+  largest on de-escalation.
+
 ## [0.46.0] — Simulated logrank power, and a tier invariant made airtight
 
 Completes the follow-on named in `docs/specs/research/model-discriminability.md` (§7).

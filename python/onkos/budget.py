@@ -42,6 +42,7 @@ __all__ = [
     "variance_components",
     "eligible_survival_links",
     "joint_link_label",
+    "anova_components",
     "model_selection_budget",
 ]
 
@@ -49,6 +50,7 @@ _AXIS_LABELS = {
     "parameter": "parameter noise (within-model IIV)",
     "tgi_model": "TGI-model choice",
     "survival_link": "survival-link choice (metric / structure)",
+    "er_model": "exposure-response shape (dose extrapolation)",
     "interaction": "model x link interaction",
 }
 
@@ -104,6 +106,38 @@ def variance_components(cell_means, cell_within) -> dict:
     }
 
 
+def anova_components(cell_means) -> dict:
+    """Functional-ANOVA (first- and higher-order Sobol) decomposition of a balanced,
+    full-factorial grid of cell means with any number of factors.
+
+    Returns ``{axes: variance}`` for every non-empty subset of axes (as a sorted tuple):
+    ``(0,)`` is factor 0's main effect, ``(0, 1)`` the 0x1 interaction, and so on. Each
+    effect is the inclusion-exclusion (Moebius) contrast of the marginal means, so the
+    effects are orthogonal and their variances sum exactly to the variance of the cell
+    means. For a two-factor grid this is exactly :func:`variance_components`'s
+    ``v_model`` / ``v_link`` / ``v_inter``."""
+    from itertools import combinations
+
+    means = np.asarray(cell_means, dtype=float)
+    k = means.ndim
+    axes = tuple(range(k))
+
+    def marginal(subset):
+        drop = tuple(a for a in axes if a not in subset)
+        return means.mean(axis=drop, keepdims=True) if drop else means
+
+    out = {}
+    for size in range(1, k + 1):
+        for subset in combinations(axes, size):
+            effect = np.zeros_like(means)
+            for r in range(size + 1):
+                for sub_subset in combinations(subset, r):
+                    sign = (-1.0) ** (size - r)
+                    effect = effect + sign * marginal(sub_subset)
+            out[subset] = float(np.mean(effect**2))
+    return out
+
+
 # --------------------------------------------------------------------------- #
 # The result object.                                                          #
 # --------------------------------------------------------------------------- #
@@ -127,17 +161,27 @@ class Budget:
     tier: str
     cell_means: np.ndarray = field(default_factory=lambda: np.zeros((0, 0)))
     warnings: list = field(default_factory=list)
+    er_models: list = field(default_factory=list)  # factor-C levels (ER shapes), if any
+    v_er: float = 0.0
+    er_dose: float | None = None
+    v_er_total: float = 0.0  # ER main effect + every interaction involving the ER shape
+
+    @property
+    def er_total_fraction(self) -> float:
+        """Total-order (Sobol) share of the ER-shape choice: its main effect plus every
+        interaction it takes part in. 0 when the ER factor is not in the budget."""
+        return self.v_er_total / self.total if self.total > 0 else 0.0
 
     @property
     def between(self) -> float:
-        return self.v_model + self.v_link + self.v_inter
+        return self.v_model + self.v_link + self.v_er + self.v_inter
 
     @property
     def structural_fraction(self) -> float:
         """Share of the total that is irreducible structural-choice risk (everything
         except the parameter/within component) — not shrinkable by a bigger trial."""
         return self.fractions["tgi_model"] + self.fractions["survival_link"] + \
-            self.fractions["interaction"]
+            self.fractions.get("er_model", 0.0) + self.fractions["interaction"]
 
     @property
     def dominant(self) -> str:
@@ -147,7 +191,7 @@ class Budget:
     def to_dict(self) -> dict:
         """JSON-serializable budget. Carries the clinical-use prohibition; the
         structural share and dominant axis travel with the point variances."""
-        return {
+        d = {
             "onkos:clinicalUse": CLINICAL_USE,
             "NOT_FOR_CLINICAL_USE": True,
             "context": self.context,
@@ -170,6 +214,12 @@ class Budget:
             "tier": self.tier,
             "warnings": list(self.warnings),
         }
+        if self.er_models:
+            d["er_models"] = list(self.er_models)
+            d["er_dose"] = self.er_dose
+            d["components"]["v_er"] = self.v_er
+            d["er_total_fraction"] = self.er_total_fraction
+        return d
 
     def to_json(self, *, indent: int = 2) -> str:
         from ._serialize import to_strict_json
@@ -242,6 +292,9 @@ def model_selection_budget(
     n: int = 200,
     seed: int = 0,
     joint_alpha: float | None = None,
+    er_dose: float | None = None,
+    er_ids: list | tuple | None = None,
+    c_ref: float = 150.0,
 ) -> Budget:
     """Decompose the total variance of ``target`` for a context across the structural
     factors — TGI model (``compare().included``) and survival link (all eligible) —
@@ -256,7 +309,15 @@ def model_selection_budget(
     links, with association ``alpha`` on the context's default Weibull baseline. Each
     IIV-sampled trajectory drives its own time-varying hazard, so the joint cell has a
     parameter variance like any other. ``alpha=0`` makes the joint cell the baseline
-    Weibull median for every model. Left ``None`` (the default), the budget is unchanged."""
+    Weibull median for every model. Left ``None`` (the default), the budget is unchanged.
+
+    ``er_dose`` (opt-in) adds a third structural factor: the exposure-response shape
+    (:mod:`onkos.dose_response`; ``er_ids`` default to the curated Emax / power /
+    sigmoid-Emax shapes). Every shape is anchored to give ``drug_effect`` at the studied
+    dose ``c_ref``, and the budget is evaluated at ``er_dose``. At ``er_dose == c_ref``
+    the shapes agree, so the ER share is exactly zero; it grows on extrapolation. The
+    three-factor split is the functional ANOVA of :func:`anova_components`, with every
+    interaction pooled into ``interaction``."""
     if t is None:
         t = np.linspace(0.0, 312.0, 625)  # long horizon so every cell reaches its median
     t = np.asarray(t, dtype=float)
@@ -298,36 +359,57 @@ def model_selection_budget(
         joint = (float(base["weibull_shape"].central), float(base["weibull_scale"].central))
         links = links + [joint_link_label(joint_alpha)]
 
-    means = np.full((len(models), len(links)), np.nan)
-    withins = np.zeros((len(models), len(links)))
+    # The exposure-response factor: one level (the given drug effect) unless er_dose is set.
+    if er_dose is None:
+        ers: list = [None]
+        effects = [drug_effect]
+    else:
+        from .dose_response import ER_SHAPE_RECORDS, calibrated_er
+
+        er_dose, c_ref = float(er_dose), float(c_ref)
+        if not (np.isfinite(er_dose) and er_dose > 0 and np.isfinite(c_ref) and c_ref > 0):
+            raise ValueError(f"er_dose={er_dose} and c_ref={c_ref} must be positive numbers")
+        if not (np.isfinite(drug_effect) and drug_effect > 0):
+            raise ValueError("the ER factor anchors every shape at drug_effect, which must be > 0")
+        ers = list(er_ids) if er_ids is not None else list(ER_SHAPE_RECORDS)
+        if not ers:
+            raise ValueError("er_ids must name at least one exposure-response record")
+        effects = [max(float(calibrated_er(ds, er, c_ref=c_ref, e_ref=drug_effect)(er_dose)), 0.0)
+                   for er in ers]
+
+    shape = (len(models), len(links), len(ers))
+    means = np.full(shape, np.nan)
+    withins = np.zeros(shape)
     censored_cells: list[str] = []
     partial_cells: list[str] = []
     for a, m in enumerate(models):
-        tumor = None
-        for b, lk in enumerate(links):
-            if joint is not None and b == len(links) - 1:
-                # The trajectory does not depend on the survival link (same seed, same
-                # draws), so the joint cell reuses the tumor samples already drawn.
-                arr = _joint_medians(tumor, t, joint_alpha, *joint)
-            else:
-                s = ensemble_samples(
-                    ds, m, context=context, drug_effect=drug_effect, t=t,
-                    survival_link=lk, n=n, seed=seed,
-                )
-                tumor = s.tumor
-                arr = _target_median(s, endpoint)
-            finite = arr[np.isfinite(arr)]
-            censored = 1.0 - finite.size / arr.size
-            if censored > _MAX_CENSORED:
-                # Most samples never reach a median within the horizon (e.g. a curative
-                # model): the finite medians are only the non-responders, so their mean
-                # would be a survivor-biased cell value. Treat the cell as missing.
-                censored_cells.append(f"{m} x {lk} ({censored:.0%})")
-            elif finite.size:
-                if censored > 0:
-                    partial_cells.append(f"{m} x {lk} ({censored:.0%})")
-                means[a, b] = float(finite.mean())
-                withins[a, b] = float(finite.var())
+        for c, effect in enumerate(effects):
+            tumor = None
+            er_tag = "" if ers[c] is None else f" x {ers[c]}"
+            for b, lk in enumerate(links):
+                if joint is not None and b == len(links) - 1:
+                    # The trajectory does not depend on the survival link (same seed, same
+                    # draws), so the joint cell reuses the tumor samples already drawn.
+                    arr = _joint_medians(tumor, t, joint_alpha, *joint)
+                else:
+                    s = ensemble_samples(
+                        ds, m, context=context, drug_effect=effect, t=t,
+                        survival_link=lk, n=n, seed=seed,
+                    )
+                    tumor = s.tumor
+                    arr = _target_median(s, endpoint)
+                finite = arr[np.isfinite(arr)]
+                censored = 1.0 - finite.size / arr.size
+                if censored > _MAX_CENSORED:
+                    # Most samples never reach a median within the horizon (e.g. a curative
+                    # model): the finite medians are only the non-responders, so their mean
+                    # would be a survivor-biased cell value. Treat the cell as missing.
+                    censored_cells.append(f"{m} x {lk}{er_tag} ({censored:.0%})")
+                elif finite.size:
+                    if censored > 0:
+                        partial_cells.append(f"{m} x {lk}{er_tag} ({censored:.0%})")
+                    means[a, b, c] = float(finite.mean())
+                    withins[a, b, c] = float(finite.var())
 
     if censored_cells:
         warnings.append(
@@ -340,29 +422,40 @@ def model_selection_budget(
             f"partially_censored: some samples have no {endpoint} median within the "
             f"horizon; the cell mean uses the rest and reads short: {partial_cells}"
         )
-    # Keep the design balanced with the fewest drops: remove the models (rows) that have
-    # a missing cell, then any link (column) still incomplete. Dropping both a row and a
-    # column for one missing cell would discard a whole survival link (e.g. the joint
-    # level) because a single curative model never reaches its median under it.
-    good_rows = ~np.isnan(means).any(axis=1)
+    # Keep the design balanced with the fewest drops: remove the models that have a missing
+    # cell, then any link, then any ER shape still incomplete. Dropping a model *and* a link
+    # for one missing cell would discard a whole survival link (e.g. the joint level)
+    # because a single curative model never reaches its median under it.
+    missing = np.isnan(means)
+    good_rows = ~missing.any(axis=(1, 2))
     if not good_rows.any():  # every model has a gap: drop links instead
         good_rows = np.ones(len(models), dtype=bool)
-    good_cols = ~np.isnan(means[good_rows]).any(axis=0)
-    if not good_rows.all() or not good_cols.all():
-        dropped_m = [models[i] for i in range(len(models)) if not good_rows[i]]
-        dropped_l = [links[j] for j in range(len(links)) if not good_cols[j]]
-        if dropped_m:
-            warnings.append(f"dropped {len(dropped_m)} model(s) with no finite {target}: {dropped_m}")
-        if dropped_l:
-            warnings.append(f"dropped {len(dropped_l)} link(s) with no finite {target}: {dropped_l}")
+    good_cols = ~missing[good_rows].any(axis=(0, 2))
+    good_ers = ~missing[np.ix_(good_rows, good_cols)].any(axis=(0, 1))
+    dropped_m = [models[i] for i in range(len(models)) if not good_rows[i]]
+    dropped_l = [links[j] for j in range(len(links)) if not good_cols[j]]
+    dropped_e = [ers[k] for k in range(len(ers)) if not good_ers[k]]
+    if dropped_m:
+        warnings.append(f"dropped {len(dropped_m)} model(s) with no finite {target}: {dropped_m}")
+    if dropped_l:
+        warnings.append(f"dropped {len(dropped_l)} link(s) with no finite {target}: {dropped_l}")
+    if dropped_e:
+        warnings.append(f"dropped {len(dropped_e)} ER shape(s) with no finite {target}: {dropped_e}")
     models = [m for i, m in enumerate(models) if good_rows[i]]
     links = [lk for j, lk in enumerate(links) if good_cols[j]]
-    means = means[np.ix_(good_rows, good_cols)]
-    withins = withins[np.ix_(good_rows, good_cols)]
+    ers = [e for k, e in enumerate(ers) if good_ers[k]]
+    means = means[np.ix_(good_rows, good_cols, good_ers)]
+    withins = withins[np.ix_(good_rows, good_cols, good_ers)]
     if means.size == 0:
         raise ValueError(f"no complete (model x link) cell produced a finite {target}")
 
-    comp = variance_components(means, withins)
+    if er_dose is None:
+        means, withins = means[:, :, 0], withins[:, :, 0]
+        comp = variance_components(means, withins)
+        v_er = 0.0
+    else:
+        comp = _three_factor_components(means, withins)
+        v_er = comp["v_er"]
 
     if len(models) == 1:
         warnings.append(
@@ -394,4 +487,31 @@ def model_selection_budget(
         tier=tier,
         cell_means=means,
         warnings=warnings,
+        er_models=[] if er_dose is None else ers,
+        v_er=v_er,
+        er_dose=er_dose,
+        v_er_total=comp.get("v_er_total", 0.0),
     )
+
+
+def _three_factor_components(means: np.ndarray, withins: np.ndarray) -> dict:
+    """The (TGI model x survival link x ER shape) split: three main effects, every
+    interaction pooled, plus parameter noise — the three-factor analog of
+    :func:`variance_components`."""
+    effects = anova_components(means)
+    grand = float(means.mean())
+    within = float(withins.mean())
+    v_model, v_link, v_er = effects[(0,)], effects[(1,)], effects[(2,)]
+    v_inter = float(sum(v for k, v in effects.items() if len(k) > 1))
+    between = v_model + v_link + v_er + v_inter
+    total = within + between
+    parts = {"parameter": within, "tgi_model": v_model, "survival_link": v_link,
+             "er_model": v_er, "interaction": v_inter}
+    if total > 0:
+        fractions = {k: v / total for k, v in parts.items()}
+    else:
+        fractions = {k: (1.0 if k == "parameter" else 0.0) for k in parts}
+    v_er_total = float(sum(v for k, v in effects.items() if 2 in k))
+    return {"grand_mean": grand, "within": within, "v_model": v_model, "v_link": v_link,
+            "v_er": v_er, "v_inter": v_inter, "v_er_total": v_er_total, "total": total,
+            "fractions": fractions}

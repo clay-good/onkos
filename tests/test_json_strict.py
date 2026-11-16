@@ -29,6 +29,7 @@ JSON_INVOCATIONS = [
     ["pfs", "--routes", "--json", "--n", "20"],
     ["budget", "--json", "--n", "10"],
     ["budget", "--json", "--n", "10", "--joint-alpha", "1"],  # censored + dropped cells
+    ["budget", "--json", "--n", "10", "--line", "second", "--er-dose", "37.5"],
     ["interactions", CLARET, "--json"],
     ["loewe", CLARET, "--json"],
     ["dose-response", CLARET, "--json"],

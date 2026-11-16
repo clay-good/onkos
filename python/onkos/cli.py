@@ -701,26 +701,36 @@ def _cmd_budget(args) -> int:
     _require_models(ds, ctx)
     b = model_selection_budget(
         ds, context=ctx, endpoint=args.endpoint, n=args.n, seed=args.seed,
-        joint_alpha=args.joint_alpha,
+        joint_alpha=args.joint_alpha, er_dose=args.er_dose, c_ref=args.c_ref,
     )
     if args.json:
         print(b.to_json())
         return 0
     print(
         f"Model-selection budget — {ctx}, {args.endpoint}  "
-        f"(grid: {len(b.models)} TGI models x {len(b.links)} survival links, tier {b.tier})\n"
+        f"(grid: {len(b.models)} TGI models x {len(b.links)} survival links"
+        f"{f' x {len(b.er_models)} ER shapes' if b.er_models else ''}, tier {b.tier})\n"
     )
     print(f"  grand-mean {b.target} = {b.grand_mean:.1f}   total variance = {b.total:.1f}\n")
     print(f"  {'axis':<46} {'share':>7}")
     for axis, frac in sorted(b.fractions.items(), key=lambda kv: kv[1], reverse=True):
         bar = "█" * round(frac * 30)
-        print(f"  {_AXIS_LABELS[axis]:<46} {frac * 100:>5.0f}%  {bar}")
+        label = _AXIS_LABELS[axis]
+        if axis == "interaction" and b.er_models:
+            label = "interactions (model / link / ER shape)"
+        print(f"  {label:<46} {frac * 100:>5.0f}%  {bar}")
     print(
         f"\n  >> structural-choice share = {b.structural_fraction * 100:.0f}% "
         f"(irreducible by a bigger trial); parameter share = "
         f"{b.fractions['parameter'] * 100:.0f}%"
     )
     print(f"  >> dominant axis: {_AXIS_LABELS[b.dominant]} — standardize / validate this first")
+    if b.er_models:
+        print(
+            f"  >> ER shape at dose {b.er_dose:g} (anchored at {args.c_ref:g}): main effect "
+            f"{b.fractions['er_model'] * 100:.0f}%, total incl. interactions "
+            f"{b.er_total_fraction * 100:.0f}%"
+        )
     for w in b.warnings:
         print(f"  ! {w}")
     return 0
@@ -1209,6 +1219,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="also decompose the current-value joint link (see `onkos joint`) as one more "
              "survival-link level, with this association (OS only; DECLARED, not fitted)",
     )
+    bp.add_argument(
+        "--er-dose", type=_positive, default=None, metavar="DOSE",
+        help="add the exposure-response shape as a third factor, evaluated at this dose "
+             "(see `onkos dose-response`)",
+    )
+    bp.add_argument("--c-ref", type=_positive, default=150.0,
+                    help="studied dose every ER shape is anchored at (with --er-dose)")
     bp.add_argument("--json", action="store_true", help="emit the result as JSON")
     bp.set_defaults(func=_cmd_budget)
 

@@ -55,7 +55,7 @@ All 21 shipped. Each row is enforced by `SPEC_INDEX` in `test_specs_complete.py`
 | burden-auc-bridge-metric | v0.33, all 5 contexts in v0.44 | `onkos.metrics` (`log_burden_auc`) | `test_burden_auc.py` |
 | joint-survival | v0.34, budget level in v0.45 | `onkos.joint` | `test_joint.py` |
 | loewe-additivity | v0.35 | `onkos.interaction` (Loewe) | `test_loewe.py` |
-| exposure-response-extrapolation | v0.36 | `onkos.dose_response` | `test_dose_response.py` |
+| exposure-response-extrapolation | v0.36, budget factor in v0.47 | `onkos.dose_response` | `test_dose_response.py` |
 | early-surrogate-timing | v0.37 | `onkos.early_surrogate` | `test_early_surrogate.py` |
 | model-discriminability | v0.38, simulated power in v0.46 | `onkos.discriminability` | `test_discriminability.py` |
 | model-selection-atlas | v0.39 | `onkos.atlas` | `test_atlas.py` |

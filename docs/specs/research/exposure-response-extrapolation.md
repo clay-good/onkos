@@ -161,9 +161,8 @@ post-processing module surfaced through a CLI command, a figure, and a CI-execut
 - **Not a dose recommender.** The comparison ranks ER *shapes* at a fixed dose grid, never doses or
   treatments; the dose grid is descriptive, not an optimization.
 - **Not a refit.** The shapes are re-anchored, not estimated from data; no shape is preferred.
-- **Not a budget factor (yet).** Folding the ER-model choice into the v0.26 model-selection budget as a
-  third structural factor (beside TGI model and survival link) is a clean follow-on; this spec introduces
-  the axis and its dose-extrapolation signature first.
+- **Not a budget factor by default.** Folding the ER-model choice into the v0.26 model-selection budget
+  as a third structural factor was a follow-on; it shipped opt-in in v0.47 (see §10).
 - **Not new ER records.** It re-anchors the curated shapes; calibrating context- or drug-specific ER
   curves is a breadth follow-on.
 
@@ -196,3 +195,35 @@ shapes with the anchor-is-exact identity as its correctness control. Step 3 is t
 the ER-model choice is invisible at the studied dose but a real model-selection axis off it — with the
 risk sharpest on de-escalation, the dose-finding question — is the quantitative core of this spec,
 shipped as a tested artifact.
+
+---
+
+## 10. The ER shape in the variance budget (v0.47)
+
+`model_selection_budget(..., er_dose=d, c_ref=150)` (CLI `onkos budget --er-dose d`) adds the ER shape
+as a third structural factor beside TGI model and survival link. Every shape is anchored to the same
+effect at the studied dose `c_ref`, and the budget is evaluated at dose `d`. The three-factor split is a
+functional ANOVA (`anova_components`: main effects plus every interaction, orthogonal on the balanced
+grid), which reduces exactly to the two-factor budget. Landmark: at `d = c_ref` the ER factor is
+constant, so its share is exactly zero and every other share equals the two-factor budget's.
+
+Total-order ER share (main effect plus its interactions), `n = 80`, `c_ref = 150`:
+
+| Context | 0.25× (37.5) | 0.5× (75) | 2× (300) | 4× (600) |
+| --- | --- | --- | --- | --- |
+| NSCLC 1L | 0.07 | 0.03 | 0.00 | 0.01 |
+| NSCLC 2L | 0.20 | 0.05 | 0.02 | 0.08 |
+| breast | 0.04 | 0.01 | 0.00 | 0.01 |
+| CRC | 0.07 | 0.02 | 0.00 | 0.01 |
+| HCC | 0.06 | 0.02 | 0.00 | 0.02 |
+| melanoma | 0.08 | 0.02 | 0.00 | 0.01 |
+
+- **On the full ledger the ER shape is a minor axis.** Where several TGI models and survival links are
+  curated, it takes at most ~8% of the OS variance even at a 4× de-escalation; the model and link choices
+  are larger. Settle those first.
+- **It is not negligible where the ledger is thin.** NSCLC second line has one survival link; there the
+  ER shape takes ~20% at 0.25×. The share depends on what else is uncertain, which is the point of a
+  joint budget.
+- **De-escalation is the risky direction,** as §2 found for effect and OS: every context's share is
+  largest at 0.25×.
+
