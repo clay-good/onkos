@@ -34,6 +34,7 @@ JSON_INVOCATIONS = [
     ["loewe", CLARET, "--json"],
     ["dose-response", CLARET, "--json"],
     ["early-surrogate", "--json"],
+    ["early-surrogate", "--json", "--noise-cv", "0.3"],
     ["discriminability", "--json"],
     ["discriminability", "--json", "--simulate", "--reps", "20"],  # inf simulated events
     ["discriminability", "--json", "--tumor-type", "breast", "--joint-alpha", "1",

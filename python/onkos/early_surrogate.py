@@ -40,6 +40,8 @@ from .tiers import worst_tier
 __all__ = [
     "landmark_response",
     "discordant_pairs",
+    "readout_se",
+    "ranking_flip_probability",
     "surrogate_timing_fidelity",
     "SurrogateTiming",
 ]
@@ -77,6 +79,40 @@ def discordant_pairs(rank_a: list, rank_b: list) -> int:
     return n
 
 
+_LOG_FLOOR = 1e-3  # detection-limit floor on relative size before taking logs (as in metrics.py)
+
+
+def readout_se(noise_cv: float, n_patients: int) -> float:
+    """Standard error of the difference between two arms' mean log-change readouts.
+
+    Each patient's readout is ``log(v_week / v_0)``, both measurements carrying independent
+    multiplicative noise with coefficient of variation ``noise_cv`` (log-SD
+    ``s = sqrt(log(1 + cv^2))``), so one patient's log-change has variance ``2 s^2``, an
+    arm mean ``2 s^2 / n`` and the difference of two arms ``4 s^2 / n``: ``SE = 2 s / sqrt(n)``."""
+    if not np.isfinite(noise_cv) or noise_cv < 0:
+        raise ValueError(f"noise_cv={noise_cv} must be a finite number >= 0")
+    if int(n_patients) != n_patients or n_patients < 1:
+        raise ValueError(f"n_patients={n_patients} must be a positive integer")
+    return 2.0 * float(np.sqrt(np.log1p(noise_cv * noise_cv))) / float(np.sqrt(n_patients))
+
+
+def ranking_flip_probability(delta: float, se: float) -> float:
+    """Probability that a noisy readout orders two models opposite to their true order:
+    ``Phi(-|delta| / se)`` for a true difference ``delta`` read with standard error ``se``.
+    ``0.5`` for a tie (a coin flip); ``0`` for a non-zero difference read without noise."""
+    from scipy.special import ndtr
+
+    d = abs(float(delta))
+    if se <= 0:
+        return 0.5 if d == 0 else 0.0
+    return float(ndtr(-d / se))
+
+
+def _log_change(t, v, week) -> float:
+    r = landmark_response(t, v, week)
+    return float(np.log(max(1.0 + r, _LOG_FLOOR))) if np.isfinite(r) else float("nan")
+
+
 @dataclass
 class SurrogateTiming:
     """How an early-surrogate model ranking's fidelity to a durable-benefit reference
@@ -89,6 +125,8 @@ class SurrogateTiming:
     rows: list = field(default_factory=list)  # per week: {week, ranking, discordant_pairs}
     total_pairs: int = 0
     tier: str = "C"
+    noise_cv: float | None = None  # per-measurement CV of the noisy-readout model, if any
+    n_patients: int | None = None
     clinical_use: str = CLINICAL_USE
 
     def _row(self, week: float) -> dict:
@@ -106,7 +144,9 @@ class SurrogateTiming:
         return self.rows[-1]["discordant_pairs"] if self.rows else 0
 
     def to_dict(self) -> dict:
-        return {
+        noisy = self.noise_cv is not None
+        extra = ("expected_flips", "expected_discordant_pairs") if noisy else ()
+        d = {
             "onkos:clinicalUse": CLINICAL_USE,
             "NOT_FOR_CLINICAL_USE": True,
             "context": self.context,
@@ -115,10 +155,15 @@ class SurrogateTiming:
             "total_pairs": self.total_pairs,
             "tier": self.tier,
             "rows": [
-                {"week": r["week"], "discordant_pairs": r["discordant_pairs"], "ranking": list(r["ranking"])}
+                {"week": r["week"], "discordant_pairs": r["discordant_pairs"],
+                 "ranking": list(r["ranking"]), **{k: r[k] for k in extra}}
                 for r in self.rows
             ],
         }
+        if noisy:
+            d["noise_cv"] = self.noise_cv
+            d["n_patients"] = self.n_patients
+        return d
 
     def to_json(self, *, indent: int = 2) -> str:
         from ._serialize import to_strict_json
@@ -138,6 +183,8 @@ def surrogate_timing_fidelity(
     reference_link: str | None = None,
     drug_effect: float = 1.0,
     t: np.ndarray | None = None,
+    noise_cv: float | None = None,
+    n_patients: int = 50,
 ) -> SurrogateTiming:
     """For each landmark week, rank a context's eligible TGI models by their early-surrogate
     response (most shrinkage = best) and count how many model pairs that ranking orders
@@ -145,7 +192,15 @@ def surrogate_timing_fidelity(
     k_g survival link, which rewards slow regrowth).
 
     The earlier the landmark, the more the surrogate over-rewards deep-but-doomed early
-    responders — so the discordance falls as the landmark moves later."""
+    responders — so the discordance falls as the landmark moves later.
+
+    ``noise_cv`` (opt-in) adds a measurement-noise model: each arm's readout is the mean of
+    ``n_patients`` noisy log-changes (:func:`readout_se`). Each row then also reports
+    ``expected_flips`` — the expected number of model pairs a trial's noisy readout orders
+    opposite to its own noise-free ranking (precision) — and
+    ``expected_discordant_pairs`` against the durable-benefit reference (fidelity under
+    noise). Left ``None``, the analysis is unchanged."""
+    se = None if noise_cv is None else readout_se(noise_cv, n_patients)
     if t is None:
         t = np.linspace(0.0, 260.0, 521)
     t = np.asarray(t, dtype=float)
@@ -173,9 +228,25 @@ def surrogate_timing_fidelity(
         resp = {rid: landmark_response(*trajectories[rid], w) for rid in models}
         # most shrinkage (most negative) = the surrogate's "best" model
         ranking = sorted(models, key=lambda r: resp[r])
-        st.rows.append({
+        row = {
             "week": float(w),
             "ranking": ranking,
             "discordant_pairs": discordant_pairs(ranking, reference_ranking),
-        })
+        }
+        if se is not None:
+            lc = {rid: _log_change(*trajectories[rid], w) for rid in models}
+            flips = expected = 0.0
+            for i, a in enumerate(reference_ranking):
+                for b in reference_ranking[i + 1:]:
+                    p_flip = ranking_flip_probability(lc[a] - lc[b], se)
+                    flips += p_flip
+                    # The reference prefers a; the readout agrees when a shrank more.
+                    agrees = lc[a] < lc[b]
+                    tie = lc[a] == lc[b]
+                    expected += 0.5 if tie else (p_flip if agrees else 1.0 - p_flip)
+            row["expected_flips"] = flips
+            row["expected_discordant_pairs"] = expected
+        st.rows.append(row)
+    if se is not None:
+        st.noise_cv, st.n_patients = float(noise_cv), int(n_patients)
     return st

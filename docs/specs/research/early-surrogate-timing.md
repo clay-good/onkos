@@ -161,9 +161,8 @@ post-processing module surfaced through a CLI command, a figure, and a CI-execut
 - **Not genomic ctDNA.** Mutational / clonal ctDNA content is out of scope (§2); the model is burden-
   proportional, so the axis is timing, stated plainly.
 - **Not an optimal landmark.** The module quantifies the trade-off; it does not recommend a readout week.
-- **Not a refit, not assay noise.** The landmark grid and reference are declared; measurement noise is not
-  modeled (a clean follow-on would add a noise model to study earliness-vs-precision as well as
-  earliness-vs-fidelity).
+- **Not a refit.** The landmark grid and reference are declared. Measurement noise was a follow-on; an
+  opt-in noise model shipped in v0.49 (see §10).
 - **Not a new endpoint record.** It reuses the existing trajectories and the k_g link; per-context ctDNA
   shedding records are a breadth follow-on.
 
@@ -197,3 +196,39 @@ readout to an arbitrary landmark, with the week-8 recovery as its correctness an
 payload: showing that the earlier you read the surrogate the more its model ranking contradicts durable
 benefit — that the ctDNA-driven push to week-2-4 endpoints maximizes the depth-vs-durability bias — is the
 quantitative core of this spec, shipped as a tested artifact.
+
+---
+
+## 10. Readout noise: earliness vs precision (v0.49)
+
+`surrogate_timing_fidelity(..., noise_cv=cv, n_patients=n)` (CLI `onkos early-surrogate --noise-cv cv
+--n-patients n`) treats each arm's readout as the mean of `n` patients' log-changes, with independent
+multiplicative noise of coefficient of variation `cv` at baseline and at the landmark. The difference
+between two arms then has standard error `2·sqrt(log(1+cv²))/sqrt(n)` (`readout_se`), and a pair whose
+true log-changes differ by `Δ` is read in the wrong order with probability `Φ(-|Δ|/SE)`
+(`ranking_flip_probability`). Each landmark row gains:
+
+- `expected_flips` — pairs a noisy trial orders against its own noise-free ranking (precision);
+- `expected_discordant_pairs` — discordance with the durable-benefit reference under noise (fidelity).
+
+Landmarks (`tests/test_surrogate_noise.py`): vanishing noise reproduces the noise-free counts exactly;
+flips rise monotonically with noise and never pass half the pairs.
+
+Expected flips at a ctDNA-like `cv = 0.3`, 50 patients per arm:
+
+| Context (pairs) | wk 2 | wk 4 | wk 8 | wk 24 | wk 52 |
+| --- | --- | --- | --- | --- | --- |
+| NSCLC (10) | 1.78 | 1.09 | 0.20 | 0.16 | 0.00 |
+| breast (3) | 0.25 | 0.00 | 0.00 | 0.00 | 0.00 |
+| CRC (3) | 0.37 | 0.08 | 0.00 | 0.00 | 0.00 |
+| HCC (3) | 0.40 | 0.11 | 0.00 | 0.45 | 0.00 |
+| melanoma (3) | 0.37 | 0.08 | 0.00 | 0.00 | 0.00 |
+
+- **There is no trade-off to buy.** The earliest readouts are both the least faithful (§2) and the least
+  reproducible: at week 2 the models have barely separated, so noise reorders them; by week 8 the ranking
+  is stable. Reading earlier costs fidelity and precision together.
+- **Noise does not rescue fidelity.** Where the noise-free early ranking is already nearly reversed
+  (NSCLC week 2, 9 of 10 pairs discordant), noise pulls the expected discordance toward half the pairs.
+  That is randomness, not information.
+- HCC's week-24 bump is two models' trajectories crossing; near a crossing any readout is a coin flip.
+

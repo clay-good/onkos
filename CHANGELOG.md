@@ -6,6 +6,20 @@ design; the infrastructure is real and tested.
 
 ## [Unreleased]
 
+## [0.49.0] — Readout noise for the early-surrogate timing analysis
+
+Completes the follow-on named in `docs/specs/research/early-surrogate-timing.md` (§7).
+
+- **`surrogate_timing_fidelity(..., noise_cv=cv, n_patients=n)` / `onkos early-surrogate
+  --noise-cv cv`** adds a measurement-noise model: each arm's readout averages `n` noisy
+  log-changes. Each landmark reports `expected_flips` (pairs a noisy trial orders against its
+  own noise-free ranking) and `expected_discordant_pairs` (fidelity to the durable-benefit
+  reference under noise). Closed-form cores `readout_se` and `ranking_flip_probability`.
+  Opt-in: the default output is unchanged.
+- **Finding.** At a ctDNA-like CV of 0.3 with 50 patients per arm, ranking flips peak at
+  week 2 (NSCLC: 1.8 of 10 pairs) and are gone by week 8 in every context. Early readouts are
+  both less faithful and less reproducible, so reading earlier buys nothing on either axis.
+
 ## [0.48.0] — Fedorov exchange for the D-optimal schedule
 
 Completes the follow-on named in `docs/specs/research/optimal-design.md` (§8).

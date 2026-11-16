@@ -879,7 +879,8 @@ def _cmd_early_surrogate(args) -> int:
     ds = load()
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
     _require_models(ds, ctx)
-    st = surrogate_timing_fidelity(ds, context=ctx, reference_link=args.reference_link)
+    st = surrogate_timing_fidelity(ds, context=ctx, reference_link=args.reference_link,
+                                   noise_cv=args.noise_cv, n_patients=args.n_patients)
     if args.json:
         print(st.to_json())
         return 0
@@ -888,15 +889,29 @@ def _cmd_early_surrogate(args) -> int:
         f"tier={st.tier}  ({ctx})  durable-benefit reference: {st.reference_link.split('.')[-1]}\n"
         f"  tail-aware ranking (best->worst): {' > '.join(ref)}\n"
     )
-    print(f"  {'landmark wk':>11} | {'discordant pairs vs durable benefit':>36}")
+    noisy = st.noise_cv is not None
+    header = f"  {'landmark wk':>11} | {'discordant pairs vs durable benefit':>36}"
+    if noisy:
+        header += "  | with noise | expected flips"
+    print(header)
     for r in st.rows:
         bar = "#" * r["discordant_pairs"]
-        print(f"  {r['week']:>11.0f} | {r['discordant_pairs']:>2}/{st.total_pairs}  {bar}")
+        line = f"  {r['week']:>11.0f} | {r['discordant_pairs']:>2}/{st.total_pairs}  {bar:<31}"
+        if noisy:
+            line += f"  | {r['expected_discordant_pairs']:>10.2f} | {r['expected_flips']:>14.2f}"
+        print(line)
     print(
         f"\n  >> earliest readout = {st.earliest_discordance}/{st.total_pairs} discordant, "
         f"latest = {st.latest_discordance}/{st.total_pairs}: reading the surrogate earlier "
         "over-rewards deep-but-doomed responders (the ctDNA-timing bias)"
     )
+    if noisy:
+        print(
+            f"  >> readout noise CV {st.noise_cv:g}, {st.n_patients} patients per arm: "
+            "'expected flips' counts pairs a trial's noisy readout orders against its own "
+            "noise-free ranking (precision); early readouts are both less faithful and less "
+            "reproducible"
+        )
     return 0
 
 
@@ -1278,6 +1293,10 @@ def build_parser() -> argparse.ArgumentParser:
     esp.add_argument("--line", type=_label, default="first")
     esp.add_argument("--reference-link", default=None,
                      help="durable-benefit reference link (default: the context's k_g OS link)")
+    esp.add_argument("--noise-cv", type=_non_negative, default=None, metavar="CV",
+                     help="per-measurement coefficient of variation of the readout (e.g. 0.3)")
+    esp.add_argument("--n-patients", type=_positive_int, default=50,
+                     help="patients per arm averaging the noisy readout (with --noise-cv)")
     esp.add_argument("--json", action="store_true", help="emit the result as JSON")
     esp.set_defaults(func=_cmd_early_surrogate)
 
