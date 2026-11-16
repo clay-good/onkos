@@ -22,7 +22,9 @@ jobs:
       - run: ruff check python/ tests/ scripts/ dashboard/
 
   test:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04, which has no setup-python build of 3.9, and
+    # the package still declares Python 3.9+ support.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:

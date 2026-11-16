@@ -35,6 +35,7 @@ from ._const import CLINICAL_USE
 from .compare import compare
 from .load import Dataset
 from .simulate import simulate
+from .tiers import worst_tier
 
 __all__ = [
     "landmark_response",
@@ -157,7 +158,7 @@ def surrogate_timing_fidelity(
     cmp = compare(ds, purpose="tgi", context=context, drug_effect=drug_effect, t=t)
     models = [tr.record_id for tr in cmp.included]
     trajectories = {tr.record_id: (tr.t, tr.tumor_size) for tr in cmp.included}
-    tier = cmp.included[0].tier if cmp.included else "C"
+    tier = worst_tier([tr.tier for tr in cmp.included]) if cmp.included else "C"
 
     # Durable-benefit reference ranking: longer k_g-link OS = better.
     ref_os = {rid: (_median_os(ds, rid, context, reference_link, t) or -1.0) for rid in models}

@@ -282,6 +282,11 @@ def model_selection_budget(
             raise ValueError("the joint (current-value) link is an OS link; use endpoint='OS'")
         if not np.isfinite(joint_alpha):
             raise ValueError(f"joint_alpha={joint_alpha}: must be a finite number")
+        if t[0] != 0.0:
+            raise ValueError(
+                "the joint link accrues hazard from treatment start: pass a time grid that "
+                "starts at week 0"
+            )
         base = _default_weibull_os_link(
             ds, context.get("tumor_type"), context.get("line") or context.get("line_of_therapy")
         )

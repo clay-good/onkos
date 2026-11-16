@@ -111,6 +111,8 @@ def test_pure_cores_reject_malformed_inputs():
         current_value_survival(t, np.ones(3), shape=1.3, scale=60.0)
     with pytest.raises(ValueError, match="shape > 0"):
         current_value_survival(t, np.ones_like(t), shape=0.0, scale=60.0)
+    with pytest.raises(ValueError, match="start at 0"):
+        current_value_survival(t + 4.0, np.ones_like(t), shape=1.3, scale=60.0)
 
     short, v = np.linspace(0.0, 4.0, 5), np.array([100.0, 90.0, 80.0, 70.0, 60.0])
     assert landmark_response(short, v, 4.0) == pytest.approx(-0.4)
@@ -158,6 +160,10 @@ BAD_INVOCATIONS = [
     ["identify", CLARET, "--schedule", "0,8,1e9"],
     ["design", CLARET, "--horizon", "1e9"],
     ["budget", "--joint-alpha", "nan"],
+    ["discriminability", "--simulate", "--reps", "5"],
+    ["discriminability", "--simulate", "--reps", "20", "--accrual", "400"],
+    ["discriminability", "--joint-alpha", "nan"],
+    ["discriminability", "--joint-alpha", "1", "--survival-link", "survival_link.nsclc_os_cox"],
     ["budget", "--endpoint", "PFS", "--joint-alpha", "1", "--n", "2"],
     # A blank context label used to mean "every context" and produce nonsense.
     ["discriminability", "--tumor-type", ""],
@@ -219,3 +225,32 @@ def test_cli_unwritable_export_path_is_a_clean_error(tmp_path, capsys):
     blocker.write_text("")
     code, err = _run(["export", "--format", "csv", "--output", str(blocker / "x")], capsys)
     assert code == 2 and "error:" in err
+
+
+# --- tier propagation: an analysis is only as good as its weakest model ------
+
+
+@pytest.mark.parametrize("module, fn", [
+    ("onkos.discriminability", "model_discriminability"),
+    ("onkos.early_surrogate", "surrogate_timing_fidelity"),
+    ("onkos.atlas", "model_selection_atlas"),
+])
+def test_context_analyses_report_the_worst_included_tier(ds, monkeypatch, module, fn):
+    """These analyses used to take the FIRST included model's tier; a better-tier model
+    listed first would have lifted the whole analysis above its weakest input."""
+    import importlib
+    import sys
+
+    real = sys.modules["onkos.compare"].compare
+
+    def first_is_tier_a(*args, **kwargs):
+        cmp = real(*args, **kwargs)
+        cmp.included[0].tier = "A"
+        return cmp
+
+    monkeypatch.setattr(sys.modules["onkos.compare"], "compare", first_is_tier_a)
+    mod = importlib.import_module(module)
+    if hasattr(mod, "compare"):
+        monkeypatch.setattr(mod, "compare", first_is_tier_a)
+    result = getattr(mod, fn)(ds, context=NSCLC)
+    assert result.tier == "C"

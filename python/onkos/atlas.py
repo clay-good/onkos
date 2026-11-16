@@ -29,6 +29,7 @@ import numpy as np
 
 from ._const import CLINICAL_USE
 from .load import Dataset
+from .tiers import worst_tier
 
 __all__ = [
     "Axis",
@@ -175,7 +176,7 @@ def model_selection_atlas(
 
     cmp = compare(ds, purpose="tgi", context=context, drug_effect=drug_effect, t=t)
     models = [tr.record_id for tr in cmp.included]
-    tier = cmp.included[0].tier if cmp.included else "C"
+    tier = worst_tier([tr.tier for tr in cmp.included]) if cmp.included else "C"
     atlas = Atlas(context=context, tier=tier)
 
     # 1) TGI-model axis — OS divergence across the eligible models.

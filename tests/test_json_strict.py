@@ -28,11 +28,15 @@ JSON_INVOCATIONS = [
     ["pfs", CLARET, "--json", "--n", "20", "--drug-effect", "5"],  # never progresses
     ["pfs", "--routes", "--json", "--n", "20"],
     ["budget", "--json", "--n", "10"],
+    ["budget", "--json", "--n", "10", "--joint-alpha", "1"],  # censored + dropped cells
     ["interactions", CLARET, "--json"],
     ["loewe", CLARET, "--json"],
     ["dose-response", CLARET, "--json"],
     ["early-surrogate", "--json"],
     ["discriminability", "--json"],
+    ["discriminability", "--json", "--simulate", "--reps", "20"],  # inf simulated events
+    ["discriminability", "--json", "--tumor-type", "breast", "--joint-alpha", "1",
+     "--reps", "20"],
     ["atlas", "--json"],
     ["review-queue", "--json"],
     ["simulate", CLARET, "--json"],

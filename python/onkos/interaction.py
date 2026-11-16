@@ -39,6 +39,7 @@ from ._const import CLINICAL_USE
 from .export.registry import get_kernel, kernel_values
 from .load import Dataset
 from .simulate import Trajectory, simulate
+from .tiers import worst_tier
 
 __all__ = [
     "INTERACTION_MODELS",
@@ -266,7 +267,7 @@ def compare_interactions(
         cmp.trajectories[label] = tr
         cmp.combined_effects[label] = combine_effects(effect_a, effect_b, model=model, psi=p)
     # Tier is shared across interaction models (same underlying chain + context).
-    cmp.tier = next(iter(cmp.trajectories.values())).tier
+    cmp.tier = worst_tier(tr.tier for tr in cmp.trajectories.values())
     cmp.warnings = [SYNERGY_IS_AN_ASSUMPTION] if psi != 0.0 else []
     return cmp
 
@@ -501,5 +502,5 @@ def compare_additivity_references(
         cmp.combined_effects[ref] = combine_doses(
             ds, dose_a, dose_b, er_a=er_a, er_b=er_b, reference=ref
         )
-    cmp.tier = next(iter(cmp.trajectories.values())).tier
+    cmp.tier = worst_tier(tr.tier for tr in cmp.trajectories.values())
     return cmp

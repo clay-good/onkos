@@ -792,6 +792,8 @@ def _cmd_discriminability(args) -> int:
     ds = load()
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
     _require_models(ds, ctx)
+    if args.simulate or args.joint_alpha is not None:
+        return _discriminability_simulated(ds, ctx, args)
     md = model_discriminability(ds, context=ctx, survival_link=args.survival_link,
                                 power=args.power, alpha=args.alpha)
     if args.json:
@@ -816,6 +818,47 @@ def _cmd_discriminability(args) -> int:
         f"\n  >> {md.n_indistinguishable}/{len(md.pairs)} model pairs are practically "
         "indistinguishable (need an infeasible trial): the model choice cannot be resolved by "
         "the data — only assumed. The silent model-selection risk, quantified in events."
+    )
+    return 0
+
+
+def _discriminability_simulated(ds, ctx, args) -> int:
+    from .discriminability import simulated_discriminability
+
+    sd = simulated_discriminability(
+        ds, context=ctx, survival_link=args.survival_link, joint_alpha=args.joint_alpha,
+        power=args.power, alpha=args.alpha, reps=args.reps, accrual=args.accrual,
+        seed=args.seed,
+    )
+    if args.json:
+        print(sd.to_json())
+        return 0
+    if args.joint_alpha is not None:
+        link = f"joint current-value (alpha={args.joint_alpha:g})"
+    else:
+        link = args.survival_link.split(".")[-1] if args.survival_link else "default week-8"
+    print(
+        f"tier={sd.tier}  ({ctx}, link={link}, power={args.power}, alpha={args.alpha}, "
+        f"{args.reps} simulated trials per size, accrual {args.accrual:g} wk)\n"
+        "  events to distinguish each pair: closed form (Schoenfeld) vs a simulated logrank "
+        "trial\n"
+    )
+
+    def fmt(d):
+        return "inf" if d == float("inf") else f"{d:,.0f}"
+
+    print(f"  {'HR':>5}  {'Schoenfeld':>10}  {'simulated':>10}  {'classes agree?':<26} pair")
+    for p in sorted(sd.pairs, key=lambda x: x["simulated_events"]):
+        verdict = ("yes" if not p["schoenfeld_misclassifies"]
+                   else f"NO: {p['schoenfeld_class']} vs {p['simulated_class']}")
+        print(f"  {p['hazard_ratio']:>5.2f}  {fmt(p['schoenfeld_events']):>10}  "
+              f"{fmt(p['simulated_events']):>10}  {verdict:<26} "
+              f"{p['record_a']} vs {p['record_b']}")
+    n_bad = len(sd.misclassified_pairs)
+    print(
+        f"\n  >> {n_bad}/{len(sd.pairs)} pairs where the closed form reaches a different "
+        "feasibility verdict than the simulated trial. Schoenfeld assumes proportional hazards;"
+        " crossing or non-proportional curves (e.g. the joint link) can break it."
     )
     return 0
 
@@ -1230,6 +1273,16 @@ def build_parser() -> argparse.ArgumentParser:
     dcp.add_argument("--survival-link", default=None, help="survival link (default: week-8)")
     dcp.add_argument("--power", type=_probability, default=0.8)
     dcp.add_argument("--alpha", type=_probability, default=0.05)
+    dcp.add_argument("--simulate", action="store_true",
+                     help="also simulate the logrank trial and compare with the closed form")
+    dcp.add_argument("--joint-alpha", type=_number, default=None, metavar="ALPHA",
+                     help="use the current-value joint link (non-proportional); implies "
+                          "--simulate")
+    dcp.add_argument("--reps", type=_positive_int, default=400,
+                     help="simulated trials per candidate size (with --simulate)")
+    dcp.add_argument("--accrual", type=_non_negative, default=0.0,
+                     help="uniform accrual period in weeks (with --simulate)")
+    dcp.add_argument("--seed", type=int, default=0)
     dcp.add_argument("--json", action="store_true", help="emit the result as JSON")
     dcp.set_defaults(func=_cmd_discriminability)
 

@@ -33,6 +33,7 @@ from ._const import CLINICAL_USE
 from .export.registry import get_kernel, kernel_values
 from .load import Dataset
 from .simulate import simulate
+from .tiers import worst_tier
 
 __all__ = [
     "ER_SHAPE_RECORDS",
@@ -187,14 +188,14 @@ def compare_er_extrapolation(
         record_id=record_id, context=context, c_ref=float(c_ref), e_ref=float(e_ref),
         er_ids=er_ids, doses=doses,
     )
-    tier = "C"
+    tiers: list[str] = []
     for dose in doses:
         effects, medians = {}, {}
         for er, f in curves.items():
             e = max(float(f(dose)), 0.0)
             tr = simulate(ds, record_id, context=context, drug_effect=e, t=t,
                           survival_link=survival_link)
-            tier = tr.tier
+            tiers.append(tr.tier)
             effects[er] = e
             medians[er] = tr.median_os
         e_vals = list(effects.values())
@@ -206,5 +207,5 @@ def compare_er_extrapolation(
             "effect_divergence": float(max(e_vals) - min(e_vals)) if e_vals else 0.0,
             "os_divergence": float(max(m_vals) - min(m_vals)) if len(m_vals) >= 2 else 0.0,
         })
-    cmp.tier = tier
+    cmp.tier = worst_tier(tiers) if tiers else "C"
     return cmp

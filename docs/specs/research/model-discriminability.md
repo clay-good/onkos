@@ -161,8 +161,9 @@ CI-executed notebook.
 
 - **Not a trial design.** It reports required events to distinguish models; it does not design, size, or
   recommend a real trial.
-- **Not a full power simulation.** The shipped core is the closed-form Schoenfeld events from a horizon HR;
-  a simulation-based logrank power (with accrual, censoring, non-PH weighting) is a clean follow-on.
+- **Not a full power simulation by default.** The core is the closed-form Schoenfeld events from a horizon
+  HR; a simulation-based logrank check (accrual, administrative censoring) shipped in v0.46 (see §10).
+  Weighted (non-PH) logrank tests remain out of scope.
 - **Not external validation.** It quantifies *internal* discriminability (can a trial tell the models'
   predicted curves apart), not whether either model is correct — that is the `predictive_performance`
   external-validation field's job.
@@ -200,3 +201,33 @@ showing that the resistance mechanism/origin choice needs 10⁴–10⁵ events t
 surrogate — that the silent model-selection risk is silent *because* it is practically unidentifiable from
 the trial — is the quantitative core of this spec, and the rigorous close of the model-selection arc,
 shipped as a tested artifact.
+
+---
+
+## 10. Simulated logrank power — checking the closed form (v0.46)
+
+`simulated_discriminability(...)` (CLI `onkos discriminability --simulate`) simulates each pair's
+trial: event times drawn from the two population curves, uniform accrual over `--accrual` weeks,
+censoring at the horizon, and a standard logrank test. A bisection over patients per arm finds the
+smallest trial reaching the target power, and the result is set beside Schoenfeld's count.
+`--joint-alpha` uses the non-proportional current-value joint link instead of a two-stage link.
+A pair is flagged when the two methods give different feasibility verdicts (feasible < 500 events,
+borderline, infeasible > 3000).
+
+First-line contexts, 200 simulated trials per size:
+
+| Survival link | Pairs | Schoenfeld / simulated events | Different verdicts |
+| --- | --- | --- | --- |
+| week-8, Cox, k_g, burden (all proportional) | 76 | 0.80–1.06 | 0 |
+| joint current-value, `α = 1` | 22 | 0.18–1.09 | 1 (breast) |
+
+- **Under proportional hazards the closed form holds.** Every two-stage link gives proportional curves
+  between models, and Schoenfeld matches the simulated trial within Monte-Carlo error.
+- **Under the joint link it does not.** Schoenfeld undercounts the events by up to ~5× (small trials,
+  practically harmless), and in breast it calls Claret vs two-population a feasible ~150-event trial.
+  Those curves cross near week 266, so the logrank test has ~10% power even at ~2,800 events.
+
+A fix shipped alongside: `horizon_hazard_ratio` used to clamp two curves that had both fallen below
+`1e-6` to the floor and read `HR = 1`, calling clearly different models indistinguishable (HCC under
+the burden link). It now reads the ratio at the last time both curves are observable.
+

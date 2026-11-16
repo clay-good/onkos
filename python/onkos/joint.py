@@ -80,6 +80,8 @@ def current_value_survival(
         raise ValueError("the Weibull baseline needs shape > 0 and scale > 0")
     if hr.shape != t.shape or np.any(hr < 0):
         raise ValueError("hazard_ratio must be non-negative and aligned to t")
+    if t.size == 0 or t[0] != 0.0:
+        raise ValueError("t must start at 0: the cumulative hazard is integrated from treatment start")
     h0 = (t / scale) ** shape  # analytic baseline cumulative hazard
     incr = (hr[1:] + hr[:-1]) * 0.5 * np.diff(h0)
     cum = np.concatenate([[0.0], np.cumsum(incr)])
@@ -182,8 +184,17 @@ def joint_survival(
     if t is None:
         t = np.linspace(0.0, 260.0, 521)
     t = np.asarray(t, dtype=float)
+    # The hazard accrues from treatment start and the hazard ratio is relative to the
+    # baseline size, so evaluate on a grid anchored at week 0 and read back the requested
+    # times. (A grid starting later used to take its first size as the baseline and drop
+    # all hazard before it.)
+    grid, idx = t, slice(None)
+    if t.size and t[0] > 0.0:
+        grid = np.unique(np.concatenate([np.linspace(0.0, t[0], 33), t]))
+        idx = np.searchsorted(grid, t)
 
-    tr = simulate(ds, record_id, context=context, drug_effect=drug_effect, exposure=exposure, t=t)
+    tr = simulate(ds, record_id, context=context, drug_effect=drug_effect, exposure=exposure,
+                  t=grid)
     tumor_type = context.get("tumor_type")
     line = context.get("line") or context.get("line_of_therapy")
 
@@ -197,14 +208,16 @@ def joint_survival(
     scale = float(link["weibull_scale"].central)
 
     hr = current_value_hazard_ratio(tr.tumor_size, alpha, floor=floor)
-    joint_curve = current_value_survival(t, hr, shape=shape, scale=scale)
+    joint_curve = current_value_survival(grid, hr, shape=shape, scale=scale)[idx]
+    hr = hr[idx]
+    two_stage = tr.os_curve[idx] if tr.os_curve is not None else np.full_like(t, np.nan)
 
     return JointSurvival(
         record_id=record_id,
         t=t,
         alpha=float(alpha),
         os_curve=joint_curve,
-        two_stage_curve=tr.os_curve if tr.os_curve is not None else np.full_like(t, np.nan),
+        two_stage_curve=two_stage,
         hazard_ratio=hr,
         tier=tr.tier,
         warnings=list(tr.warnings),

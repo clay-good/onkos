@@ -129,3 +129,19 @@ def test_joint_inherits_tier_and_transport_warnings():
     assert j.tier == "D"
     assert any("outside validated" in w for w in j.warnings)
     assert j.clinical_use.startswith("PROHIBITED")
+
+
+def test_a_grid_that_starts_late_keeps_the_week_zero_origin():
+    """The joint curve on a grid starting at week 4 must equal the week-0 curve read at the
+    same times: the hazard accrues from treatment start and the HR is relative to baseline.
+    (It used to restart at S=1 and take the week-4 size as the baseline.)"""
+    ds = onkos.load()
+    full = np.linspace(0.0, 104.0, 105)
+    late = full[4:]
+    a = joint_survival(ds, CLARET, context=NSCLC, t=full)
+    b = joint_survival(ds, CLARET, context=NSCLC, t=late)
+    assert np.allclose(b.hazard_ratio, a.hazard_ratio[4:])
+    assert np.allclose(b.two_stage_curve, a.two_stage_curve[4:])
+    assert b.os_curve[0] < 1.0
+    assert np.allclose(b.os_curve, a.os_curve[4:], atol=2e-3)  # finer pre-grid, same hazard
+

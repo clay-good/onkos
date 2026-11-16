@@ -6,6 +6,39 @@ design; the infrastructure is real and tested.
 
 ## [Unreleased]
 
+## [0.46.0] — Simulated logrank power, and a tier invariant made airtight
+
+Completes the follow-on named in `docs/specs/research/model-discriminability.md` (§7).
+
+- **`simulated_discriminability(...)` / `onkos discriminability --simulate`** simulates each
+  model pair's trial (event times from the population curves, uniform accrual, censoring at
+  the horizon, logrank test) and finds the smallest trial reaching the target power, beside
+  the closed-form Schoenfeld count. `--joint-alpha` runs it on the non-proportional joint
+  link. New pure cores: `logrank_statistic`, `sample_event_times`, `simulated_power`,
+  `simulated_required_events`; landmark-tested against hand-computed statistics, type-I error
+  control, and Schoenfeld under proportional hazards (`tests/test_logrank_power.py`).
+- **Finding.** For all 76 first-line pairs under the proportional-hazards links, Schoenfeld
+  matches the simulated trial (0.80–1.06×). Under the joint link it undercounts by up to ~5×,
+  and in breast it calls a crossing-curve pair (Claret vs two-population) feasible at ~150
+  events when the logrank test has ~10% power even at ~2,800.
+- **Fix: vanished curves no longer read as identical.** `horizon_hazard_ratio` clamped two
+  curves that had both dropped below `1e-6` to the floor and returned `HR = 1`. It now reads
+  the ratio at the last time both are observable (affects HCC under the burden link).
+- **Fix: the joint link keeps the week-0 origin.** On a time grid that did not start at
+  week 0, `joint_survival` took the first grid point's size as the baseline and restarted
+  survival at 1 there (week-52 HR off by ~2.7× on a grid starting at week 4). It now
+  evaluates from week 0 and reads back the requested times, matching `simulate`; the pure
+  core `current_value_survival` requires a grid starting at 0, and the budget's joint level
+  refuses a grid that does not.
+- **Fix: analyses take the worst included tier.** `model_discriminability`,
+  `surrogate_timing_fidelity`, and `model_selection_atlas` took the first included model's
+  tier; `compare_er_extrapolation` took the last, and the interaction comparisons the first.
+  All now use the worst, so a better-tier model listed first can never lift an analysis above
+  its weakest input. No current output changes (every included model is tier C today); a
+  regression test pins it.
+- **CI.** The test matrix is pinned to `ubuntu-24.04`: `ubuntu-latest` moved to 26.04, which
+  has no Python 3.9 build, and the package still declares 3.9+.
+
 ## [0.45.0] — The joint survival link joins the variance budget
 
 Completes the follow-on named in `docs/specs/research/joint-survival.md` (§7): the

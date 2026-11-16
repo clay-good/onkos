@@ -57,7 +57,7 @@ All 21 shipped. Each row is enforced by `SPEC_INDEX` in `test_specs_complete.py`
 | loewe-additivity | v0.35 | `onkos.interaction` (Loewe) | `test_loewe.py` |
 | exposure-response-extrapolation | v0.36 | `onkos.dose_response` | `test_dose_response.py` |
 | early-surrogate-timing | v0.37 | `onkos.early_surrogate` | `test_early_surrogate.py` |
-| model-discriminability | v0.38 | `onkos.discriminability` | `test_discriminability.py` |
+| model-discriminability | v0.38, simulated power in v0.46 | `onkos.discriminability` | `test_discriminability.py` |
 | model-selection-atlas | v0.39 | `onkos.atlas` | `test_atlas.py` |
 | von-bertalanffy-growth | v0.40 | kernel `growth_von_bertalanffy` | `test_landmarks.py` |
 | power-law-growth | v0.41 | kernel `growth_power_law` | `test_landmarks.py` |
