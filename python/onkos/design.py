@@ -11,8 +11,9 @@ sensitivity rows are computed once on a dense candidate grid and schedule optimi
 pure linear algebra over row subsets (no re-simulation per candidate). The shipped
 criterion is **D-optimality**: maximize ``det M`` (minimize the volume of the joint
 confidence ellipsoid), the textbook optimal-design objective. The combinatorial subset
-search uses greedy forward selection (baseline-anchored), and the reported optimal is the
-better of the greedy and uniform designs, so ``D-efficiency ≥ 1`` by construction.
+search uses greedy forward selection (baseline-anchored) refined by Fedorov exchange, and
+the reported optimal is the better of that and the uniform design, so ``D-efficiency ≥ 1``
+by construction.
 
 The honest payload: for the Claret resistance model the optimal design lowers every RSE
 yet still cannot identify ``kL`` / ``λ`` — their flatness is *structural*, not a design
@@ -45,6 +46,7 @@ from .simulate import simulate
 
 __all__ = [
     "d_optimal_rows",
+    "exchange_refine",
     "CandidateDesign",
     "OptimalDesign",
     "optimal_schedule",
@@ -89,6 +91,44 @@ def d_optimal_rows(scaled_sens, n: int, seed_rows=()) -> list:
         remaining = [c for c in range(m) if c not in chosen]
         best = max(remaining, key=lambda c: _logdet_fim(ss[chosen + [c]], p))
         chosen.append(best)
+    return chosen
+
+
+def exchange_refine(scaled_sens, rows, *, fixed_rows=(), max_passes: int = 100) -> list:
+    """Fedorov exchange refinement of a D-optimal design: repeatedly make the single swap
+    (one chosen row out, one unchosen row in) that most increases ``log det M``, until no
+    swap improves it. ``fixed_rows`` (e.g. the mandatory baseline) are never swapped out.
+
+    The result is never less informative than ``rows`` and is a local optimum under single
+    exchanges — closer to the global D-optimum than greedy forward selection, still not a
+    proof of it. Returns the refined row indices, sorted."""
+    ss = np.asarray(scaled_sens, dtype=float)
+    if ss.ndim != 2:
+        raise ValueError("scaled_sens must be a 2-D (timepoints x parameters) matrix")
+    m, p = ss.shape
+    chosen = sorted(dict.fromkeys(int(r) for r in rows))
+    if not chosen or any(not 0 <= r < m for r in chosen):
+        raise ValueError("rows must be non-empty indices into scaled_sens")
+    fixed = {int(r) for r in fixed_rows}
+    current = _logdet_fim(ss[chosen], p)
+    for _ in range(int(max_passes)):
+        best_gain, best_swap = 1e-10, None  # demand a real improvement: no cycling on ties
+        for i, out in enumerate(chosen):
+            if out in fixed:
+                continue
+            for cand in range(m):
+                if cand in chosen:
+                    continue
+                trial = chosen[:i] + [cand] + chosen[i + 1:]
+                gain = _logdet_fim(ss[trial], p) - current
+                if gain > best_gain:
+                    best_gain, best_swap = gain, (i, cand)
+        if best_swap is None:
+            break
+        i, cand = best_swap
+        chosen[i] = cand
+        chosen.sort()
+        current += best_gain
     return chosen
 
 
@@ -226,12 +266,16 @@ def optimal_schedule(
     h: float = 1e-4,
     rse_ceiling: float = RSE_CEILING,
     include_baseline: bool = True,
+    refine: bool = True,
 ) -> OptimalDesign:
     """The D-optimal sampling schedule of ``n_samples`` measurements over ``[0, horizon]``
     for the dynamic (ODE) TGI record ``record_id``, scored against a uniform schedule of the
     same budget. Reuses the :mod:`onkos.identify` Fisher-information core; reports the
     per-parameter Cramér-Rao RSE, the collinearity index, the D-efficiency over uniform, and
     whether the optimal design rescues any parameter uniform could not.
+
+    The search is greedy forward selection, refined by Fedorov exchange (``refine=True``,
+    the default since v0.48; ``refine=False`` reproduces the v0.31 greedy-only design).
 
     Design / population level only; restricted to ODE records (a survival/transform record is
     not a trajectory to design for)."""
@@ -266,6 +310,8 @@ def optimal_schedule(
     # D-optimal: greedy, baseline-anchored, then take the better of greedy / uniform.
     seed = (0,) if include_baseline else ()
     greedy_rows = sorted(d_optimal_rows(ss, n_samples, seed_rows=seed))
+    if refine:
+        greedy_rows = exchange_refine(ss, greedy_rows, fixed_rows=seed)
     optimal_rows = (greedy_rows
                     if _logdet_fim(ss[greedy_rows], p) >= _logdet_fim(ss[uniform_rows], p)
                     else uniform_rows)
@@ -279,8 +325,11 @@ def optimal_schedule(
 
     warnings: list[str] = []
     warnings.append(
-        "greedy_heuristic: the optimal schedule is a greedy D-optimal design, guaranteed "
-        "only no worse than uniform (D-efficiency ≥ 1), not a proven global optimum"
+        ("greedy_heuristic: the optimal schedule is a greedy D-optimal design refined by "
+         "Fedorov exchange (a local optimum under single swaps)" if refine else
+         "greedy_heuristic: the optimal schedule is a greedy D-optimal design")
+        + ", guaranteed only no worse than uniform (D-efficiency ≥ 1), not a proven global "
+        "optimum"
     )
     if structurally_flat:
         verb = "remains" if len(structurally_flat) == 1 else "remain"

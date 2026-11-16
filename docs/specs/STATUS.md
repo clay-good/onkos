@@ -50,7 +50,7 @@ All 21 shipped. Each row is enforced by `SPEC_INDEX` in `test_specs_complete.py`
 | duration-of-response | v0.28 | `onkos.response` | `test_duration.py` |
 | cross-context-generalization | v0.29 | `onkos.compare` (5 contexts) | `test_context_library.py` |
 | pfs-endpoint | v0.30 | `onkos.response` | `test_pfs_routes.py` |
-| optimal-design | v0.31 | `onkos.design` | `test_design.py` |
+| optimal-design | v0.31, exchange refinement in v0.48 | `onkos.design` | `test_design.py` |
 | acquired-resistance | v0.32 | kernel `acquired_resistance` | `test_acquired.py` |
 | burden-auc-bridge-metric | v0.33, all 5 contexts in v0.44 | `onkos.metrics` (`log_burden_auc`) | `test_burden_auc.py` |
 | joint-survival | v0.34, budget level in v0.45 | `onkos.joint` | `test_joint.py` |

@@ -6,6 +6,20 @@ design; the infrastructure is real and tested.
 
 ## [Unreleased]
 
+## [0.48.0] — Fedorov exchange for the D-optimal schedule
+
+Completes the follow-on named in `docs/specs/research/optimal-design.md` (§8).
+
+- **`exchange_refine(...)`** — Fedorov exchange: repeatedly make the single swap that most
+  increases `log det M` until none does, keeping the baseline fixed. Never less informative
+  than its input; ends at a local optimum under single swaps.
+- **`optimal_schedule` now refines the greedy design by default** (`refine=False` restores the
+  v0.31 behavior). Claret NSCLC: D-efficiency over uniform 1.14 → 1.16, `λ` RSE 48% → 47%,
+  `kL` 199% → 194% (still structurally flat). The Wang biexponential design is unchanged:
+  greedy was already exchange-optimal. The design figure is regenerated.
+- **Landmarks.** On random problems where greedy misses the brute-force optimum, exchange
+  recovers it in at least 80% of cases (47 of 52 in a 400-problem sweep).
+
 ## [0.47.0] — The exposure-response shape joins the variance budget
 
 Completes the follow-on named in `docs/specs/research/exposure-response-extrapolation.md` (§7).

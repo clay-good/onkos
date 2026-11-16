@@ -206,8 +206,8 @@ the D-efficiency, and the structural-flat verdict.
 - **Not population-optimal design.** The FIM here is the individual/design FIM v0.22 ships, not
   the population FIM with random-effects blocks (the PopED/PFIM object). A population extension
   is a clean later step.
-- **Not a global optimum.** Greedy forward selection is a heuristic guaranteed only `≥ uniform`;
-  a Fedorov exchange refinement or an exact search is a noted follow-on.
+- **Not a global optimum.** Greedy forward selection is a heuristic guaranteed only `≥ uniform`.
+  A Fedorov exchange refinement shipped in v0.48 (see §10); an exact search remains out of scope.
 - **Not dose / regimen optimization.** It optimizes *measurement times* for parameter precision,
   never doses or treatments.
 - **Not A-/E-optimality (yet).** D-optimality (det) is the shipped criterion; A-optimality
@@ -244,3 +244,27 @@ designer over published TGI models, reusing the existing Fisher-information core
 payload: showing that the *best* schedule a fixed budget allows still cannot identify the
 resistance term — that its huge CV is structural, not a design failure — is the rigorous
 capstone to the v0.22 identifiability work, shipped as a tested artifact.
+
+---
+
+## 10. Fedorov exchange refinement (v0.48)
+
+`exchange_refine(scaled_sens, rows, fixed_rows=...)` improves a design by repeatedly making the single
+swap (one chosen time out, one candidate in) that most increases `log det M`, until no swap helps. The
+baseline stays fixed. `optimal_schedule` now runs greedy selection and then exchange by default;
+`refine=False` reproduces the v0.31 greedy-only design.
+
+Landmarks (`tests/test_design_exchange.py`): exchange never loses information, ends at a local optimum
+under single swaps, and, on random 9-candidate problems where greedy misses the brute-force optimum,
+recovers it in at least 80% of cases (47 of 52 in a 400-problem sweep).
+
+Effect on the §2 results (N = 7 over 48 weeks):
+
+| Model | D-efficiency (greedy → refined) | Schedule (weeks, refined) | RSE change |
+| --- | --- | --- | --- |
+| Claret | 1.14 → 1.16 | 0, 9, 10, 29, 30, 47, 48 | `λ` 48% → 47%, `kL` 199% → 194% |
+| Wang biexponential | 1.31 → 1.31 | unchanged (greedy was already exchange-optimal) | none |
+
+The §2 conclusions stand and are slightly firmer: `λ` sits a little further under the 50% line, and
+`kL` stays structurally flat under the better design.
+
