@@ -41,6 +41,7 @@ __all__ = [
     "Budget",
     "variance_components",
     "eligible_survival_links",
+    "joint_link_label",
     "model_selection_budget",
 ]
 
@@ -202,8 +203,32 @@ def eligible_survival_links(ds: Dataset, context: dict, endpoint: str = "OS") ->
     return sorted(out)
 
 
+_MAX_CENSORED = 0.5  # above this, a cell's median lies beyond the horizon
+
+
 def _target_median(samples, endpoint: str) -> np.ndarray:
     return samples.median.get(endpoint, np.full(samples.n, np.nan))
+
+
+def joint_link_label(alpha: float) -> str:
+    """The survival-link factor level name for the current-value joint link."""
+    return f"joint:current_value(alpha={alpha:g})"
+
+
+def _joint_medians(tumor: np.ndarray, t: np.ndarray, alpha: float, shape: float,
+                   scale: float) -> np.ndarray:
+    """Per-sample median OS under the current-value joint link (:mod:`onkos.joint`):
+    each IIV-sampled trajectory drives its own time-varying hazard ratio."""
+    from .joint import current_value_hazard_ratio, current_value_survival
+    from .simulate import median_survival
+
+    out = np.full(tumor.shape[0], np.nan)
+    for i, v in enumerate(tumor):
+        hr = current_value_hazard_ratio(v, alpha)
+        m = median_survival(t, current_value_survival(t, hr, shape=shape, scale=scale))
+        if m is not None:
+            out[i] = m
+    return out
 
 
 def model_selection_budget(
@@ -216,6 +241,7 @@ def model_selection_budget(
     t: np.ndarray | None = None,
     n: int = 200,
     seed: int = 0,
+    joint_alpha: float | None = None,
 ) -> Budget:
     """Decompose the total variance of ``target`` for a context across the structural
     factors — TGI model (``compare().included``) and survival link (all eligible) —
@@ -223,7 +249,14 @@ def model_selection_budget(
     :class:`Budget`.
 
     Cells that produce no finite target over the horizon drop their row/column so the
-    design stays balanced; the drop is recorded in ``warnings``."""
+    design stays balanced; the drop is recorded in ``warnings``.
+
+    ``joint_alpha`` (OS only, opt-in) adds the current-value joint link
+    (:mod:`onkos.joint`) as one more survival-link level beside the proportional-hazards
+    links, with association ``alpha`` on the context's default Weibull baseline. Each
+    IIV-sampled trajectory drives its own time-varying hazard, so the joint cell has a
+    parameter variance like any other. ``alpha=0`` makes the joint cell the baseline
+    Weibull median for every model. Left ``None`` (the default), the budget is unchanged."""
     if t is None:
         t = np.linspace(0.0, 312.0, 625)  # long horizon so every cell reaches its median
     t = np.asarray(t, dtype=float)
@@ -240,23 +273,76 @@ def model_selection_budget(
     if not links:
         raise ValueError(f"no survival links for this context and endpoint {endpoint!r}")
 
+    joint = None
+    if joint_alpha is not None:
+        from .joint import _default_weibull_os_link
+
+        joint_alpha = float(joint_alpha)
+        if endpoint != "OS":
+            raise ValueError("the joint (current-value) link is an OS link; use endpoint='OS'")
+        if not np.isfinite(joint_alpha):
+            raise ValueError(f"joint_alpha={joint_alpha}: must be a finite number")
+        base = _default_weibull_os_link(
+            ds, context.get("tumor_type"), context.get("line") or context.get("line_of_therapy")
+        )
+        if base is None:
+            raise ValueError(
+                f"no default Weibull OS link for context {context!r}; the joint link needs "
+                "a parametric baseline hazard"
+            )
+        joint = (float(base["weibull_shape"].central), float(base["weibull_scale"].central))
+        links = links + [joint_link_label(joint_alpha)]
+
     means = np.full((len(models), len(links)), np.nan)
     withins = np.zeros((len(models), len(links)))
+    censored_cells: list[str] = []
+    partial_cells: list[str] = []
     for a, m in enumerate(models):
+        tumor = None
         for b, lk in enumerate(links):
-            s = ensemble_samples(
-                ds, m, context=context, drug_effect=drug_effect, t=t,
-                survival_link=lk, n=n, seed=seed,
-            )
-            arr = _target_median(s, endpoint)
+            if joint is not None and b == len(links) - 1:
+                # The trajectory does not depend on the survival link (same seed, same
+                # draws), so the joint cell reuses the tumor samples already drawn.
+                arr = _joint_medians(tumor, t, joint_alpha, *joint)
+            else:
+                s = ensemble_samples(
+                    ds, m, context=context, drug_effect=drug_effect, t=t,
+                    survival_link=lk, n=n, seed=seed,
+                )
+                tumor = s.tumor
+                arr = _target_median(s, endpoint)
             finite = arr[np.isfinite(arr)]
-            if finite.size:
+            censored = 1.0 - finite.size / arr.size
+            if censored > _MAX_CENSORED:
+                # Most samples never reach a median within the horizon (e.g. a curative
+                # model): the finite medians are only the non-responders, so their mean
+                # would be a survivor-biased cell value. Treat the cell as missing.
+                censored_cells.append(f"{m} x {lk} ({censored:.0%})")
+            elif finite.size:
+                if censored > 0:
+                    partial_cells.append(f"{m} x {lk} ({censored:.0%})")
                 means[a, b] = float(finite.mean())
                 withins[a, b] = float(finite.var())
 
-    # Keep the design balanced: drop any model (row) or link (col) with a missing cell.
+    if censored_cells:
+        warnings.append(
+            f"censored_median: more than {_MAX_CENSORED:.0%} of samples have no {endpoint} "
+            f"median within the {t[-1]:g}-week horizon, so the cell is treated as missing: "
+            f"{censored_cells}"
+        )
+    if partial_cells:
+        warnings.append(
+            f"partially_censored: some samples have no {endpoint} median within the "
+            f"horizon; the cell mean uses the rest and reads short: {partial_cells}"
+        )
+    # Keep the design balanced with the fewest drops: remove the models (rows) that have
+    # a missing cell, then any link (column) still incomplete. Dropping both a row and a
+    # column for one missing cell would discard a whole survival link (e.g. the joint
+    # level) because a single curative model never reaches its median under it.
     good_rows = ~np.isnan(means).any(axis=1)
-    good_cols = ~np.isnan(means).any(axis=0)
+    if not good_rows.any():  # every model has a gap: drop links instead
+        good_rows = np.ones(len(models), dtype=bool)
+    good_cols = ~np.isnan(means[good_rows]).any(axis=0)
     if not good_rows.all() or not good_cols.all():
         dropped_m = [models[i] for i in range(len(models)) if not good_rows[i]]
         dropped_l = [links[j] for j in range(len(links)) if not good_cols[j]]

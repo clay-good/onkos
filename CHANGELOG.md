@@ -6,6 +6,34 @@ design; the infrastructure is real and tested.
 
 ## [Unreleased]
 
+## [0.45.0] — The joint survival link joins the variance budget
+
+Completes the follow-on named in `docs/specs/research/joint-survival.md` (§7): the
+model-selection budget decomposed only the proportional-hazards survival links.
+
+- **`model_selection_budget(..., joint_alpha=α)` and `onkos budget --joint-alpha α`** add
+  the current-value joint link as one more level of the survival-link factor (OS only;
+  opt-in, so the default budget and the health report are unchanged). Each IIV-sampled
+  trajectory drives its own time-varying hazard, so the joint cell carries parameter
+  variance like every other cell. `α = 0` reduces the joint cell to the baseline Weibull
+  median for every model (landmark-tested).
+- **Finding.** The joint level changes every first-line context's budget, but not in one
+  direction: the survival-link share rises in NSCLC (0.17 → 0.31) and falls in breast
+  (0.44 → 0.33, which turns breast from link-dominated to parameter-dominated). In NSCLC and
+  CRC the joint link pushes one strong responder's median past the 312-week horizon for
+  most samples, so that model leaves the grid — a cure-like plateau no proportional-hazards
+  link produces.
+- **Fix: the budget no longer averages survivor-biased medians.** A cell where more than
+  half the samples never reach a median is now treated as missing (`censored_median`
+  warning) instead of averaging only the samples that did; partial censoring is reported
+  (`partially_censored`). One breast cell (4% censored) now carries that warning. A missing
+  cell now drops its model only, not also its whole survival link.
+- **Hardening (from a fresh CLI fuzz).** A blank `--tumor-type`/`--line` used to mean "every
+  context" and printed nonsense; it is now a usage error. A time grid long enough to
+  overflow the tumor trajectory (e.g. `design --horizon 1e9`) is refused with a clear error
+  instead of reporting `inf`/`nan` with NumPy warnings. An extreme joint `--alpha` saturates
+  the hazard ratio (|log HR| ≤ 500) instead of overflowing. All have regression tests.
+
 ## [0.44.0] — The burden-AUC bridge metric in every context
 
 Completes the follow-on named in `docs/specs/research/burden-auc-bridge-metric.md` (§10):

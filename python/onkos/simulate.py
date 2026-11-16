@@ -259,10 +259,16 @@ def simulate(
 
     # Closed form for the single-state, constant-effect case; numerical
     # integration for multi-state systems (Simeoni) or a time-varying effect.
-    if spec.analytic is not None and spec.n_states == 1 and not time_varying:
-        tumor = np.asarray(spec.analytic(t, vals), dtype=float)
-    else:
-        tumor = integrate_observable(spec, t, vals, e_series=e_arr if time_varying else None)
+    with np.errstate(over="ignore", invalid="ignore"):
+        if spec.analytic is not None and spec.n_states == 1 and not time_varying:
+            tumor = np.asarray(spec.analytic(t, vals), dtype=float)
+        else:
+            tumor = integrate_observable(spec, t, vals, e_series=e_arr if time_varying else None)
+    if not np.all(np.isfinite(tumor)):
+        raise ValueError(
+            f"{record_id}: the tumor trajectory is not finite on this time grid (t up to "
+            f"{t[-1]:g} weeks) — unbounded growth overflows; use a shorter horizon"
+        )
     metrics = extract_tgi_metrics(t, tumor, y0)
 
     baseline = _baseline_record(ds, tumor_type, line)

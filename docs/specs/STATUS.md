@@ -53,7 +53,7 @@ All 21 shipped. Each row is enforced by `SPEC_INDEX` in `test_specs_complete.py`
 | optimal-design | v0.31 | `onkos.design` | `test_design.py` |
 | acquired-resistance | v0.32 | kernel `acquired_resistance` | `test_acquired.py` |
 | burden-auc-bridge-metric | v0.33, all 5 contexts in v0.44 | `onkos.metrics` (`log_burden_auc`) | `test_burden_auc.py` |
-| joint-survival | v0.34 | `onkos.joint` | `test_joint.py` |
+| joint-survival | v0.34, budget level in v0.45 | `onkos.joint` | `test_joint.py` |
 | loewe-additivity | v0.35 | `onkos.interaction` (Loewe) | `test_loewe.py` |
 | exposure-response-extrapolation | v0.36 | `onkos.dose_response` | `test_dose_response.py` |
 | early-surrogate-timing | v0.37 | `onkos.early_surrogate` | `test_early_surrogate.py` |

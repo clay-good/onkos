@@ -154,6 +154,15 @@ BAD_INVOCATIONS = [
     ["discriminability", "--power", "0"],
     ["discriminability", "--alpha", "2"],
     ["discriminability", "--survival-link", "bogus"],
+    # A horizon long enough to overflow the trajectory is refused, not reported as inf.
+    ["identify", CLARET, "--schedule", "0,8,1e9"],
+    ["design", CLARET, "--horizon", "1e9"],
+    ["budget", "--joint-alpha", "nan"],
+    ["budget", "--endpoint", "PFS", "--joint-alpha", "1", "--n", "2"],
+    # A blank context label used to mean "every context" and produce nonsense.
+    ["discriminability", "--tumor-type", ""],
+    ["atlas", "--line", " "],
+    ["list", "--tumor-type", ""],
 ]
 
 # Context-wide analyses over a context with no curated model.
@@ -184,6 +193,20 @@ def test_cli_context_without_models_fails_instead_of_concluding(argv, capsys):
     code, err = _run([*argv, "--tumor-type", "nsclc"], capsys)  # wrong case: no such context
     assert code == 2
     assert "no eligible" in err and "NSCLC/first" in err  # names the curated contexts
+
+
+def test_simulate_refuses_an_overflowing_time_grid(ds):
+    with pytest.raises(ValueError, match="not finite"):
+        onkos.simulate(ds, CLARET, context=NSCLC, t=np.array([0.0, 8.0, 1e9]))
+
+
+def test_cli_extreme_joint_alpha_saturates_without_warnings(capsys):
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        code, _ = _run(["joint", "--alpha", "1e9", "--json"], capsys)
+    assert code == 0
 
 
 def test_cli_unknown_record_names_the_near_miss(capsys):

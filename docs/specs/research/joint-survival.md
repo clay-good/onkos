@@ -182,9 +182,8 @@ module (a pure core + a binding), the finding, a figure, a CI-executed notebook,
   which is also why it changes no export.
 - **Not a new endpoint.** This is an OS link *structure*, not a new endpoint; PFS routes (v0.30) and
   ORR/DoR (v0.27–v0.28) are untouched.
-- **Not a budget factor (yet).** Adding the joint link as a third level of the v0.26 budget's survival-
-  link factor (beside the PH links) is a clean follow-on; this spec introduces the structure and its
-  contrast first.
+- **Not a budget factor by default.** Adding the joint link as a level of the v0.26 budget's survival-
+  link factor was a follow-on; it shipped opt-in in v0.45 (see §10).
 - **Not cross-context-calibrated.** The finding uses the NSCLC baseline; the structure applies to every
   context with a default Weibull OS link, and a per-context `α` study is a follow-on.
 
@@ -218,3 +217,36 @@ that contains the proportional-hazards link as an exact special case. Step 3 is 
 that the joint model's hazard ratio rises with the resistant regrowth — a non-proportional hazard the
 two-stage surrogate cannot represent — and that this inverts the resistance-model ranking, is the
 quantitative core of this spec, shipped as a tested artifact.
+
+---
+
+## 10. The joint link in the variance budget (v0.45)
+
+`model_selection_budget(..., joint_alpha=α)` (CLI `onkos budget --joint-alpha α`) adds
+`joint:current_value(alpha=α)` as one more level of the survival-link factor, on the context's
+default Weibull baseline. Each IIV-sampled trajectory drives its own hazard, so the joint cell has
+a parameter variance like the proportional-hazards cells. It is opt-in: the default budget, the
+health report, and the figures are unchanged. Landmarks (`tests/test_budget_joint.py`): a constant
+trajectory reproduces the Weibull-PH median; `α = 0` gives every model the baseline median.
+
+First-line contexts, `n = 200`, `α = 1`, 312-week horizon:
+
+| Context | Survival-link share (PH links → + joint) | Models on the grid |
+| --- | --- | --- |
+| NSCLC | 0.17 → 0.31 | 5 → 4 (Norton-Simon leaves) |
+| breast | 0.44 → 0.33 (now parameter-dominated) | 3 → 3 |
+| CRC | 0.25 → 0.25 | 3 → 2 (Claret leaves) |
+| HCC | 0.13 → 0.16 | 3 → 3 |
+| melanoma | 0.22 → 0.18 | 3 → 3 |
+
+Two results, at their real strength:
+
+- **The non-proportional structure matters to the budget, but not in one direction.** It raises the
+  survival-link share where the models' tails differ most (NSCLC) and dilutes it where the PH links
+  already disagreed (breast).
+- **It can move a model's median past any horizon.** Under a current-value hazard a deep, durable
+  responder's hazard keeps falling, so most of its samples never reach a median. The budget treats
+  such a cell as missing (`censored_median`) rather than averaging the non-responders, and the model
+  leaves the grid. Shares computed on different model sets are therefore not strictly comparable;
+  the table reports what each budget sees.
+

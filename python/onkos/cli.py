@@ -67,6 +67,13 @@ def _probability(text: str) -> float:
     return x
 
 
+def _label(text: str) -> str:
+    """A context label (tumor type, line): blank would silently mean "every context"."""
+    if not text.strip():
+        raise argparse.ArgumentTypeError("must not be blank")
+    return text
+
+
 def _positive_int(text: str) -> int:
     try:
         n = int(text)
@@ -692,7 +699,10 @@ def _cmd_budget(args) -> int:
     ds = load()
     ctx = {"tumor_type": args.tumor_type, "line": args.line}
     _require_models(ds, ctx)
-    b = model_selection_budget(ds, context=ctx, endpoint=args.endpoint, n=args.n, seed=args.seed)
+    b = model_selection_budget(
+        ds, context=ctx, endpoint=args.endpoint, n=args.n, seed=args.seed,
+        joint_alpha=args.joint_alpha,
+    )
     if args.json:
         print(b.to_json())
         return 0
@@ -976,7 +986,7 @@ def build_parser() -> argparse.ArgumentParser:
     ls = sub.add_parser("list", help="list record ids, optionally filtered")
     ls.add_argument("--purpose", default=None, help="e.g. tgi, survival_link, growth")
     ls.add_argument("--subsystem", default=None, help="e.g. resistance, growth_laws")
-    ls.add_argument("--tumor-type", default=None, help="derivation tumor type, e.g. NSCLC")
+    ls.add_argument("--tumor-type", type=_label, default=None, help="derivation tumor type, e.g. NSCLC")
     ls.add_argument("--tier", default=None, choices=["A", "B", "C", "D"])
     ls.add_argument("--review-status", default=None,
                     choices=["unverified", "pending_human_review", "verified", "contested"])
@@ -996,8 +1006,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp = sub.add_parser("simulate", help="population-level forward simulation")
     sp.add_argument("record", nargs="?", help="record id (omit with --compare)")
-    sp.add_argument("--tumor-type", default="NSCLC")
-    sp.add_argument("--line", default="first")
+    sp.add_argument("--tumor-type", type=_label, default="NSCLC")
+    sp.add_argument("--line", type=_label, default="first")
     sp.add_argument("--drug-effect", type=_non_negative, default=1.0)
     sp.add_argument(
         "--exposure", type=_non_negative, default=None,
@@ -1016,8 +1026,8 @@ def build_parser() -> argparse.ArgumentParser:
         "compare",
         help="virtual-trial divergence + model averaging (model-selection uncertainty)",
     )
-    cp.add_argument("--tumor-type", default="NSCLC")
-    cp.add_argument("--line", default="first")
+    cp.add_argument("--tumor-type", type=_label, default="NSCLC")
+    cp.add_argument("--line", type=_label, default="first")
     cp.add_argument("--drug-effect", type=_non_negative, default=1.0)
     cp.add_argument("--exposure", type=_non_negative, default=None)
     cp.add_argument("--exposure-response", default=None)
@@ -1039,8 +1049,8 @@ def build_parser() -> argparse.ArgumentParser:
         "uncertainty", help="Monte-Carlo parameter-uncertainty bands (propagates IIV CV)"
     )
     up.add_argument("record", help="record id")
-    up.add_argument("--tumor-type", default="NSCLC")
-    up.add_argument("--line", default="first")
+    up.add_argument("--tumor-type", type=_label, default="NSCLC")
+    up.add_argument("--line", type=_label, default="first")
     up.add_argument("--drug-effect", type=_non_negative, default=1.0)
     up.add_argument("--exposure", type=_non_negative, default=None)
     up.add_argument("--exposure-response", default=None)
@@ -1054,8 +1064,8 @@ def build_parser() -> argparse.ArgumentParser:
         "sensitivity", help="rank parameters by how much their IIV drives a target metric"
     )
     np_.add_argument("record", help="record id")
-    np_.add_argument("--tumor-type", default="NSCLC")
-    np_.add_argument("--line", default="first")
+    np_.add_argument("--tumor-type", type=_label, default="NSCLC")
+    np_.add_argument("--line", type=_label, default="first")
     np_.add_argument("--target", default="median_os_weeks", help="metric key or median_os_weeks")
     np_.add_argument("--n", type=_positive_int, default=400, help="number of Monte-Carlo samples")
     np_.add_argument("--seed", type=int, default=0)
@@ -1067,8 +1077,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="practical identifiability: can a trial design even estimate the parameters?",
     )
     ip.add_argument("record", help="record id (a dynamic TGI/growth model)")
-    ip.add_argument("--tumor-type", default="NSCLC")
-    ip.add_argument("--line", default="first")
+    ip.add_argument("--tumor-type", type=_label, default="NSCLC")
+    ip.add_argument("--line", type=_label, default="first")
     ip.add_argument("--drug-effect", type=_non_negative, default=1.0)
     ip.add_argument("--schedule", type=_schedule, default=None,
                     help="comma-separated scan times in weeks (default: 0,6,12,18,24,36,48)")
@@ -1083,8 +1093,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="D-optimal trial design: the best sampling schedule a fixed budget allows",
     )
     dp.add_argument("record", help="record id (a dynamic TGI/growth model)")
-    dp.add_argument("--tumor-type", default="NSCLC")
-    dp.add_argument("--line", default="first")
+    dp.add_argument("--tumor-type", type=_label, default="NSCLC")
+    dp.add_argument("--line", type=_label, default="first")
     dp.add_argument("--drug-effect", type=_non_negative, default=1.0)
     dp.add_argument("--n-samples", type=_positive_int, default=7, help="measurement budget (# scans)")
     dp.add_argument("--horizon", type=_positive, default=48.0, help="design horizon in weeks")
@@ -1099,8 +1109,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="RECIST best response / ORR, and the contested ORR -> OS surrogate",
     )
     rsp.add_argument("record", nargs="?", help="record id (omit with --surrogate)")
-    rsp.add_argument("--tumor-type", default="NSCLC")
-    rsp.add_argument("--line", default="first")
+    rsp.add_argument("--tumor-type", type=_label, default="NSCLC")
+    rsp.add_argument("--line", type=_label, default="first")
     rsp.add_argument("--drug-effect", type=_non_negative, default=1.0)
     rsp.add_argument("--survival-link", default=None,
                      help="non-default OS link (e.g. survival_link.nsclc_os_growth_rate)")
@@ -1118,8 +1128,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="progression-free survival two ways: mechanistic RECIST TTP vs the statistical link",
     )
     pp.add_argument("record", nargs="?", help="record id (omit with --routes)")
-    pp.add_argument("--tumor-type", default="NSCLC")
-    pp.add_argument("--line", default="first")
+    pp.add_argument("--tumor-type", type=_label, default="NSCLC")
+    pp.add_argument("--line", type=_label, default="first")
     pp.add_argument("--drug-effect", type=_non_negative, default=1.0)
     pp.add_argument("--landmark", type=_positive, default=24.0,
                     help="landmark horizon (weeks) for the progression-free rate")
@@ -1134,8 +1144,8 @@ def build_parser() -> argparse.ArgumentParser:
         "joint",
         help="joint (current-value) vs two-stage survival: the non-proportional-hazard axis",
     )
-    jp.add_argument("--tumor-type", default="NSCLC")
-    jp.add_argument("--line", default="first")
+    jp.add_argument("--tumor-type", type=_label, default="NSCLC")
+    jp.add_argument("--line", type=_label, default="first")
     jp.add_argument("--drug-effect", type=_non_negative, default=1.0)
     jp.add_argument("--alpha", type=_number, default=1.0,
                     help="association between log tumor size and log hazard (DECLARED, not fitted)")
@@ -1146,11 +1156,16 @@ def build_parser() -> argparse.ArgumentParser:
         "budget",
         help="model-selection budget: variance split across the structural choices",
     )
-    bp.add_argument("--tumor-type", default="NSCLC")
-    bp.add_argument("--line", default="first")
+    bp.add_argument("--tumor-type", type=_label, default="NSCLC")
+    bp.add_argument("--line", type=_label, default="first")
     bp.add_argument("--endpoint", default="OS", choices=["OS", "PFS"])
     bp.add_argument("--n", type=_positive_int, default=200, help="within-cell ensemble depth")
     bp.add_argument("--seed", type=int, default=0)
+    bp.add_argument(
+        "--joint-alpha", type=_number, default=None, metavar="ALPHA",
+        help="also decompose the current-value joint link (see `onkos joint`) as one more "
+             "survival-link level, with this association (OS only; DECLARED, not fitted)",
+    )
     bp.add_argument("--json", action="store_true", help="emit the result as JSON")
     bp.set_defaults(func=_cmd_budget)
 
@@ -1159,8 +1174,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="drug-combination divergence: the interaction model as a model-selection axis",
     )
     xp.add_argument("record", help="record id (a TGI model driven by a drug effect)")
-    xp.add_argument("--tumor-type", default="NSCLC")
-    xp.add_argument("--line", default="first")
+    xp.add_argument("--tumor-type", type=_label, default="NSCLC")
+    xp.add_argument("--line", type=_label, default="first")
     xp.add_argument("--effect-a", type=_non_negative, default=0.6, help="single-agent effect of drug A")
     xp.add_argument("--effect-b", type=_non_negative, default=0.6, help="single-agent effect of drug B")
     xp.add_argument("--psi", type=_number, default=0.5,
@@ -1173,8 +1188,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="dose-level additivity references (HSA / Bliss / Loewe) as a model-selection axis",
     )
     lp.add_argument("record", help="record id (a TGI model driven by a drug effect)")
-    lp.add_argument("--tumor-type", default="NSCLC")
-    lp.add_argument("--line", default="first")
+    lp.add_argument("--tumor-type", type=_label, default="NSCLC")
+    lp.add_argument("--line", type=_label, default="first")
     lp.add_argument("--er-a", default="exposure_response.emax_generic", help="ER record for drug A")
     lp.add_argument("--er-b", default="exposure_response.dacomitinib_egfr.emax",
                     help="ER record for drug B")
@@ -1188,8 +1203,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="exposure-response model choice as a dose-extrapolation model-selection axis",
     )
     drp.add_argument("record", help="record id (a TGI model driven by a drug effect)")
-    drp.add_argument("--tumor-type", default="NSCLC")
-    drp.add_argument("--line", default="first")
+    drp.add_argument("--tumor-type", type=_label, default="NSCLC")
+    drp.add_argument("--line", type=_label, default="first")
     drp.add_argument("--c-ref", type=_positive, default=150.0, help="reference exposure (the studied dose)")
     drp.add_argument("--e-ref", type=_positive, default=1.0, help="effect the shapes share at C_ref")
     drp.add_argument("--json", action="store_true", help="emit the result as JSON")
@@ -1199,8 +1214,8 @@ def build_parser() -> argparse.ArgumentParser:
         "early-surrogate",
         help="early-surrogate readout timing: how landmark week trades against durable-benefit fidelity",
     )
-    esp.add_argument("--tumor-type", default="NSCLC")
-    esp.add_argument("--line", default="first")
+    esp.add_argument("--tumor-type", type=_label, default="NSCLC")
+    esp.add_argument("--line", type=_label, default="first")
     esp.add_argument("--reference-link", default=None,
                      help="durable-benefit reference link (default: the context's k_g OS link)")
     esp.add_argument("--json", action="store_true", help="emit the result as JSON")
@@ -1210,8 +1225,8 @@ def build_parser() -> argparse.ArgumentParser:
         "discriminability",
         help="model discriminability: required trial events to tell competing models apart",
     )
-    dcp.add_argument("--tumor-type", default="NSCLC")
-    dcp.add_argument("--line", default="first")
+    dcp.add_argument("--tumor-type", type=_label, default="NSCLC")
+    dcp.add_argument("--line", type=_label, default="first")
     dcp.add_argument("--survival-link", default=None, help="survival link (default: week-8)")
     dcp.add_argument("--power", type=_probability, default=0.8)
     dcp.add_argument("--alpha", type=_probability, default=0.05)
@@ -1222,8 +1237,8 @@ def build_parser() -> argparse.ArgumentParser:
         "atlas",
         help="model-selection atlas: a one-call survey of every axis's headline for a context",
     )
-    atp.add_argument("--tumor-type", default="NSCLC")
-    atp.add_argument("--line", default="first")
+    atp.add_argument("--tumor-type", type=_label, default="NSCLC")
+    atp.add_argument("--line", type=_label, default="first")
     atp.add_argument("--json", action="store_true", help="emit the result as JSON")
     atp.set_defaults(func=_cmd_atlas)
 

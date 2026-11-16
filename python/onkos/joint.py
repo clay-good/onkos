@@ -46,6 +46,7 @@ from .load import Dataset
 from .simulate import median_survival, simulate
 
 __all__ = [
+    "current_value_hazard_ratio",
     "current_value_survival",
     "JointSurvival",
     "joint_survival",
@@ -83,6 +84,18 @@ def current_value_survival(
     incr = (hr[1:] + hr[:-1]) * 0.5 * np.diff(h0)
     cum = np.concatenate([[0.0], np.cumsum(incr)])
     return np.exp(-cum)
+
+
+_LOG_HR_CAP = 500.0  # |log HR| bound: HR ~ 1e217 is far past any physical hazard
+
+
+def current_value_hazard_ratio(v: np.ndarray, alpha: float, *, floor: float = _FLOOR) -> np.ndarray:
+    """The current-value hazard ratio ``exp(alpha·log(max(v/v[0], floor)))`` of one
+    trajectory. ``|log HR|`` is capped at 500 so an extreme ``alpha`` saturates (survival
+    drops to 0 or stays at 1) instead of overflowing to ``inf``/``nan``."""
+    v = np.asarray(v, dtype=float)
+    log_rel = np.log(np.maximum(v / v[0], floor))
+    return np.exp(np.clip(alpha * log_rel, -_LOG_HR_CAP, _LOG_HR_CAP))
 
 
 # --------------------------------------------------------------------------- #
@@ -141,7 +154,10 @@ class JointSurvival:
         ``>> 1`` for a regrowing tumor (the hazard rises in the tail), ``< 1`` for a
         deepening responder."""
         hr8 = float(np.interp(8.0, self.t, self.hazard_ratio))
-        return float(self.hazard_ratio[-1] / hr8) if hr8 > 0 else float("inf")
+        if hr8 <= 0:
+            return float("inf")
+        with np.errstate(over="ignore"):  # a saturated HR ratio is honestly infinite
+            return float(self.hazard_ratio[-1] / hr8)
 
 
 def joint_survival(
@@ -180,9 +196,7 @@ def joint_survival(
     shape = float(link["weibull_shape"].central)
     scale = float(link["weibull_scale"].central)
 
-    y0 = float(tr.tumor_size[0])
-    rel = np.maximum(tr.tumor_size / y0, floor)
-    hr = np.exp(alpha * np.log(rel))
+    hr = current_value_hazard_ratio(tr.tumor_size, alpha, floor=floor)
     joint_curve = current_value_survival(t, hr, shape=shape, scale=scale)
 
     return JointSurvival(

@@ -10,7 +10,7 @@ The goal is not to produce one confident number. It is to show when equally defe
 modeling choices produce different answers.
 
 [![CI](https://github.com/clay-good/onkos/actions/workflows/ci.yml/badge.svg)](https://github.com/clay-good/onkos/actions/workflows/ci.yml)
-v0.44 · Python 3.9+ · Code: MIT · Data: CC BY 4.0
+v0.45 · Python 3.9+ · Code: MIT · Data: CC BY 4.0
 
 ![Onkos compares eligible models and makes their disagreement visible](docs/images/divergence.png)
 
@@ -41,7 +41,7 @@ Onkos ships a curated dataset, simulation kernels, and analysis tools for:
 - population tumor-size, OS, and PFS simulation;
 - virtual-trial comparison and model averaging;
 - parameter uncertainty and sensitivity analysis;
-- model-selection variance budgets;
+- model-selection variance budgets, optionally including a non-proportional joint survival link;
 - RECIST response, ORR, duration of response, and two routes to PFS;
 - practical identifiability, D-optimal sampling, and model discriminability;
 - combination, resistance, exposure-response, and surrogate-timing analyses;
